@@ -585,34 +585,58 @@ const VFX = {
   _renderRain(ctx, dt, rcfg) {
     ctx.save();
 
-    // 如果指定了 clipToMask，将雨滴裁剪到 mask 区域内
     if (rcfg.clipToMask && Game.objMasks && Game.objMasks[rcfg.clipToMask]) {
+      // 室内：雨滴只在窗口 mask 区域内绘制
+      // 先在临时 canvas 画雨，再用 mask 裁剪后画到主 canvas
       const mask = Game.objMasks[rcfg.clipToMask];
-      // 用 mask 创建裁剪区域
-      ctx.drawImage(mask.canvas, 0, 0, 960, 640);
-      ctx.globalCompositeOperation = 'source-in';
-    }
-
-    ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-
-    for (const drop of this.raindrops) {
-      ctx.moveTo(drop.x, drop.y);
-      ctx.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
-
-      drop.y += drop.speed;
-      drop.x += drop.wind;
-
-      if (drop.y > 660) {
-        drop.y = -drop.length - Math.random() * 40;
-        drop.x = Math.random() * 1000 - 20;
+      if (!this._rainCanvas) {
+        this._rainCanvas = document.createElement('canvas');
+        this._rainCanvas.width = 960;
+        this._rainCanvas.height = 640;
       }
-      if (drop.x > 980) drop.x = -20;
+      const rc = this._rainCanvas.getContext('2d');
+      rc.clearRect(0, 0, 960, 640);
+
+      // 在临时 canvas 上画雨丝
+      rc.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+      rc.lineWidth = 1;
+      rc.beginPath();
+      for (const drop of this.raindrops) {
+        rc.moveTo(drop.x, drop.y);
+        rc.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+        drop.y += drop.speed;
+        drop.x += drop.wind;
+        if (drop.y > 660) { drop.y = -drop.length - Math.random() * 40; drop.x = Math.random() * 1000 - 20; }
+        if (drop.x > 980) drop.x = -20;
+      }
+      rc.stroke();
+
+      // 用 mask 裁剪：先画 mask 到临时 canvas，用 source-in 只保留 mask 内的雨
+      rc.globalCompositeOperation = 'destination-in';
+      rc.drawImage(mask.canvas, 0, 0, 960, 640);
+
+      // 将裁剪后的雨画到主 canvas（正常叠加，不破坏背景）
+      ctx.drawImage(this._rainCanvas, 0, 0);
+    } else {
+      // 室外：全屏雨滴
+      ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const drop of this.raindrops) {
+        ctx.moveTo(drop.x, drop.y);
+        ctx.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+        drop.y += drop.speed;
+        drop.x += drop.wind;
+        if (drop.y > 660) { drop.y = -drop.length - Math.random() * 40; drop.x = Math.random() * 1000 - 20; }
+        if (drop.x > 980) drop.x = -20;
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
+
     ctx.restore();
   },
+
+  _rainCanvas: null,
 
   // ---- 雾气渲染 ----
   _renderFog(ctx, dt, fcfg) {
