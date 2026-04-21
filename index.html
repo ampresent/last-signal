@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAST SIGNAL</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  @font-face {
+    font-family: 'Pixel';
+    src: local('Courier New');
+  }
+  
+  body {
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    color: #c0c0c0;
+  }
+
+  #game-container {
+    position: relative;
+    width: 960px;
+    height: 700px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #scene-canvas {
+    width: 960px;
+    height: 640px;
+    display: block;
+    image-rendering: pixelated;
+    cursor: crosshair;
+  }
+
+  /* 对话框 */
+  #dialogue-box {
+    position: absolute;
+    bottom: 60px;
+    left: 0;
+    right: 0;
+    background: rgba(10, 10, 20, 0.95);
+    border-top: 2px solid #00ff88;
+    border-bottom: 2px solid #00ff88;
+    padding: 15px 20px;
+    min-height: 100px;
+    display: none;
+    z-index: 10;
+  }
+
+  #dialogue-speaker {
+    color: #00ff88;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  #dialogue-text {
+    color: #e0e0e0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  #dialogue-choices {
+    margin-top: 10px;
+  }
+
+  .choice-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: rgba(0, 255, 136, 0.08);
+    border: 1px solid #00ff8844;
+    color: #00ff88;
+    padding: 8px 15px;
+    margin: 4px 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .choice-btn:hover {
+    background: rgba(0, 255, 136, 0.2);
+    border-color: #00ff88;
+    padding-left: 20px;
+  }
+
+  /* 底部 HUD */
+  #hud {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #0a0a14;
+    border-top: 1px solid #222;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 10px;
+    z-index: 5;
+  }
+
+  #inventory-bar {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+  }
+
+  .inv-slot {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #333;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .inv-slot.has-item {
+    border-color: #00ff88;
+    background: rgba(0, 255, 136, 0.05);
+  }
+
+  .inv-slot.has-item:hover {
+    background: rgba(0, 255, 136, 0.15);
+    transform: scale(1.1);
+  }
+
+  .inv-slot.selected {
+    border-color: #ff6600;
+    box-shadow: 0 0 8px #ff660066;
+  }
+
+  .inv-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111;
+    border: 1px solid #00ff88;
+    padding: 5px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 20;
+    color: #00ff88;
+  }
+
+  .inv-slot:hover .inv-tooltip {
+    display: block;
+  }
+
+  #scene-name {
+    color: #555;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    min-width: 200px;
+    text-align: right;
+  }
+
+  /* 提示文字 */
+  #hint-text {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00ff88;
+    font-size: 13px;
+    background: rgba(0,0,0,0.8);
+    padding: 5px 15px;
+    border: 1px solid #00ff8844;
+    z-index: 15;
+    display: none;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* 标题画面 */
+  #title-screen {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  #title-screen h1 {
+    color: #00ff88;
+    font-size: 48px;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px #00ff8844;
+  }
+
+  #title-screen .subtitle {
+    color: #555;
+    font-size: 13px;
+    letter-spacing: 4px;
+    margin-bottom: 60px;
+  }
+
+  #title-screen .start-btn {
+    color: #00ff88;
+    font-size: 16px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    animation: blink 1.5s infinite;
+    border: 1px solid #00ff8844;
+    padding: 12px 40px;
+    background: none;
+    font-family: inherit;
+  }
+
+  #title-screen .start-btn:hover {
+    background: rgba(0, 255, 136, 0.1);
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .credits {
+    position: absolute;
+    bottom: 20px;
+    color: #333;
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  /* 过场 */
+  #fade-overlay {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s;
+  }
+
+  #fade-overlay.active {
+    opacity: 1;
+  }
+
+  /* Hotspot 高亮 */
+  .hotspot-hint {
+    position: absolute;
+    color: #ffcc00;
+    font-size: 11px;
+    pointer-events: none;
+    text-shadow: 0 0 4px #000;
+    z-index: 8;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  /* 结局画面 */
+  #ending-screen {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    text-align: center;
+    padding: 40px;
+  }
+
+  #ending-screen h2 {
+    color: #00ff88;
+    font-size: 28px;
+    letter-spacing: 6px;
+    margin-bottom: 30px;
+  }
+
+  #ending-screen p {
+    color: #aaa;
+    font-size: 14px;
+    line-height: 2;
+    max-width: 600px;
+    margin-bottom: 20px;
+  }
+
+  #ending-screen .restart-btn {
+    color: #555;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 30px;
+    letter-spacing: 2px;
+    background: none;
+    border: 1px solid #333;
+    padding: 10px 30px;
+    font-family: inherit;
+  }
+
+  #ending-screen .restart-btn:hover {
+    border-color: #00ff88;
+    color: #00ff88;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="scene-canvas" width="960" height="640"></canvas>
+  
+  <div id="dialogue-box">
+    <div id="dialogue-speaker"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-choices"></div>
+  </div>
+
+  <div id="hud">
+    <div id="inventory-bar"></div>
+    <div id="scene-name"></div>
+  </div>
+
+  <div id="hint-text"></div>
+  <div id="fade-overlay"></div>
+
+  <div id="title-screen">
+    <h1>LAST SIGNAL</h1>
+    <div class="subtitle">最 后 的 信 号</div>
+    <button class="start-btn" onclick="Game.start()">▶ 开 始 游 戏</button>
+    <div class="credits">A POINT & CLICK ADVENTURE</div>
+  </div>
+
+  <div id="ending-screen">
+    <h2 id="ending-title"></h2>
+    <div id="ending-text"></div>
+    <button class="restart-btn" onclick="location.reload()">↺ 重新开始</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// LAST SIGNAL - Point & Click Adventure Engine
+// ============================================================
+
+const Game = {
+  canvas: null,
+  ctx: null,
+  currentScene: null,
+  inventory: [],
+  flags: {},
+  images: {},
+  selectedItem: null,
+  dialogueActive: false,
+  mouseX: 0,
+  mouseY: 0,
+  audioCtx: null,
+
+  // ---- 初始化 ----
+  async init() {
+    this.canvas = document.getElementById('scene-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+    
+    this.canvas.addEventListener('click', (e) => this.handleClick(e));
+    this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
+    
+    await this.loadImages();
+    this.buildInventoryUI();
+  },
+
+  // ---- 图片加载 ----
+  async loadImages() {
+    const imageList = [
+      'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
+      'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office',
+      'portrait_kai', 'portrait_oracle'
+    ];
+    
+    const promises = imageList.map(name => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { this.images[name] = img; resolve(); };
+        img.onerror = () => {
+          // 用占位色块
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d');
+          cx.fillStyle = '#111';
+          cx.fillRect(0, 0, 960, 640);
+          cx.fillStyle = '#333';
+          cx.font = '20px monospace';
+          cx.textAlign = 'center';
+          cx.fillText(`[${name}]`, 480, 320);
+          this.images[name] = c;
+          resolve();
+        };
+        img.src = `assets/${name}.png`;
+      });
+    });
+    
+    await Promise.all(promises);
+  },
+
+  // ---- 开始游戏 ----
+  start() {
+    document.getElementById('title-screen').style.display = 'none';
+    this.initAudio();
+    this.goScene('apartment');
+  },
+
+  // ---- 场景切换 ----
+  async goScene(sceneId) {
+    const fade = document.getElementById('fade-overlay');
+    fade.classList.add('active');
+    
+    await this.sleep(600);
+    this.currentScene = sceneId;
+    this.selectedItem = null;
+    this.hideDialogue();
+    this.render();
+    this.updateHUD();
+    
+    // 入场对话
+    const scene = SCENES[sceneId];
+    if (scene && scene.onEnter) {
+      await this.sleep(300);
+      scene.onEnter();
+    }
+    
+    fade.classList.remove('active');
+  },
+
+  // ---- 渲染 ----
+  render() {
+    const scene = SCENES[this.currentScene];
+    if (!scene) return;
+    
+    const bgName = scene.background;
+    const img = this.images[bgName];
+    
+    // 画背景
+    if (img) {
+      this.ctx.drawImage(img, 0, 0, 960, 640);
+    } else {
+      this.ctx.fillStyle = '#111';
+      this.ctx.fillRect(0, 0, 960, 640);
+    }
+    
+    // 暗角效果
+    const grad = this.ctx.createRadialGradient(480, 320, 200, 480, 320, 550);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.5)');
+    this.ctx.fillStyle = grad;
+    this.ctx.fillRect(0, 0, 960, 640);
+    
+    // 画可交互区域（调试用，鼠标悬停时显示）
+    
+    document.getElementById('scene-name').textContent = scene.name || '';
+  },
+
+  // ---- 鼠标移动 ----
+  handleMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouseX = (e.clientX - rect.left) * (960 / rect.width);
+    this.mouseY = (e.clientY - rect.top) * (640 / rect.height);
+    
+    const hotspot = this.getHotspot();
+    const hint = document.getElementById('hint-text');
+    
+    if (hotspot) {
+      this.canvas.style.cursor = 'pointer';
+      hint.textContent = hotspot.label || '';
+      hint.style.display = 'block';
+    } else {
+      this.canvas.style.cursor = 'crosshair';
+      hint.style.display = 'none';
+    }
+  },
+
+  // ---- 点击处理 ----
+  handleClick(e) {
+    if (this.dialogueActive) return;
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (960 / rect.width);
+    const y = (e.clientY - rect.top) * (640 / rect.height);
+    
+    const hotspot = this.getHotspotAt(x, y);
+    if (hotspot) {
+      hotspot.action();
+    }
+  },
+
+  getHotspot() {
+    return this.getHotspotAt(this.mouseX, this.mouseY);
+  },
+
+  getHotspotAt(x, y) {
+    const scene = SCENES[this.currentScene];
+    if (!scene || !scene.hotspots) return null;
+    
+    for (const hs of scene.hotspots) {
+      if (hs.condition && !hs.condition()) continue;
+      if (x >= hs.x && x <= hs.x + hs.w && y >= hs.y && y <= hs.y + hs.h) {
+        return hs;
+      }
+    }
+    return null;
+  },
+
+  // ---- 对话系统 ----
+  showDialogue(speaker, text, choices, portrait) {
+    return new Promise((resolve) => {
+      this.dialogueActive = true;
+      const box = document.getElementById('dialogue-box');
+      const speakerEl = document.getElementById('dialogue-speaker');
+      const textEl = document.getElementById('dialogue-text');
+      const choicesEl = document.getElementById('dialogue-choices');
+      
+      let speakerDisplay = speaker || '';
+      if (portrait && this.images[portrait]) {
+        // 在对话框左侧显示肖像
+        speakerDisplay = `◆ ${speaker}`;
+      }
+      
+      speakerEl.textContent = speakerDisplay;
+      textEl.textContent = '';
+      choicesEl.innerHTML = '';
+      box.style.display = 'block';
+      
+      // 打字机效果
+      let i = 0;
+      const typeTimer = setInterval(() => {
+        if (i < text.length) {
+          textEl.textContent += text[i];
+          i++;
+        } else {
+          clearInterval(typeTimer);
+          
+          if (choices && choices.length > 0) {
+            choices.forEach((c, idx) => {
+              const btn = document.createElement('button');
+              btn.className = 'choice-btn';
+              btn.textContent = `▸ ${c.text}`;
+              btn.onclick = () => {
+                this.hideDialogue();
+                resolve(idx);
+              };
+              choicesEl.appendChild(btn);
+            });
+          } else {
+            // 点击继续
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = '▸ 继续...';
+            btn.onclick = () => {
+              this.hideDialogue();
+              resolve(0);
+            };
+            choicesEl.appendChild(btn);
+          }
+        }
+      }, 25);
+    });
+  },
+
+  hideDialogue() {
+    this.dialogueActive = false;
+    document.getElementById('dialogue-box').style.display = 'none';
+  },
+
+  // ---- 物品系统 ----
+  hasItem(id) {
+    return this.inventory.includes(id);
+  },
+
+  addItem(id) {
+    if (!this.hasItem(id)) {
+      this.inventory.push(id);
+      this.updateInventoryUI();
+      this.showHint(`获得物品: ${ITEMS[id].name}`);
+    }
+  },
+
+  removeItem(id) {
+    this.inventory = this.inventory.filter(i => i !== id);
+    if (this.selectedItem === id) this.selectedItem = null;
+    this.updateInventoryUI();
+  },
+
+  // ---- 库存 UI ----
+  buildInventoryUI() {
+    const bar = document.getElementById('inventory-bar');
+    bar.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'inv-slot';
+      slot.dataset.index = i;
+      slot.onclick = () => this.selectInventorySlot(i);
+      bar.appendChild(slot);
+    }
+    this.updateInventoryUI();
+  },
+
+  updateInventoryUI() {
+    const slots = document.querySelectorAll('.inv-slot');
+    slots.forEach((slot, i) => {
+      const itemId = this.inventory[i];
+      if (itemId && ITEMS[itemId]) {
+        const item = ITEMS[itemId];
+        slot.className = 'inv-slot has-item';
+        if (this.selectedItem === itemId) slot.classList.add('selected');
+        slot.innerHTML = `${item.icon}<div class="inv-tooltip">${item.name}</div>`;
+      } else {
+        slot.className = 'inv-slot';
+        slot.innerHTML = '';
+      }
+    });
+  },
+
+  selectInventorySlot(index) {
+    const itemId = this.inventory[index];
+    if (itemId) {
+      this.selectedItem = this.selectedItem === itemId ? null : itemId;
+      this.updateInventoryUI();
+    }
+  },
+
+  // ---- HUD ----
+  updateHUD() {
+    this.updateInventoryUI();
+  },
+
+  // ---- 提示 ----
+  showHint(text, duration = 2000) {
+    const el = document.getElementById('hint-text');
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, duration);
+  },
+
+  // ---- 音效 ----
+  initAudio() {
+    try {
+      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) {}
+  },
+
+  playTone(freq, duration = 0.1, type = 'square') {
+    if (!this.audioCtx) return;
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.value = 0.05;
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + duration);
+  },
+
+  sfx(type) {
+    switch(type) {
+      case 'click': this.playTone(800, 0.05); break;
+      case 'pickup': this.playTone(600, 0.1); setTimeout(() => this.playTone(900, 0.1), 100); break;
+      case 'door': this.playTone(200, 0.3, 'sawtooth'); break;
+      case 'error': this.playTone(200, 0.15); setTimeout(() => this.playTone(150, 0.15), 150); break;
+      case 'success': this.playTone(500, 0.1); setTimeout(() => this.playTone(700, 0.1), 100); setTimeout(() => this.playTone(1000, 0.15), 200); break;
+    }
+  },
+
+  // ---- 结局 ----
+  showEnding(title, lines) {
+    const screen = document.getElementById('ending-screen');
+    document.getElementById('ending-title').textContent = title;
+    document.getElementById('ending-text').innerHTML = lines.map(l => `<p>${l}</p>`).join('');
+    screen.style.display = 'flex';
+  },
+
+  // ---- 工具 ----
+  sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+};
+
+
+// ============================================================
+// 物品定义
+// ============================================================
+
+const ITEMS = {
+  datachip: { name: '数据芯片', icon: '💾', desc: '一个加密的数据芯片' },
+  keycard: { name: '安全卡', icon: '🗝️', desc: 'ECHO 公司的安全门卡' },
+  message: { name: '解密信息', icon: '📄', desc: '芯片中解密出的信息' },
+  gun: { name: '电击枪', icon: '⚡', desc: '老式电击枪，还有几发' },
+};
+
+
+// ============================================================
+// 场景定义
+// ============================================================
+
+const SCENES = {
+
+  // ---- 场景 1: 公寓 ----
+  apartment: {
+    name: '凯的公寓 — 2087年，新杭州',
+    background: 'bg_apartment',
+    
+    onEnter() {
+      if (!Game.flags.apartment_visited) {
+        Game.flags.apartment_visited = true;
+        Game.showDialogue(null,
+          '2087年。第三次网络崩溃之后，旧世界的数据化为虚无。\n\n政府瘫痪，企业接管了一切。\n\n你是凯，前刑侦局探员。三年前的那场事故让你失去了搭档，也失去了继续追查的资格。'
+        ).then(() => {
+          return Game.showDialogue('凯', '又是失眠的一夜。老终端闪个不停——');
+        }).then(() => {
+          return Game.showDialogue(null, '屏幕突然亮起。一条加密信号穿透了所有防火墙。');
+        }).then(() => {
+          return Game.showDialogue(null, '[ 终端显示 ]\n\nSIGNAL.ORIGIN: [已加密]\nSECTOR: 废弃区—旧工业带\nFREQ: 77.3 MHz\n\n"凯。我知道你搭档死亡的真相。\n来旧工业带找我。\n— Oracle"');
+        }).then(() => {
+          return Game.showDialogue('凯', '......Oracle。那个幽灵黑客。三年没人见过她了。');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 350, y: 250, w: 250, h: 200,
+        label: '▸ 终端',
+        action() {
+          if (!Game.hasItem('datachip') && !Game.flags.read_terminal) {
+            Game.flags.read_terminal = true;
+            Game.showDialogue(null, '你仔细检查终端。在屏幕后面，卡着一枚小小的芯片。').then(() => {
+              Game.sfx('pickup');
+              Game.addItem('datachip');
+            });
+          } else if (Game.flags.read_terminal) {
+            Game.showDialogue('凯', '终端已经检查过了。那条信号还停留在屏幕上。');
+          }
+        }
+      },
+      {
+        x: 50, y: 450, w: 200, h: 150,
+        label: '▸ 窗户',
+        action() {
+          Game.showDialogue('凯', '雨下个不停。霓虹灯在水洼里碎成一片。\n\n旧工业带在城市的另一边。得找辆车。');
+        }
+      },
+      {
+        x: 750, y: 300, w: 150, h: 250,
+        label: '▸ 门',
+        action() {
+          Game.showDialogue('凯', '该走了。', [
+            { text: '出门前往街道' },
+            { text: '再等等' }
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('door');
+              Game.goScene('street');
+            }
+          });
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 2: 街道 ----
+  street: {
+    name: '霓虹街 — 雨夜',
+    background: 'bg_street',
+    
+    onEnter() {
+      if (!Game.flags.street_visited) {
+        Game.flags.street_visited = true;
+        Game.showDialogue(null, '雨幕中的霓虹街。空气里混着臭氧和廉价拉面的味道。\n\n左边是 The Rust 酒吧，右边通往旧工业带。').then(() => {
+          return Game.showDialogue('凯', 'Oracle 提到了旧工业带。但在那之前……我得先找个人打听消息。');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 100, y: 200, w: 300, h: 350,
+        label: '▸ The Rust 酒吧',
+        action() {
+          Game.sfx('door');
+          Game.goScene('bar');
+        }
+      },
+      {
+        x: 600, y: 150, w: 300, h: 400,
+        label: '▸ 通往旧工业带的路',
+        action() {
+          if (Game.hasItem('keycard')) {
+            Game.showDialogue('凯', '有了安全卡，应该能进 ECHO 大楼了。').then(() => {
+              Game.sfx('door');
+              Game.goScene('tower');
+            });
+          } else {
+            Game.showDialogue('凯', '旧工业带在那个方向。但 ECHO 公司的大楼需要安全卡才能进入。\n\n也许酒吧里有人知道怎么弄到。');
+          }
+        }
+      },
+      {
+        x: 50, y: 500, w: 150, h: 100,
+        label: '▸ 小巷',
+        action() {
+          Game.sfx('click');
+          Game.goScene('alley');
+        }
+      },
+      {
+        x: 450, y: 400, w: 100, h: 100,
+        label: '▸ 垃圾桶',
+        action() {
+          if (!Game.flags.searched_dumpster) {
+            Game.flags.searched_dumpster = true;
+            Game.showDialogue(null, '你在垃圾桶里翻找。只有外卖盒和烟头。').then(() => {
+              return Game.showDialogue('凯', '什么都没有。不过……地上有个奇怪的标记。像是 Oracle 的签名。');
+            });
+          } else {
+            Game.showDialogue('凯', '已经翻过了。那个标记……是 Oracle 的暗号。指向酒吧。');
+          }
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 3: 酒吧 ----
+  bar: {
+    name: 'The Rust 酒吧',
+    background: 'bg_bar',
+    
+    onEnter() {
+      if (!Game.flags.bar_visited) {
+        Game.flags.bar_visited = true;
+        Game.showDialogue(null, 'The Rust 是霓虹街上最老的酒吧。烟雾缭绕，紫色的霓虹灯映在酒瓶上。\n\n酒保认出了你。').then(() => {
+          return Game.showDialogue('酒保', '凯？好久不见。我以为你退休了。');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 350, y: 250, w: 250, h: 250,
+        label: '▸ 酒保',
+        action() {
+          if (Game.hasItem('datachip') && !Game.flags.asked_bartender) {
+            Game.flags.asked_bartender = true;
+            Game.showDialogue('凯', '帮我看看这个。从我老终端上找到的。', [
+              { text: '你知道怎么解密芯片吗？' },
+              { text: '你认识 Oracle 吗？' },
+            ]).then(choice => {
+              if (choice === 0) {
+                return Game.showDialogue('酒保', '加密芯片？让我看看……\n\n嗯，这是 ECHO 公司的旧型号加密。要解密，你得去后面小巷找"影子"。他是个数据贩子。').then(() => {
+                  return Game.showDialogue('酒保', '但影子不白干活。你可能得拿什么东西跟他换。');
+                });
+              } else {
+                return Game.showDialogue('酒保', 'Oracle？那个幽灵黑客？没人见过她的真面目。\n\n但如果你有加密芯片，也许可以去后面小巷找"影子"看看。他什么都能解。').then(() => {
+                  return Game.showDialogue('酒保', '不过要小心。影子是 ECHO 的线人。');
+                });
+              }
+            });
+          } else if (Game.hasItem('message') && !Game.flags.asked_about_echo) {
+            Game.flags.asked_about_echo = true;
+            Game.showDialogue('凯', 'ECHO 公司的服务器里到底藏着什么？', [
+              { text: '你知道废弃区的情况吗？' },
+            ]).then(() => {
+              return Game.showDialogue('酒保', '废弃区？那里以前是 ECHO 的研发中心。三年前出了事故后就封了。\n\n不过我听说，最近有人在里面看到灯光。公司的人。').then(() => {
+                return Game.showDialogue('酒保', '如果你真要去……入口在塔楼底层。需要安全卡。');
+              });
+            });
+          } else if (!Game.hasItem('datachip')) {
+            Game.showDialogue('凯', '先找到那枚芯片再说。');
+          } else {
+            Game.showDialogue('酒保', '去找影子吧。小巷在街对面。');
+          }
+        }
+      },
+      {
+        x: 200, y: 300, w: 100, h: 150,
+        label: '▸ 神秘客人',
+        action() {
+          if (!Game.flags.talked_oracle_hint) {
+            Game.flags.talked_oracle_hint = true;
+            Game.showDialogue(null, '角落里的身影抬起头。是个戴着兜帽的女人。').then(() => {
+              return Game.showDialogue('???', '凯。你终于来了。', [
+                { text: '你是谁？' },
+                { text: '你是 Oracle？' },
+              ]).then(choice => {
+                if (choice === 1) {
+                  Game.flags.knows_oracle = true;
+                  return Game.showDialogue('Oracle', '聪明。但在这里别叫那个名字。\n\n我给你发了信号。搭档的死不是意外——ECHO 公司在掩盖什么。').then(() => {
+                    return Game.showDialogue('Oracle', '我需要你进入他们的服务器。拿到原始数据。\n\n我能帮你解密芯片，但你需要一把安全卡。小巷里的影子有。').then(() => {
+                      return Game.showDialogue('Oracle', '用芯片跟他换。他不知道里面是什么——只有我能解密。');
+                    });
+                  });
+                } else {
+                  return Game.showDialogue('???', '一个想帮你的人。去问酒吧保关于芯片的事。');
+                }
+              });
+            });
+          } else {
+            Game.showDialogue('Oracle', '去小巷找影子。用芯片换安全卡。');
+          }
+        },
+        condition: () => Game.flags.bar_visited
+      },
+      {
+        x: 750, y: 300, w: 150, h: 250,
+        label: '▸ 出口',
+        action() {
+          Game.sfx('door');
+          Game.goScene('street');
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 4: 小巷 ----
+  alley: {
+    name: '后巷 — 数据贩子的领地',
+    background: 'bg_alley',
+    
+    onEnter() {
+      if (!Game.flags.alley_visited) {
+        Game.flags.alley_visited = true;
+        Game.showDialogue(null, '潮湿的小巷深处，一个身影蹲在垃圾桶旁。闪烁的全息屏幕上跳动着数据流。').then(() => {
+          return Game.showDialogue('影子', '哟。要货还是卖货？');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 350, y: 200, w: 250, h: 300,
+        label: '▸ 影子 (数据贩子)',
+        action() {
+          if (Game.hasItem('datachip') && !Game.hasItem('keycard')) {
+            Game.showDialogue('影子', 'ECHO 的旧芯片？有意思。', [
+              { text: '用芯片换安全卡' },
+              { text: '算了' },
+            ]).then(choice => {
+              if (choice === 0) {
+                Game.sfx('success');
+                Game.removeItem('datachip');
+                Game.addItem('keycard');
+                return Game.showDialogue('影子', '成交。这安全卡能进 ECHO 大楼。\n\n不过我得提醒你——那里面的东西，不是你该看的。').then(() => {
+                  return Game.showDialogue('凯', '我已经看过不该看的东西了。');
+                });
+              }
+            });
+          } else if (Game.hasItem('keycard')) {
+            Game.showDialogue('影子', '交易完成了。别再来找我。');
+          } else {
+            Game.showDialogue('影子', '没有东西可交易？那滚吧。', [
+              { text: '我需要安全卡' },
+              { text: '离开' },
+            ]).then(choice => {
+              if (choice === 0) {
+                return Game.showDialogue('影子', 'ECHO 大楼的安全卡？值钱货。\n\n拿加密数据芯片来换。我听说你老终端上有一枚。');
+              }
+            });
+          }
+        }
+      },
+      {
+        x: 50, y: 400, w: 200, h: 200,
+        label: '▸ 涂鸦墙',
+        action() {
+          Game.showDialogue(null, '墙上的涂鸦写着："他们烧掉了真相，却忘了灰烬会说话。"\n\n下面有一个小小的 Oracle 符号。').then(() => {
+            return Game.showDialogue('凯', 'Oracle 到处留下痕迹。她在引导我。');
+          });
+        }
+      },
+      {
+        x: 800, y: 400, w: 120, h: 200,
+        label: '▸ 返回街道',
+        action() {
+          Game.sfx('door');
+          Game.goScene('street');
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 5: ECHO 塔楼 ----
+  tower: {
+    name: 'ECHO 公司塔楼 — 废弃区入口',
+    background: 'bg_tower_exterior',
+    
+    onEnter() {
+      if (!Game.flags.tower_visited) {
+        Game.flags.tower_visited = true;
+        Game.showDialogue(null, 'ECHO 公司的塔楼矗立在雨中。黑色的玻璃幕墙反射着远处的霓虹。\n\n正门的扫描仪闪烁着红光。').then(() => {
+          return Game.showDialogue('凯', '三年了。我终于又站在这里。\n\n搭档就死在这栋楼里。官方说是"实验事故"。');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 380, y: 250, w: 200, h: 300,
+        label: '▸ 正门扫描仪',
+        action() {
+          if (Game.hasItem('keycard')) {
+            Game.sfx('success');
+            Game.showDialogue(null, '扫描仪识别了安全卡。绿灯亮起，沉重的金属门缓缓打开。').then(() => {
+              return Game.showDialogue('凯', '进去了。服务器在地下三层。');
+            }).then(() => {
+              Game.sfx('door');
+              Game.goScene('server');
+            });
+          } else {
+            Game.sfx('error');
+            Game.showDialogue(null, '扫描仪闪烁红光。\n\n[ 访问被拒绝 — 需要安全卡 ]').then(() => {
+              return Game.showDialogue('凯', '需要安全卡。影子那里应该有。');
+            });
+          }
+        }
+      },
+      {
+        x: 100, y: 350, w: 200, h: 200,
+        label: '▸ 警卫亭',
+        action() {
+          if (!Game.flags.tower_guard) {
+            Game.flags.tower_guard = true;
+            Game.showDialogue(null, '警卫亭是空的。桌上的咖啡还是温的。').then(() => {
+              return Game.showDialogue('凯', '人刚走。或者是故意撤走的……\n\n太安静了。');
+            });
+          } else {
+            Game.showDialogue('凯', '警卫亭依然空着。');
+          }
+        }
+      },
+      {
+        x: 800, y: 400, w: 120, h: 200,
+        label: '▸ 返回街道',
+        action() {
+          Game.sfx('door');
+          Game.goScene('street');
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 6: 服务器室 ----
+  server: {
+    name: 'ECHO 服务器室 — 地下三层',
+    background: 'bg_server_room',
+    
+    onEnter() {
+      if (!Game.flags.server_visited) {
+        Game.flags.server_visited = true;
+        Game.showDialogue(null, '地下三层。空气冰冷，服务器的指示灯在黑暗中闪烁。\n\n有人留下了一台终端还开着。').then(() => {
+          return Game.showDialogue('凯', '三年前，搭档就是在这里发现了什么。\n\n然后他就死了。');
+        });
+      }
+    },
+    
+    hotspots: [
+      {
+        x: 300, y: 200, w: 350, h: 300,
+        label: '▸ 终端',
+        action() {
+          if (!Game.flags.accessed_terminal) {
+            Game.flags.accessed_terminal = true;
+            Game.showDialogue(null, '终端屏幕上显示着项目代号：\n\nPROJECT LASTLIGHT\n状态: 已终止\n原因: [权限不足]\n\n[ 访问深层档案? ]').then(() => {
+              return Game.showDialogue(null, '你选择了访问深层档案。', [
+                { text: '继续深入' },
+              ]);
+            }).then(() => {
+              Game.sfx('success');
+              Game.addItem('message');
+              return Game.showDialogue(null, '[ 档案解密中... ]\n\n项目 LASTLIGHT：利用人脑神经网络构建分布式计算节点。\n\n测试对象：刑事犯、流浪者、退役探员。\n\n事故原因：3号测试对象（凯的搭档）出现排斥反应。项目组未及时终止。导致脑死亡。\n\n结论：事故报告已修改。真实数据删除。').then(() => {
+                return Game.showDialogue('凯', '......他们拿活人做实验。\n\n搭档发现了这个，所以他们杀了他。');
+              });
+            }).then(() => {
+              return Game.showDialogue('Oracle', [ // 从终端里传出的声音
+                { text: '现在你知道了。去楼顶。我在那里等你。' },
+              ]);
+            }).then(() => {
+              Game.flags.oracle_rooftop = true;
+              return Game.showDialogue('凯', '楼顶……好。');
+            });
+          } else {
+            Game.showDialogue('凯', '档案已经下载了。去楼顶找 Oracle。');
+          }
+        }
+      },
+      {
+        x: 100, y: 300, w: 150, h: 200,
+        label: '▸ 服务器机柜',
+        action() {
+          Game.showDialogue(null, '服务器机柜嗡嗡作响。有些机柜被强行关闭了——封条上的日期是三年前。').then(() => {
+            return Game.showDialogue('凯', '他们关闭了事故相关的服务器。但数据没有完全清除。');
+          });
+        }
+      },
+      {
+        x: 800, y: 200, w: 120, h: 300,
+        label: '▸ 通往楼顶的通道',
+        action() {
+          if (Game.flags.oracle_rooftop) {
+            Game.showDialogue('凯', '最后一步了。', [
+              { text: '上楼顶' },
+              { text: '再看看' },
+            ]).then(choice => {
+              if (choice === 0) {
+                Game.sfx('door');
+                Game.goScene('rooftop');
+              }
+            });
+          } else {
+            Game.showDialogue('凯', '先查清楚终端里有什么。');
+          }
+        }
+      },
+      {
+        x: 50, y: 500, w: 150, h: 100,
+        label: '▸ 返回大厅',
+        action() {
+          Game.sfx('door');
+          Game.goScene('tower');
+        }
+      },
+    ]
+  },
+
+  // ---- 场景 7: 楼顶 (结局) ----
+  rooftop: {
+    name: 'ECHO 塔楼顶 — 终点',
+    background: 'bg_rooftop',
+    
+    onEnter() {
+      Game.showDialogue(null, '雨更大了。楼顶的风撕扯着你的外套。\n\n城市在脚下，霓虹像一条没有尽头的河。').then(() => {
+        return Game.showDialogue('Oracle', '你来了。', [
+          { text: '你是谁？你到底想要什么？' },
+        ]);
+      }).then(() => {
+        return Game.showDialogue('Oracle', '我是最后一个活着的项目参与者。\n\n三年前，我是 LASTLIGHT 项目的程序员。我亲眼看着他们——\n\n看着他们把人变成处理器。');
+      }).then(() => {
+        return Game.showDialogue('Oracle', '搭档发现了真相，他们就杀了他。我逃了。躲了三年。\n\n但数据还在。你手里的证据，可以终结这一切。');
+      }).then(() => {
+        return Game.showDialogue('Oracle', '把数据公开。让所有人知道 ECHO 做了什么。\n\n但你也要想清楚——公开之后，他们会不惜一切追杀你。', [
+          { text: '公开数据，揭露真相' },
+          { text: '毁掉数据，保护自己' },
+        ]).then(choice => {
+          if (choice === 0) {
+            // 好结局
+            Game.sfx('success');
+            Game.showEnding('LAST SIGNAL — 信号永不断', [
+              '你选择了公开。',
+              '',
+              '三天后，数据在网络上炸开了锅。',
+              'ECHO 公司的股价暴跌。CEO 被捕。',
+              '搭档的名字被写进了纪念碑。',
+              '',
+              '你站在雨中，看着新闻屏幕。',
+              'Oracle 说："你做到了。"',
+              '',
+              '"下一个信号什么时候来？"',
+              '"随时。"',
+              '',
+              '— END —',
+            ]);
+          } else {
+            // 沉默结局
+            Game.sfx('error');
+            Game.showEnding('LAST SIGNAL — 沉默', [
+              '你选择了沉默。',
+              '',
+              '数据被永久删除。',
+              'ECHO 继续运营。新的项目悄然启动。',
+              '搭档的名字，从所有档案中消失。',
+              '',
+              '你回到公寓。终端还是闪着那条信号。',
+              '但你再也没有打开它。',
+              '',
+              '雨还在下。',
+              '',
+              '— END —',
+            ]);
+          }
+        });
+      });
+    },
+    
+    hotspots: []  // 结局场景，无交互
+  },
+};
+
+
+// ============================================================
+// 启动
+// ============================================================
+Game.init();
+</script>
+</body>
+</html>
