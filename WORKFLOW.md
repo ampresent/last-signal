@@ -77,12 +77,20 @@ def generate_image(prompt, filename, width=1024, height=1024, seed=2087):
 ```
 last-signal/
 ├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
-├── gen_assets.py           # 素材生成脚本（Pollinations.AI）
+├── gen_assets.py           # 素材生成脚本（Pollinations.AI + 动画帧）
+├── gen_anim_frames.py      # 动画帧生成（程序化图像效果）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
 ├── WORKFLOW.md             # 完整工作流文档
 └── assets/
-    ├── bg_apartment.png    # 场景背景 (940×627, 游戏内 960×640)
+    ├── bg_apartment.png    # 基础场景图 (940×627)
+    ├── bg_apartment_f0.png # 动画帧 f0 (原图)
+    ├── bg_apartment_f1.png # 动画帧 f1 (霓虹脉冲)
+    ├── bg_apartment_f2.png # 动画帧 f2 (雨滴增强)
+    ├── bg_apartment_f3.png # 动画帧 f3 (光源闪烁)
+    ├── bg_apartment_f4.png # 动画帧 f4 (薄雾弥漫)
     ├── bg_street.png
+    ├── bg_street_f0~f4.png
+    ├── ...                 # 其他场景同理
     ├── bg_bar.png
     ├── bg_alley.png
     ├── bg_tower_exterior.png
@@ -198,6 +206,30 @@ loadImages() → goScene(sceneId) → render()
 ```bash
 cd last-signal
 python3 gen_assets.py
+# 自动生成基础场景图 + 动画帧 + 角色肖像
+```
+
+### 场景动画系统
+
+每个场景有 5 帧动画（`bg_{scene}_f0.png` ~ `f4.png`），游戏内以 ~800ms/帧 循环播放，形成缓慢呼吸的环境动画。
+
+**帧效果：**
+| 帧 | 文件后缀 | 效果 |
+|---|---|---|
+| f0 | `_f0.png` | 原图 |
+| f1 | `_f1.png` | 霓虹脉冲 — 高饱和区域提亮 |
+| f2 | `_f2.png` | 雨滴增强 — 添加雨丝 + 底部湿润反光 |
+| f3 | `_f3.png` | 光源闪烁 — 整体微暗 + 局部随机暗区 |
+| f4 | `_f4.png` | 薄雾弥漫 — 从上方渐变蓝灰雾气 |
+
+**生成流程：**
+1. `gen_assets.py` 用 Pollinations.AI 生成基础场景图（`bg_{scene}.png`）
+2. 自动调用 `gen_anim_frames.py`，用程序化图像效果从基础图扩展 5 帧
+3. 帧间差异微妙，Mask 仍基于首帧生成即可
+
+**单独生成动画帧：**
+```bash
+python3 gen_anim_frames.py  # 从已有的 bg_*.png 扩展
 ```
 
 ### 交互区域 Mask 系统
