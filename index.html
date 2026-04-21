@@ -1065,8 +1065,6 @@ const Game = {
     this.renderLoop = requestAnimationFrame(loop);
   },
 
-  hotspotAnim: 0,
-
   render(dt) {
     const scene = SCENES[this.currentScene];
     if (!scene) return;
@@ -1087,109 +1085,7 @@ const Game = {
     // ★ VFX 实时粒子动效叠加 ★
     VFX.render(this.ctx, dt, this.currentScene);
 
-    // 画可交互区域高亮（使用预计算数据，零扫描）
-    this.hotspotAnim += 0.03;
-    const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5;
-    const sceneId = this.currentScene;
-    const edges = this._edgeCache[sceneId];
-    const labelPos = this._labelCache[sceneId];
-    const overlay = this._overlayCache[sceneId];
-    const isHovered = this.isMaskHit(this.mouseX, this.mouseY);
-    const ctx = this.ctx;
-
-    if (edges && edges.length > 0) {
-      if (isHovered) {
-        // 悬停：发光边缘 + 绿色遮罩 + 标签
-        ctx.save();
-        ctx.strokeStyle = 'rgba(0, 255, 136, 0.85)';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur = 10;
-        for (let i = 0; i < edges.length; i += 2) {
-          ctx.fillRect(edges[i], edges[i + 1], 2, 2);
-        }
-        ctx.restore();
-
-        if (overlay) ctx.drawImage(overlay, 0, 0);
-
-        if (labelPos && scene.hotspots) {
-          const hs = scene.hotspots.find(h => {
-            if (h.condition && !h.condition()) return false;
-            return h.label;
-          });
-          if (hs) {
-            const label = hs.label.replace('▸ ', '');
-            ctx.save();
-            ctx.font = '13px "Courier New", monospace';
-            ctx.textAlign = 'center';
-            const tw = ctx.measureText(label).width + 16;
-            ctx.fillStyle = 'rgba(0,0,0,0.85)';
-            ctx.fillRect(labelPos.x - tw / 2, labelPos.y - 22, tw, 20);
-            ctx.strokeStyle = 'rgba(0,255,136,0.8)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(labelPos.x - tw / 2, labelPos.y - 22, tw, 20);
-            ctx.fillStyle = '#00ff88';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(label, labelPos.x, labelPos.y - 12);
-            ctx.restore();
-          }
-        }
-      } else {
-        // 非悬停：呼吸闪烁边缘
-        const alpha = 0.10 + pulse * 0.15;
-        ctx.save();
-        ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
-        ctx.lineWidth = 1;
-        for (let i = 0; i < edges.length; i += 2) {
-          ctx.fillRect(edges[i], edges[i + 1], 2, 2);
-        }
-        ctx.restore();
-      }
-    } else if (scene.hotspots) {
-      // 降级：矩形热点
-      for (const hs of scene.hotspots) {
-        if (hs.condition && !hs.condition()) continue;
-        const isH = this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
-                     this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h;
-        if (isH) {
-          ctx.save();
-          ctx.strokeStyle = 'rgba(0,255,136,0.9)';
-          ctx.lineWidth = 2;
-          ctx.shadowColor = '#00ff88';
-          ctx.shadowBlur = 12;
-          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
-          ctx.fillStyle = 'rgba(0,255,136,0.08)';
-          ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
-          ctx.restore();
-          const label = (hs.label || '').replace('▸ ', '');
-          if (label) {
-            ctx.save();
-            ctx.font = '13px "Courier New", monospace';
-            ctx.textAlign = 'center';
-            const tw = ctx.measureText(label).width + 16;
-            const tx = hs.x + hs.w / 2, ty = hs.y - 10;
-            ctx.fillStyle = 'rgba(0,0,0,0.85)';
-            ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
-            ctx.strokeStyle = 'rgba(0,255,136,0.8)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
-            ctx.fillStyle = '#00ff88';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(label, tx, ty - 4);
-            ctx.restore();
-          }
-        } else {
-          ctx.save();
-          const alpha = 0.12 + pulse * 0.18;
-          ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.lineDashOffset = -this.hotspotAnim * 10;
-          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
-          ctx.restore();
-        }
-      }
-    }
+    // mask 静默用于交互检测（isMaskHit / getHotspotAt），不绘制任何视觉效果
 
     document.getElementById('scene-name').textContent = scene.name || '';
   },
