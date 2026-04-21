@@ -359,7 +359,7 @@ const VFX = {
   // 场景 VFX 配置 — 每个场景定义自己的动效组合
   SCENE_CONFIG: {
     apartment: {
-      rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3 },
+      rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3, clipToMask: 'apartment_window' },
       fog: { layers: 1, speed: 0.15, opacity: 0.06, color: [80, 80, 120] },
       neon: { speed: 0.008, intensity: 0.12 },
       flicker: { enabled: true, chance: 0.003, amount: 0.08 },
@@ -583,34 +583,58 @@ const VFX = {
 
   // ---- 雨滴渲染 ----
   _renderRain(ctx, dt, rcfg) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-
+    // 更新雨滴位置
     for (const drop of this.raindrops) {
-      const x1 = drop.x;
-      const y1 = drop.y;
-      const x2 = drop.x + drop.wind * drop.length;
-      const y2 = drop.y + drop.length;
-
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-
-      // 更新位置
       drop.y += drop.speed;
       drop.x += drop.wind;
-
-      // 超出屏幕重置
-      if (drop.y > 660) {
-        drop.y = -drop.length - Math.random() * 40;
-        drop.x = Math.random() * 1000 - 20;
-      }
+      if (drop.y > 660) { drop.y = -drop.length - Math.random() * 40; drop.x = Math.random() * 1000 - 20; }
       if (drop.x > 980) drop.x = -20;
     }
-    ctx.stroke();
+
+    ctx.save();
+
+    if (rcfg.clipToMask && Game.objMasks && Game.objMasks[rcfg.clipToMask]) {
+      // 室内：雨滴只在窗口 mask 区域显示
+      if (!this._rainCanvas) {
+        this._rainCanvas = document.createElement('canvas');
+        this._rainCanvas.width = 960;
+        this._rainCanvas.height = 640;
+      }
+      const rc = this._rainCanvas.getContext('2d');
+      rc.clearRect(0, 0, 960, 640);
+
+      // 在临时 canvas 上画雨丝
+      rc.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+      rc.lineWidth = 1;
+      rc.beginPath();
+      for (const drop of this.raindrops) {
+        rc.moveTo(drop.x, drop.y);
+        rc.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+      }
+      rc.stroke();
+
+      // destination-in：只保留 mask 区域内的像素
+      rc.globalCompositeOperation = 'destination-in';
+      rc.drawImage(Game.objMasks[rcfg.clipToMask].canvas, 0, 0, 960, 640);
+
+      // 画到主 canvas（正常叠加，不破坏背景）
+      ctx.drawImage(this._rainCanvas, 0, 0);
+    } else {
+      // 室外：全屏雨滴
+      ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const drop of this.raindrops) {
+        ctx.moveTo(drop.x, drop.y);
+        ctx.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+      }
+      ctx.stroke();
+    }
+
     ctx.restore();
   },
+
+  _rainCanvas: null,
 
   // ---- 雾气渲染 ----
   _renderFog(ctx, dt, fcfg) {
