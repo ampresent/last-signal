@@ -6,12 +6,12 @@
 <title>LAST SIGNAL</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  
+
   @font-face {
     font-family: 'Pixel';
     src: local('Courier New');
   }
-  
+
   body {
     background: #000;
     display: flex;
@@ -262,18 +262,6 @@
     opacity: 1;
   }
 
-  /* Hotspot 高亮 */
-  .hotspot-hint {
-    position: absolute;
-    color: #ffcc00;
-    font-size: 11px;
-    pointer-events: none;
-    text-shadow: 0 0 4px #000;
-    z-index: 8;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
   /* 结局画面 */
   #ending-screen {
     position: absolute;
@@ -325,7 +313,7 @@
 
 <div id="game-container">
   <canvas id="scene-canvas" width="960" height="640"></canvas>
-  
+
   <div id="dialogue-box">
     <div id="dialogue-speaker"></div>
     <div id="dialogue-text"></div>
@@ -356,9 +344,487 @@
 
 <script>
 // ============================================================
+// PARTICLE / VFX ENGINE — 实时环境动效系统
+// ============================================================
+const VFX = {
+  // 全局状态
+  raindrops: [],        // 雨滴粒子
+  fogLayers: [],        // 雾气层
+  neonPulse: 0,         // 霓虹脉冲相位
+  lightFlicker: 1.0,    // 全局亮度闪烁因子
+  scanlineOffset: 0,    // CRT 扫描线偏移
+  glitchTimer: 0,       // 故障效果计时器
+  glitchActive: false,   // 是否正在故障
+
+  // 场景 VFX 配置 — 每个场景定义自己的动效组合
+  SCENE_CONFIG: {
+    apartment: {
+      rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3 },
+      fog: { layers: 1, speed: 0.15, opacity: 0.06, color: [80, 80, 120] },
+      neon: { speed: 0.008, intensity: 0.12 },
+      flicker: { enabled: true, chance: 0.003, amount: 0.08 },
+      scanlines: { enabled: true, opacity: 0.03 },
+      vignette: { inner: 220, outer: 560, opacity: 0.55 },
+      particles: { type: 'dust', count: 15, speed: 0.2, opacity: 0.08 },
+    },
+    street: {
+      rain: { count: 200, speed: [5, 10], length: [12, 28], opacity: 0.22, wind: 0.5 },
+      fog: { layers: 2, speed: 0.25, opacity: 0.10, color: [60, 70, 110] },
+      neon: { speed: 0.012, intensity: 0.18 },
+      flicker: { enabled: true, chance: 0.008, amount: 0.12 },
+      scanlines: { enabled: false },
+      vignette: { inner: 200, outer: 580, opacity: 0.5 },
+      puddleReflection: { enabled: true, y: 500, opacity: 0.15 },
+      particles: { type: 'steam', count: 8, speed: 0.4, opacity: 0.06 },
+    },
+    bar: {
+      rain: { count: 0 },
+      fog: { layers: 1, speed: 0.08, opacity: 0.08, color: [90, 40, 80] },
+      neon: { speed: 0.015, intensity: 0.22 },
+      flicker: { enabled: true, chance: 0.01, amount: 0.15 },
+      scanlines: { enabled: true, opacity: 0.02 },
+      vignette: { inner: 180, outer: 500, opacity: 0.6 },
+      particles: { type: 'smoke', count: 12, speed: 0.15, opacity: 0.10 },
+    },
+    alley: {
+      rain: { count: 120, speed: [4, 8], length: [10, 22], opacity: 0.20, wind: 0.6 },
+      fog: { layers: 1, speed: 0.10, opacity: 0.12, color: [50, 50, 70] },
+      neon: { speed: 0.020, intensity: 0.15 },
+      flicker: { enabled: true, chance: 0.015, amount: 0.20 },
+      scanlines: { enabled: false },
+      vignette: { inner: 150, outer: 480, opacity: 0.65 },
+      particles: { type: 'drip', count: 5, speed: 1.5, opacity: 0.12 },
+    },
+    tower: {
+      rain: { count: 160, speed: [5, 9], length: [14, 26], opacity: 0.20, wind: 0.4 },
+      fog: { layers: 2, speed: 0.20, opacity: 0.08, color: [50, 60, 100] },
+      neon: { speed: 0.006, intensity: 0.08 },
+      flicker: { enabled: true, chance: 0.005, amount: 0.10 },
+      scanlines: { enabled: false },
+      vignette: { inner: 250, outer: 600, opacity: 0.45 },
+      particles: { type: 'dust', count: 10, speed: 0.3, opacity: 0.05 },
+    },
+    server: {
+      rain: { count: 0 },
+      fog: { layers: 0 },
+      neon: { speed: 0.005, intensity: 0.06 },
+      flicker: { enabled: true, chance: 0.02, amount: 0.18 },
+      scanlines: { enabled: true, opacity: 0.04 },
+      vignette: { inner: 200, outer: 520, opacity: 0.5 },
+      particles: { type: 'data', count: 20, speed: 0.5, opacity: 0.10 },
+    },
+    rooftop: {
+      rain: { count: 250, speed: [6, 12], length: [15, 32], opacity: 0.25, wind: 0.7 },
+      fog: { layers: 3, speed: 0.35, opacity: 0.14, color: [70, 80, 120] },
+      neon: { speed: 0.010, intensity: 0.10 },
+      flicker: { enabled: false },
+      scanlines: { enabled: false },
+      vignette: { inner: 280, outer: 600, opacity: 0.4 },
+      particles: { type: 'wind', count: 10, speed: 1.0, opacity: 0.04 },
+    },
+    office: {
+      rain: { count: 40, speed: [3, 5], length: [8, 14], opacity: 0.12, wind: 0.2 },
+      fog: { layers: 1, speed: 0.10, opacity: 0.05, color: [100, 100, 130] },
+      neon: { speed: 0.006, intensity: 0.10 },
+      flicker: { enabled: true, chance: 0.004, amount: 0.06 },
+      scanlines: { enabled: true, opacity: 0.02 },
+      vignette: { inner: 200, outer: 540, opacity: 0.5 },
+      particles: { type: 'dust', count: 12, speed: 0.15, opacity: 0.06 },
+    },
+  },
+
+  // 通用粒子池
+  particles: [],
+
+  // ---- 初始化场景 VFX ----
+  init(sceneId) {
+    const cfg = this.SCENE_CONFIG[sceneId] || this.SCENE_CONFIG.apartment;
+    this.raindrops = [];
+    this.fogLayers = [];
+    this.particles = [];
+
+    // 初始化雨滴
+    if (cfg.rain && cfg.rain.count > 0) {
+      for (let i = 0; i < cfg.rain.count; i++) {
+        this.raindrops.push(this._newRaindrop(cfg.rain));
+      }
+    }
+
+    // 初始化雾气层
+    if (cfg.fog && cfg.fog.layers > 0) {
+      for (let i = 0; i < cfg.fog.layers; i++) {
+        this.fogLayers.push({
+          x: Math.random() * 960,
+          y: 100 + Math.random() * 300,
+          w: 300 + Math.random() * 500,
+          h: 80 + Math.random() * 120,
+          speed: cfg.fog.speed * (0.5 + Math.random()),
+          opacity: cfg.fog.opacity * (0.5 + Math.random() * 0.5),
+          color: cfg.fog.color,
+        });
+      }
+    }
+
+    // 初始化环境粒子
+    if (cfg.particles && cfg.particles.count > 0) {
+      for (let i = 0; i < cfg.particles.count; i++) {
+        this.particles.push(this._newParticle(cfg.particles));
+      }
+    }
+
+    this.neonPulse = Math.random() * Math.PI * 2;
+    this.lightFlicker = 1.0;
+    this.glitchActive = false;
+    this.glitchTimer = 0;
+  },
+
+  _newRaindrop(rcfg) {
+    return {
+      x: Math.random() * 1000 - 20,
+      y: Math.random() * 680 - 40,
+      speed: rcfg.speed[0] + Math.random() * (rcfg.speed[1] - rcfg.speed[0]),
+      length: rcfg.length[0] + Math.random() * (rcfg.length[1] - rcfg.length[0]),
+      opacity: 0.3 + Math.random() * 0.7,
+      wind: rcfg.wind || 0,
+    };
+  },
+
+  _newParticle(pcfg) {
+    const p = {
+      x: Math.random() * 960,
+      y: Math.random() * 640,
+      vx: (Math.random() - 0.5) * pcfg.speed,
+      vy: -Math.random() * pcfg.speed * 0.5,
+      life: Math.random(),
+      maxLife: 2 + Math.random() * 4,
+      age: 0,
+      size: 1 + Math.random() * 3,
+      opacity: pcfg.opacity * (0.3 + Math.random() * 0.7),
+      type: pcfg.type,
+    };
+    // 根据类型微调
+    if (pcfg.type === 'steam') {
+      p.vy = -0.3 - Math.random() * 0.5;
+      p.vx = (Math.random() - 0.5) * 0.8;
+      p.size = 3 + Math.random() * 6;
+      p.y = 500 + Math.random() * 140;
+    } else if (pcfg.type === 'smoke') {
+      p.vy = -0.1 - Math.random() * 0.2;
+      p.vx = 0.1 + Math.random() * 0.3;
+      p.size = 8 + Math.random() * 15;
+    } else if (pcfg.type === 'drip') {
+      p.vy = 1.0 + Math.random() * 2.0;
+      p.vx = 0;
+      p.y = Math.random() * 200;
+    } else if (pcfg.type === 'data') {
+      p.vy = 0.5 + Math.random() * 1.5;
+      p.vx = 0;
+      p.x = Math.random() * 960;
+      p.y = -10;
+      p.size = 1;
+    } else if (pcfg.type === 'wind') {
+      p.vx = 1.5 + Math.random() * 2.0;
+      p.vy = -0.2 + Math.random() * 0.4;
+      p.y = Math.random() * 640;
+      p.x = -20;
+      p.size = 1 + Math.random() * 2;
+    }
+    return p;
+  },
+
+  // ---- 主渲染入口 ----
+  render(ctx, dt, sceneId) {
+    const cfg = this.SCENE_CONFIG[sceneId];
+    if (!cfg) return;
+
+    // 1. 雨滴
+    if (cfg.rain && cfg.rain.count > 0) {
+      this._renderRain(ctx, dt, cfg.rain);
+    }
+
+    // 2. 雾气
+    if (cfg.fog && cfg.fog.layers > 0) {
+      this._renderFog(ctx, dt, cfg.fog);
+    }
+
+    // 3. 霓虹脉冲 (叠加在背景上的色相微偏移)
+    if (cfg.neon) {
+      this._renderNeonPulse(ctx, dt, cfg.neon);
+    }
+
+    // 4. 环境粒子
+    if (cfg.particles && cfg.particles.count > 0) {
+      this._renderParticles(ctx, dt, cfg.particles);
+    }
+
+    // 5. 水洼反射
+    if (cfg.puddleReflection && cfg.puddleReflection.enabled) {
+      this._renderPuddleReflection(ctx, dt, cfg.puddleReflection);
+    }
+
+    // 6. 暗角
+    if (cfg.vignette) {
+      this._renderVignette(ctx, cfg.vignette);
+    }
+
+    // 7. 全局亮度闪烁
+    if (cfg.flicker && cfg.flicker.enabled) {
+      this._applyFlicker(ctx, dt, cfg.flicker);
+    }
+
+    // 8. CRT 扫描线
+    if (cfg.scanlines && cfg.scanlines.enabled) {
+      this._renderScanlines(ctx, cfg.scanlines);
+    }
+
+    // 9. 偶发故障效果
+    this._maybeGlitch(ctx, dt);
+  },
+
+  // ---- 雨滴渲染 ----
+  _renderRain(ctx, dt, rcfg) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (const drop of this.raindrops) {
+      const x1 = drop.x;
+      const y1 = drop.y;
+      const x2 = drop.x + drop.wind * drop.length;
+      const y2 = drop.y + drop.length;
+
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+
+      // 更新位置
+      drop.y += drop.speed;
+      drop.x += drop.wind;
+
+      // 超出屏幕重置
+      if (drop.y > 660) {
+        drop.y = -drop.length - Math.random() * 40;
+        drop.x = Math.random() * 1000 - 20;
+      }
+      if (drop.x > 980) drop.x = -20;
+    }
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  // ---- 雾气渲染 ----
+  _renderFog(ctx, dt, fcfg) {
+    ctx.save();
+    for (const fog of this.fogLayers) {
+      fog.x += fog.speed;
+      if (fog.x > 960 + fog.w) fog.x = -fog.w;
+
+      const grad = ctx.createRadialGradient(
+        fog.x + fog.w / 2, fog.y + fog.h / 2, 0,
+        fog.x + fog.w / 2, fog.y + fog.h / 2, fog.w / 2
+      );
+      const [r, g, b] = fog.color;
+      grad.addColorStop(0, `rgba(${r},${g},${b},${fog.opacity})`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(fog.x, fog.y, fog.w, fog.h);
+    }
+    ctx.restore();
+  },
+
+  // ---- 霓虹脉冲 ----
+  _renderNeonPulse(ctx, dt, ncfg) {
+    this.neonPulse += ncfg.speed;
+    const pulse = Math.sin(this.neonPulse) * 0.5 + 0.5;
+    const alpha = ncfg.intensity * pulse;
+
+    // 在背景上叠加一层极淡的绿色/紫色色偏
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    // 绿色霓虹光晕（散布在画面上半部）
+    const grad1 = ctx.createRadialGradient(300, 200, 0, 300, 200, 250);
+    grad1.addColorStop(0, `rgba(0, 255, 136, ${alpha * 0.4})`);
+    grad1.addColorStop(1, 'rgba(0, 255, 136, 0)');
+    ctx.fillStyle = grad1;
+    ctx.fillRect(0, 0, 960, 640);
+
+    // 紫色霓虹光晕
+    const grad2 = ctx.createRadialGradient(700, 150, 0, 700, 150, 200);
+    grad2.addColorStop(0, `rgba(180, 0, 255, ${alpha * 0.3})`);
+    grad2.addColorStop(1, 'rgba(180, 0, 255, 0)');
+    ctx.fillStyle = grad2;
+    ctx.fillRect(0, 0, 960, 640);
+
+    ctx.restore();
+  },
+
+  // ---- 环境粒子 ----
+  _renderParticles(ctx, dt, pcfg) {
+    ctx.save();
+    for (const p of this.particles) {
+      p.age += dt / 1000;
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // 生命周期
+      let alpha;
+      if (p.age < p.maxLife * 0.2) {
+        alpha = p.opacity * (p.age / (p.maxLife * 0.2));
+      } else if (p.age > p.maxLife * 0.7) {
+        alpha = p.opacity * (1 - (p.age - p.maxLife * 0.7) / (p.maxLife * 0.3));
+      } else {
+        alpha = p.opacity;
+      }
+
+      if (p.age >= p.maxLife || p.y < -20 || p.y > 660 || p.x < -20 || p.x > 980) {
+        Object.assign(p, this._newParticle(pcfg));
+        p.age = 0;
+        continue;
+      }
+
+      ctx.globalAlpha = alpha;
+      if (p.type === 'data') {
+        // 数据流粒子：绿色小方块
+        ctx.fillStyle = '#00ff88';
+        ctx.fillRect(p.x, p.y, 2, 2);
+      } else if (p.type === 'steam') {
+        // 蒸汽：灰色半透明圆
+        ctx.fillStyle = 'rgba(160, 170, 190, 0.5)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'smoke') {
+        // 烟雾：紫灰色大圆
+        ctx.fillStyle = 'rgba(120, 80, 140, 0.3)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'drip') {
+        // 水滴：蓝色小点
+        ctx.fillStyle = 'rgba(140, 180, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'wind') {
+        // 风尘：灰白色线条
+        ctx.strokeStyle = 'rgba(200, 200, 220, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 8, p.y - p.vy * 4);
+        ctx.stroke();
+      } else {
+        // 灰尘：黄色小点
+        ctx.fillStyle = 'rgba(200, 180, 120, 0.5)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  },
+
+  // ---- 水洼反射 ----
+  _renderPuddleReflection(ctx, dt, pcfg) {
+    ctx.save();
+    // 在画面底部添加水面反射效果
+    const grad = ctx.createLinearGradient(0, pcfg.y, 0, 640);
+    grad.addColorStop(0, 'rgba(0, 200, 255, 0)');
+    grad.addColorStop(0.3, `rgba(0, 180, 255, ${pcfg.opacity * 0.3})`);
+    grad.addColorStop(1, `rgba(0, 150, 200, ${pcfg.opacity * 0.1})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, pcfg.y, 960, 640 - pcfg.y);
+
+    // 水面波纹
+    ctx.strokeStyle = `rgba(100, 200, 255, ${pcfg.opacity * 0.15})`;
+    ctx.lineWidth = 0.5;
+    const time = performance.now() * 0.001;
+    for (let i = 0; i < 6; i++) {
+      const y = pcfg.y + 20 + i * 22;
+      const amp = 2 + Math.sin(time + i) * 1.5;
+      ctx.beginPath();
+      for (let x = 0; x < 960; x += 4) {
+        const dy = Math.sin(x * 0.02 + time * 1.5 + i * 0.7) * amp;
+        if (x === 0) ctx.moveTo(x, y + dy);
+        else ctx.lineTo(x, y + dy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  // ---- 暗角 ----
+  _renderVignette(ctx, vcfg) {
+    const grad = ctx.createRadialGradient(480, 320, vcfg.inner, 480, 320, vcfg.outer);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${vcfg.opacity})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 960, 640);
+  },
+
+  // ---- 全局闪烁 ----
+  _applyFlicker(ctx, dt, fcfg) {
+    if (Math.random() < fcfg.chance) {
+      this.lightFlicker = 1.0 - fcfg.amount * Math.random();
+    } else {
+      // 平滑恢复
+      this.lightFlicker += (1.0 - this.lightFlicker) * 0.1;
+    }
+
+    if (this.lightFlicker < 0.98) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = `rgb(${Math.floor(this.lightFlicker * 255)},${Math.floor(this.lightFlicker * 255)},${Math.floor(this.lightFlicker * 255)})`;
+      ctx.fillRect(0, 0, 960, 640);
+      ctx.restore();
+    }
+  },
+
+  // ---- CRT 扫描线 ----
+  _renderScanlines(ctx, scfg) {
+    this.scanlineOffset = (this.scanlineOffset + 0.5) % 4;
+    ctx.save();
+    ctx.fillStyle = `rgba(0,0,0,${scfg.opacity})`;
+    for (let y = this.scanlineOffset; y < 640; y += 4) {
+      ctx.fillRect(0, y, 960, 1);
+    }
+    ctx.restore();
+  },
+
+  // ---- 偶发故障效果 ----
+  _maybeGlitch(ctx, dt) {
+    this.glitchTimer += dt;
+    if (!this.glitchActive && this.glitchTimer > 8000 + Math.random() * 15000) {
+      this.glitchActive = true;
+      this.glitchTimer = 0;
+      setTimeout(() => { this.glitchActive = false; }, 80 + Math.random() * 120);
+    }
+
+    if (this.glitchActive) {
+      ctx.save();
+      // 随机水平位移几行
+      const sliceY = Math.floor(Math.random() * 600);
+      const sliceH = 2 + Math.floor(Math.random() * 8);
+      const shift = (Math.random() - 0.5) * 20;
+      const imgData = ctx.getImageData(0, sliceY, 960, sliceH);
+      ctx.putImageData(imgData, shift, sliceY);
+
+      // 红/蓝色偏
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = `rgba(255, 0, 0, ${0.05 + Math.random() * 0.05})`;
+      ctx.fillRect(0, 0, 960, 640);
+      ctx.restore();
+    }
+  },
+};
+
+
+// ============================================================
 // LAST SIGNAL - Point & Click Adventure Engine
 // ============================================================
-
 const Game = {
   canvas: null,
   ctx: null,
@@ -366,35 +832,33 @@ const Game = {
   inventory: [],
   flags: {},
   images: {},
-  bgFrames: {},            // sceneBgName → [Image, Image, ...]  动画帧序列
-  currentFrame: 0,         // 当前动画帧索引
-  frameTimer: 0,           // 帧计时器
-  frameInterval: 800,      // 帧间隔(ms)，慢速播放
-  masks: {},             // sceneId → {canvas, ctx, data: ImageData}  组合mask（悬停效果）
-  objMasks: {},          // "sceneId_objId" → {canvas, ctx, data: ImageData}  单独mask（点击归属）
+  bgFrames: {},
+  currentFrame: 0,
+  frameTimer: 0,
+  frameInterval: 800,
+  masks: {},
+  objMasks: {},
   selectedItem: null,
   dialogueActive: false,
   mouseX: 0,
   mouseY: 0,
   audioCtx: null,
 
-  // ---- 初始化 ----
   async init() {
     this.canvas = document.getElementById('scene-canvas');
     this.ctx = this.canvas.getContext('2d');
     this.ctx.imageSmoothingEnabled = false;
-    
+
     this.canvas.addEventListener('click', (e) => this.handleClick(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
-    
+
     await this.loadImages();
     await this.loadMasks();
     this.buildInventoryUI();
   },
 
-  // ---- 图片加载 ----
   async loadImages() {
-    const NUM_FRAMES = 5;
+    const NUM_FRAMES = 1; // 只需加载基础图，VFX 引擎实时生成动效
     const sceneBgs = [
       'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
@@ -424,21 +888,22 @@ const Game = {
 
     const promises = [];
 
-    // 加载场景动画帧
     for (const bgName of sceneBgs) {
-      const framePromises = [];
-      for (let fi = 0; fi < NUM_FRAMES; fi++) {
-        framePromises.push(loadImg(`assets/${bgName}_f${fi}.png`));
-      }
+      // 只加载 f0 作为基础背景图
       promises.push(
-        Promise.all(framePromises).then(frames => {
-          this.bgFrames[bgName] = frames;
-          this.images[bgName] = frames[0]; // 兼容：首帧作为静态引用
+        loadImg(`assets/${bgName}_f0.png`).then(img => {
+          this.images[bgName] = img;
+          this.bgFrames[bgName] = [img]; // 兼容旧接口
+        }).catch(() => {
+          // f0 不存在则尝试原图
+          return loadImg(`assets/${bgName}.png`).then(img => {
+            this.images[bgName] = img;
+            this.bgFrames[bgName] = [img];
+          });
         })
       );
     }
 
-    // 加载角色肖像（单帧）
     for (const name of portraits) {
       promises.push(loadImg(`assets/${name}.png`).then(img => { this.images[name] = img; }));
     }
@@ -446,11 +911,9 @@ const Game = {
     await Promise.all(promises);
   },
 
-  // ---- Mask 加载 ----
   async loadMasks() {
     const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
-    
-    // 加载组合 mask（用于悬停效果）
+
     const comboPromises = sceneIds.map(id => {
       return new Promise((resolve) => {
         const img = new Image();
@@ -467,8 +930,7 @@ const Game = {
         img.src = `assets/masks/${id}_mask.png`;
       });
     });
-    
-    // 加载每个物体的单独 mask（用于点击归属判断）
+
     const objMaskList = [];
     for (const [sceneId, scene] of Object.entries(SCENES)) {
       if (!scene.hotspots) continue;
@@ -477,7 +939,7 @@ const Game = {
         objMaskList.push({ sceneId, objId: hs.maskId });
       }
     }
-    
+
     const objPromises = objMaskList.map(({ sceneId, objId }) => {
       const key = `${sceneId}_${objId}`;
       return new Promise((resolve) => {
@@ -495,21 +957,18 @@ const Game = {
         img.src = `assets/masks/${sceneId}_${objId}_mask.png`;
       });
     });
-    
+
     await Promise.all([...comboPromises, ...objPromises]);
   },
 
-  // ---- Mask 像素检测 ----
   isMaskHit(x, y) {
     const mask = this.masks[this.currentScene];
     if (!mask) return false;
     const px = Math.floor(x), py = Math.floor(y);
     if (px < 0 || px >= 960 || py < 0 || py >= 640) return false;
-    // 灰度 mask：R=G=B, 白色(>128)=可交互
     return mask.data.data[(py * 960 + px) * 4] > 128;
   },
 
-  // ---- 开始游戏 ----
   start() {
     document.getElementById('title-screen').style.display = 'none';
     this.initAudio();
@@ -518,25 +977,27 @@ const Game = {
 
   renderLoop: null,
 
-  // ---- 场景切换 ----
   async goScene(sceneId) {
     const fade = document.getElementById('fade-overlay');
     fade.classList.add('active');
-    
+
     await this.sleep(600);
     this.currentScene = sceneId;
     this.selectedItem = null;
     this.hideDialogue();
+
+    // 初始化 VFX 引擎
+    VFX.init(sceneId);
+
     this.startRenderLoop();
     this.updateHUD();
-    
-    // 入场对话
+
     const scene = SCENES[sceneId];
     if (scene && scene.onEnter) {
       await this.sleep(300);
       scene.onEnter();
     }
-    
+
     fade.classList.remove('active');
   },
 
@@ -544,15 +1005,10 @@ const Game = {
     if (this.renderLoop) cancelAnimationFrame(this.renderLoop);
     this.lastFrameTime = performance.now();
     const loop = (now) => {
-      // 动画帧计时
       const dt = now - this.lastFrameTime;
-      this.frameTimer += dt;
       this.lastFrameTime = now;
-      if (this.frameTimer >= this.frameInterval) {
-        this.frameTimer = 0;
-        this.currentFrame = (this.currentFrame + 1) % 5;
-      }
-      this.render();
+
+      this.render(dt);
       this.renderLoop = requestAnimationFrame(loop);
     };
     this.renderLoop = requestAnimationFrame(loop);
@@ -560,22 +1016,13 @@ const Game = {
 
   hotspotAnim: 0,
 
-  // ---- 渲染 ----
-  render() {
+  render(dt) {
     const scene = SCENES[this.currentScene];
     if (!scene) return;
-    
+
     const bgName = scene.background;
-    
-    // 画动画背景（循环播放帧序列）
-    const frames = this.bgFrames[bgName];
-    let img;
-    if (frames && frames.length > 0) {
-      img = frames[this.currentFrame % frames.length];
-    } else {
-      img = this.images[bgName];
-    }
-    
+    const img = this.images[bgName];
+
     // 画背景
     if (img) {
       this.ctx.drawImage(img, 0, 0, 960, 640);
@@ -583,194 +1030,179 @@ const Game = {
       this.ctx.fillStyle = '#111';
       this.ctx.fillRect(0, 0, 960, 640);
     }
-    
-    // 暗角效果
-    const grad = this.ctx.createRadialGradient(480, 320, 200, 480, 320, 550);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.5)');
-    this.ctx.fillStyle = grad;
-    this.ctx.fillRect(0, 0, 960, 640);
+
+    // ★ 实时 VFX 动效渲染 ★
+    VFX.render(this.ctx, dt, this.currentScene);
 
     // 画可交互区域高亮（基于 mask）
-    {
-      this.hotspotAnim += 0.03;
-      const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5;
-      const mask = this.masks[this.currentScene];
-      const isHovered = this.isMaskHit(this.mouseX, this.mouseY);
-      
-      if (mask) {
+    this.hotspotAnim += 0.03;
+    const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5;
+    const mask = this.masks[this.currentScene];
+    const isHovered = this.isMaskHit(this.mouseX, this.mouseY);
+
+    if (mask) {
+      const ctx = this.ctx;
+      const data = mask.data.data;
+
+      if (isHovered) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.85)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 10;
+
+        for (let py = 1; py < 639; py += 2) {
+          for (let px = 1; px < 959; px += 2) {
+            const idx = (py * 960 + px) * 4;
+            const isOn = data[idx] > 128;
+            if (isOn) {
+              const left = data[((py) * 960 + px - 2) * 4] > 128;
+              const right = data[((py) * 960 + px + 2) * 4] > 128;
+              const up = data[((py - 2) * 960 + px) * 4] > 128;
+              const down = data[((py + 2) * 960 + px) * 4] > 128;
+              if (!left || !right || !up || !down) {
+                ctx.fillRect(px, py, 2, 2);
+              }
+            }
+          }
+        }
+        ctx.restore();
+
+        // mask 区域半透明绿色覆盖
+        ctx.save();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 960; tempCanvas.height = 640;
+        const tc = tempCanvas.getContext('2d');
+        tc.fillStyle = 'rgba(0, 255, 136, 0.12)';
+        for (let py = 0; py < 640; py += 3) {
+          for (let px = 0; px < 960; px += 3) {
+            if (data[(py * 960 + px) * 4] > 128) {
+              tc.fillRect(px, py, 3, 3);
+            }
+          }
+        }
+        ctx.drawImage(tempCanvas, 0, 0);
+        ctx.restore();
+
+        // 浮动标签
+        if (scene.hotspots) {
+          for (const hs of scene.hotspots) {
+            if (hs.condition && !hs.condition()) continue;
+            const label = (hs.label || '').replace('▸ ', '');
+            if (!label) continue;
+
+            let sumX = 0, sumY = 0, count = 0;
+            for (let py = 0; py < 640; py += 6) {
+              for (let px = 0; px < 960; px += 6) {
+                if (data[(py * 960 + px) * 4] > 128) {
+                  sumX += px; sumY += py; count++;
+                }
+              }
+            }
+            if (count === 0) continue;
+            const cx = sumX / count, cy = sumY / count;
+
+            ctx.save();
+            ctx.font = '13px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            const tw = ctx.measureText(label).width + 16;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(cx - tw / 2, cy - 22, tw, 20);
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx - tw / 2, cy - 22, tw, 20);
+
+            ctx.fillStyle = '#00ff88';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, cx, cy - 12);
+            ctx.restore();
+            break;
+          }
+        }
+      } else {
+        const alpha = 0.10 + pulse * 0.15;
+        ctx.save();
+        ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
+        ctx.lineWidth = 1;
+
+        for (let py = 1; py < 639; py += 3) {
+          for (let px = 1; px < 959; px += 3) {
+            const idx = (py * 960 + px) * 4;
+            const isOn = data[idx] > 128;
+            if (isOn) {
+              const left = data[((py) * 960 + px - 3) * 4] > 128;
+              const right = data[((py) * 960 + px + 3) * 4] > 128;
+              const up = data[((py - 3) * 960 + px) * 4] > 128;
+              const down = data[((py + 3) * 960 + px) * 4] > 128;
+              if (!left || !right || !up || !down) {
+                ctx.fillRect(px, py, 2, 2);
+              }
+            }
+          }
+        }
+        ctx.restore();
+      }
+    } else if (scene.hotspots) {
+      for (const hs of scene.hotspots) {
+        if (hs.condition && !hs.condition()) continue;
+        const isHoveredRect = (
+          this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
+          this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
+        );
         const ctx = this.ctx;
-        const data = mask.data.data;
-        
-        if (isHovered) {
-          // 悬停：在 mask 边缘画发光轮廓
+        if (isHoveredRect) {
           ctx.save();
-          ctx.strokeStyle = 'rgba(0, 255, 136, 0.85)';
+          ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
           ctx.lineWidth = 2;
           ctx.shadowColor = '#00ff88';
-          ctx.shadowBlur = 10;
-          
-          // 扫描 mask 边缘并描边
-          for (let py = 1; py < 639; py += 2) {
-            for (let px = 1; px < 959; px += 2) {
-              const idx = (py * 960 + px) * 4;
-              const isOn = data[idx] > 128;
-              // 检查邻居是否是边缘
-              if (isOn) {
-                const left = data[((py) * 960 + px - 2) * 4] > 128;
-                const right = data[((py) * 960 + px + 2) * 4] > 128;
-                const up = data[((py - 2) * 960 + px) * 4] > 128;
-                const down = data[((py + 2) * 960 + px) * 4] > 128;
-                if (!left || !right || !up || !down) {
-                  ctx.fillRect(px, py, 2, 2);
-                }
-              }
-            }
-          }
+          ctx.shadowBlur = 12;
+          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+          ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
+          ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
           ctx.restore();
-          
-          // mask 区域半透明绿色覆盖
-          ctx.save();
-          ctx.globalCompositeOperation = 'source-atop';
-          // 直接用 mask 做 alpha 通道：绘制半透明绿色到 mask 区域
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = 960; tempCanvas.height = 640;
-          const tc = tempCanvas.getContext('2d');
-          tc.fillStyle = 'rgba(0, 255, 136, 0.12)';
-          for (let py = 0; py < 640; py += 3) {
-            for (let px = 0; px < 960; px += 3) {
-              if (data[(py * 960 + px) * 4] > 128) {
-                tc.fillRect(px, py, 3, 3);
-              }
-            }
-          }
-          ctx.drawImage(tempCanvas, 0, 0);
-          ctx.restore();
-          
-          // 浮动标签
-          if (scene.hotspots) {
-            for (const hs of scene.hotspots) {
-              if (hs.condition && !hs.condition()) continue;
-              const label = (hs.label || '').replace('▸ ', '');
-              if (!label) continue;
-              
-              // 找 mask 区域的中心
-              let sumX = 0, sumY = 0, count = 0;
-              for (let py = 0; py < 640; py += 6) {
-                for (let px = 0; px < 960; px += 6) {
-                  if (data[(py * 960 + px) * 4] > 128) {
-                    sumX += px; sumY += py; count++;
-                  }
-                }
-              }
-              if (count === 0) continue;
-              const cx = sumX / count, cy = sumY / count;
-              
-              ctx.save();
-              ctx.font = '13px "Courier New", monospace';
-              ctx.textAlign = 'center';
-              const tw = ctx.measureText(label).width + 16;
-              
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-              ctx.fillRect(cx - tw / 2, cy - 22, tw, 20);
-              ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(cx - tw / 2, cy - 22, tw, 20);
-              
-              ctx.fillStyle = '#00ff88';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(label, cx, cy - 12);
-              ctx.restore();
-              break; // 只显示第一个活跃 hotspot 的标签
-            }
+
+          const label = (hs.label || '').replace('▸ ', '');
+          if (label) {
+            ctx.save();
+            ctx.font = '13px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            const tw = ctx.measureText(label).width + 16;
+            const tx = hs.x + hs.w / 2, ty = hs.y - 10;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
+            ctx.fillStyle = '#00ff88';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, tx, ty - 4);
+            ctx.restore();
           }
         } else {
-          // 非悬停：mask 边缘呼吸闪烁
-          const alpha = 0.10 + pulse * 0.15;
           ctx.save();
+          const alpha = 0.12 + pulse * 0.18;
           ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
           ctx.lineWidth = 1;
-          
-          for (let py = 1; py < 639; py += 3) {
-            for (let px = 1; px < 959; px += 3) {
-              const idx = (py * 960 + px) * 4;
-              const isOn = data[idx] > 128;
-              if (isOn) {
-                const left = data[((py) * 960 + px - 3) * 4] > 128;
-                const right = data[((py) * 960 + px + 3) * 4] > 128;
-                const up = data[((py - 3) * 960 + px) * 4] > 128;
-                const down = data[((py + 3) * 960 + px) * 4] > 128;
-                if (!left || !right || !up || !down) {
-                  ctx.fillRect(px, py, 2, 2);
-                }
-              }
-            }
-          }
+          ctx.setLineDash([4, 4]);
+          ctx.lineDashOffset = -this.hotspotAnim * 10;
+          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
           ctx.restore();
-        }
-      } else if (scene.hotspots) {
-        // fallback: 无 mask 时用旧的矩形高亮
-        for (const hs of scene.hotspots) {
-          if (hs.condition && !hs.condition()) continue;
-          const isHoveredRect = (
-            this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
-            this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
-          );
-          const ctx = this.ctx;
-          if (isHoveredRect) {
-            ctx.save();
-            ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
-            ctx.lineWidth = 2;
-            ctx.shadowColor = '#00ff88';
-            ctx.shadowBlur = 12;
-            ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
-            ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
-            ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
-            ctx.restore();
-            
-            const label = (hs.label || '').replace('▸ ', '');
-            if (label) {
-              ctx.save();
-              ctx.font = '13px "Courier New", monospace';
-              ctx.textAlign = 'center';
-              const tw = ctx.measureText(label).width + 16;
-              const tx = hs.x + hs.w / 2, ty = hs.y - 10;
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-              ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
-              ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
-              ctx.fillStyle = '#00ff88';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(label, tx, ty - 4);
-              ctx.restore();
-            }
-          } else {
-            ctx.save();
-            const alpha = 0.12 + pulse * 0.18;
-            ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.lineDashOffset = -this.hotspotAnim * 10;
-            ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
-            ctx.restore();
-          }
         }
       }
     }
-    
+
     document.getElementById('scene-name').textContent = scene.name || '';
   },
 
-  // ---- 鼠标移动 ----
   handleMove(e) {
     const rect = this.canvas.getBoundingClientRect();
     this.mouseX = (e.clientX - rect.left) * (960 / rect.width);
     this.mouseY = (e.clientY - rect.top) * (640 / rect.height);
-    
+
     const hotspot = this.getHotspot();
     const hint = document.getElementById('hint-text');
-    
+
     if (hotspot) {
       this.canvas.style.cursor = 'pointer';
       hint.textContent = hotspot.label || '';
@@ -781,14 +1213,13 @@ const Game = {
     }
   },
 
-  // ---- 点击处理 ----
   handleClick(e) {
     if (this.dialogueActive) return;
-    
+
     const rect = this.canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (960 / rect.width);
     const y = (e.clientY - rect.top) * (640 / rect.height);
-    
+
     const hotspot = this.getHotspotAt(x, y);
     if (hotspot) {
       hotspot.action();
@@ -802,14 +1233,12 @@ const Game = {
   getHotspotAt(x, y) {
     const scene = SCENES[this.currentScene];
     if (!scene || !scene.hotspots) return null;
-    
-    // 优先用 mask 检测：检查每个 hotspot 的单独 mask
+
     if (this.masks[this.currentScene]) {
       for (const hs of scene.hotspots) {
         if (hs.condition && !hs.condition()) continue;
-        
+
         if (hs.maskId) {
-          // 使用单独的物体 mask 判断点击归属
           const key = `${this.currentScene}_${hs.maskId}`;
           const objMask = this.objMasks[key];
           if (objMask) {
@@ -821,14 +1250,12 @@ const Game = {
             }
           }
         } else if (hs.isEdge) {
-          // 边缘过渡区域：检查组合 mask
           if (this.isMaskHit(x, y)) return hs;
         }
       }
       return null;
     }
-    
-    // fallback: 矩形检测
+
     for (const hs of scene.hotspots) {
       if (hs.condition && !hs.condition()) continue;
       if (x >= hs.x && x <= hs.x + hs.w && y >= hs.y && y <= hs.y + hs.h) {
@@ -846,19 +1273,17 @@ const Game = {
       const speakerEl = document.getElementById('dialogue-speaker');
       const textEl = document.getElementById('dialogue-text');
       const choicesEl = document.getElementById('dialogue-choices');
-      
+
       let speakerDisplay = speaker || '';
       if (portrait && this.images[portrait]) {
-        // 在对话框左侧显示肖像
         speakerDisplay = `◆ ${speaker}`;
       }
-      
+
       speakerEl.textContent = speakerDisplay;
       textEl.textContent = '';
       choicesEl.innerHTML = '';
       box.style.display = 'block';
-      
-      // 打字机效果
+
       let i = 0;
       const typeTimer = setInterval(() => {
         if (i < text.length) {
@@ -866,7 +1291,7 @@ const Game = {
           i++;
         } else {
           clearInterval(typeTimer);
-          
+
           if (choices && choices.length > 0) {
             choices.forEach((c, idx) => {
               const btn = document.createElement('button');
@@ -879,7 +1304,6 @@ const Game = {
               choicesEl.appendChild(btn);
             });
           } else {
-            // 点击继续
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = '▸ 继续...';
@@ -956,12 +1380,10 @@ const Game = {
     }
   },
 
-  // ---- HUD ----
   updateHUD() {
     this.updateInventoryUI();
   },
 
-  // ---- 提示 ----
   showHint(text, duration = 2000) {
     const el = document.getElementById('hint-text');
     el.textContent = text;
@@ -1008,7 +1430,6 @@ const Game = {
     screen.style.display = 'flex';
   },
 
-  // ---- 工具 ----
   sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
 };
 
@@ -1016,7 +1437,6 @@ const Game = {
 // ============================================================
 // 物品定义
 // ============================================================
-
 const ITEMS = {
   datachip: { name: '数据芯片', icon: '💾', desc: '一个加密的数据芯片' },
   keycard: { name: '安全卡', icon: '🗝️', desc: 'ECHO 公司的安全门卡' },
@@ -1028,14 +1448,12 @@ const ITEMS = {
 // ============================================================
 // 场景定义
 // ============================================================
-
 const SCENES = {
 
-  // ---- 场景 1: 公寓 ----
   apartment: {
     name: '凯的公寓 — 2087年，新杭州',
     background: 'bg_apartment',
-    
+
     onEnter() {
       if (!Game.flags.apartment_visited) {
         Game.flags.apartment_visited = true;
@@ -1052,7 +1470,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 350, y: 250, w: 250, h: 200,
@@ -1097,11 +1515,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 2: 街道 ----
   street: {
     name: '霓虹街 — 雨夜',
     background: 'bg_street',
-    
+
     onEnter() {
       if (!Game.flags.street_visited) {
         Game.flags.street_visited = true;
@@ -1110,7 +1527,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 100, y: 200, w: 300, h: 350,
@@ -1163,11 +1580,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 3: 酒吧 ----
   bar: {
     name: 'The Rust 酒吧',
     background: 'bg_bar',
-    
+
     onEnter() {
       if (!Game.flags.bar_visited) {
         Game.flags.bar_visited = true;
@@ -1176,7 +1592,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 350, y: 250, w: 250, h: 250,
@@ -1257,11 +1673,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 4: 小巷 ----
   alley: {
     name: '后巷 — 数据贩子的领地',
     background: 'bg_alley',
-    
+
     onEnter() {
       if (!Game.flags.alley_visited) {
         Game.flags.alley_visited = true;
@@ -1270,7 +1685,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 350, y: 200, w: 250, h: 300,
@@ -1327,11 +1742,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 5: ECHO 塔楼 ----
   tower: {
     name: 'ECHO 公司塔楼 — 废弃区入口',
     background: 'bg_tower_exterior',
-    
+
     onEnter() {
       if (!Game.flags.tower_visited) {
         Game.flags.tower_visited = true;
@@ -1340,7 +1754,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 380, y: 250, w: 200, h: 300,
@@ -1390,11 +1804,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 6: 服务器室 ----
   server: {
     name: 'ECHO 服务器室 — 地下三层',
     background: 'bg_server_room',
-    
+
     onEnter() {
       if (!Game.flags.server_visited) {
         Game.flags.server_visited = true;
@@ -1403,7 +1816,7 @@ const SCENES = {
         });
       }
     },
-    
+
     hotspots: [
       {
         x: 300, y: 200, w: 350, h: 300,
@@ -1423,7 +1836,7 @@ const SCENES = {
                 return Game.showDialogue('凯', '......他们拿活人做实验。\n\n搭档发现了这个，所以他们杀了他。');
               });
             }).then(() => {
-              return Game.showDialogue('Oracle', [ // 从终端里传出的声音
+              return Game.showDialogue('Oracle', [
                 { text: '现在你知道了。去楼顶。我在那里等你。' },
               ]);
             }).then(() => {
@@ -1477,11 +1890,10 @@ const SCENES = {
     ]
   },
 
-  // ---- 场景 7: 楼顶 (结局) ----
   rooftop: {
     name: 'ECHO 塔楼顶 — 终点',
     background: 'bg_rooftop',
-    
+
     onEnter() {
       Game.showDialogue(null, '雨更大了。楼顶的风撕扯着你的外套。\n\n城市在脚下，霓虹像一条没有尽头的河。').then(() => {
         return Game.showDialogue('Oracle', '你来了。', [
@@ -1497,7 +1909,6 @@ const SCENES = {
           { text: '毁掉数据，保护自己' },
         ]).then(choice => {
           if (choice === 0) {
-            // 好结局
             Game.sfx('success');
             Game.showEnding('LAST SIGNAL — 信号永不断', [
               '你选择了公开。',
@@ -1515,7 +1926,6 @@ const SCENES = {
               '— END —',
             ]);
           } else {
-            // 沉默结局
             Game.sfx('error');
             Game.showEnding('LAST SIGNAL — 沉默', [
               '你选择了沉默。',
@@ -1535,8 +1945,8 @@ const SCENES = {
         });
       });
     },
-    
-    hotspots: []  // 结局场景，无交互
+
+    hotspots: []
   },
 };
 
