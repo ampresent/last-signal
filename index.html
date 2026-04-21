@@ -366,6 +366,7 @@ const Game = {
   inventory: [],
   flags: {},
   images: {},
+  masks: {},             // sceneId → {canvas, ctx, data: ImageData}
   selectedItem: null,
   dialogueActive: false,
   mouseX: 0,
@@ -382,6 +383,7 @@ const Game = {
     this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
     
     await this.loadImages();
+    await this.loadMasks();
     this.buildInventoryUI();
   },
 
@@ -398,7 +400,6 @@ const Game = {
         const img = new Image();
         img.onload = () => { this.images[name] = img; resolve(); };
         img.onerror = () => {
-          // 用占位色块
           const c = document.createElement('canvas');
           c.width = 960; c.height = 640;
           const cx = c.getContext('2d');
@@ -416,6 +417,43 @@ const Game = {
     });
     
     await Promise.all(promises);
+  },
+
+  // ---- Mask 加载 ----
+  async loadMasks() {
+    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
+    
+    const promises = sceneIds.map(id => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d');
+          cx.drawImage(img, 0, 0, 960, 640);
+          const data = cx.getImageData(0, 0, 960, 640);
+          this.masks[id] = { canvas: c, ctx: cx, data };
+          resolve();
+        };
+        img.onerror = () => {
+          this.masks[id] = null;
+          resolve();
+        };
+        img.src = `assets/masks/${id}_mask.png`;
+      });
+    });
+    
+    await Promise.all(promises);
+  },
+
+  // ---- Mask 像素检测 ----
+  isMaskHit(x, y) {
+    const mask = this.masks[this.currentScene];
+    if (!mask) return false;
+    const px = Math.floor(x), py = Math.floor(y);
+    if (px < 0 || px >= 960 || py < 0 || py >= 640) return false;
+    // 灰度 mask：R=G=B, 白色(>128)=可交互
+    return mask.data.data[(py * 960 + px) * 4] > 128;
   },
 
   // ---- 开始游戏 ----
@@ -483,68 +521,170 @@ const Game = {
     this.ctx.fillStyle = grad;
     this.ctx.fillRect(0, 0, 960, 640);
 
-    // 画可交互区域高亮
-    if (scene.hotspots) {
+    // 画可交互区域高亮（基于 mask）
+    {
       this.hotspotAnim += 0.03;
-      const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5; // 0~1 循环
+      const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5;
+      const mask = this.masks[this.currentScene];
+      const isHovered = this.isMaskHit(this.mouseX, this.mouseY);
       
-      for (const hs of scene.hotspots) {
-        if (hs.condition && !hs.condition()) continue;
-        
-        const isHovered = (
-          this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
-          this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
-        );
-        
+      if (mask) {
         const ctx = this.ctx;
+        const data = mask.data.data;
         
         if (isHovered) {
-          // 悬停状态：亮边框 + 标签
+          // 悬停：在 mask 边缘画发光轮廓
           ctx.save();
-          ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
+          ctx.strokeStyle = 'rgba(0, 255, 136, 0.85)';
           ctx.lineWidth = 2;
           ctx.shadowColor = '#00ff88';
-          ctx.shadowBlur = 12;
-          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+          ctx.shadowBlur = 10;
           
-          // 半透明填充
-          ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
-          ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
+          // 扫描 mask 边缘并描边
+          for (let py = 1; py < 639; py += 2) {
+            for (let px = 1; px < 959; px += 2) {
+              const idx = (py * 960 + px) * 4;
+              const isOn = data[idx] > 128;
+              // 检查邻居是否是边缘
+              if (isOn) {
+                const left = data[((py) * 960 + px - 2) * 4] > 128;
+                const right = data[((py) * 960 + px + 2) * 4] > 128;
+                const up = data[((py - 2) * 960 + px) * 4] > 128;
+                const down = data[((py + 2) * 960 + px) * 4] > 128;
+                if (!left || !right || !up || !down) {
+                  ctx.fillRect(px, py, 2, 2);
+                }
+              }
+            }
+          }
           ctx.restore();
           
-          // 标签文字
-          const label = (hs.label || '').replace('▸ ', '');
-          if (label) {
-            ctx.save();
-            ctx.font = '13px "Courier New", monospace';
-            ctx.textAlign = 'center';
-            const tw = ctx.measureText(label).width + 16;
-            const tx = hs.x + hs.w / 2;
-            const ty = hs.y - 10;
-            
-            // 标签背景
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-            ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
-            
-            // 标签文字
-            ctx.fillStyle = '#00ff88';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(label, tx, ty - 4);
-            ctx.restore();
+          // mask 区域半透明绿色覆盖
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-atop';
+          // 直接用 mask 做 alpha 通道：绘制半透明绿色到 mask 区域
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = 960; tempCanvas.height = 640;
+          const tc = tempCanvas.getContext('2d');
+          tc.fillStyle = 'rgba(0, 255, 136, 0.12)';
+          for (let py = 0; py < 640; py += 3) {
+            for (let px = 0; px < 960; px += 3) {
+              if (data[(py * 960 + px) * 4] > 128) {
+                tc.fillRect(px, py, 3, 3);
+              }
+            }
+          }
+          ctx.drawImage(tempCanvas, 0, 0);
+          ctx.restore();
+          
+          // 浮动标签
+          if (scene.hotspots) {
+            for (const hs of scene.hotspots) {
+              if (hs.condition && !hs.condition()) continue;
+              const label = (hs.label || '').replace('▸ ', '');
+              if (!label) continue;
+              
+              // 找 mask 区域的中心
+              let sumX = 0, sumY = 0, count = 0;
+              for (let py = 0; py < 640; py += 6) {
+                for (let px = 0; px < 960; px += 6) {
+                  if (data[(py * 960 + px) * 4] > 128) {
+                    sumX += px; sumY += py; count++;
+                  }
+                }
+              }
+              if (count === 0) continue;
+              const cx = sumX / count, cy = sumY / count;
+              
+              ctx.save();
+              ctx.font = '13px "Courier New", monospace';
+              ctx.textAlign = 'center';
+              const tw = ctx.measureText(label).width + 16;
+              
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+              ctx.fillRect(cx - tw / 2, cy - 22, tw, 20);
+              ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(cx - tw / 2, cy - 22, tw, 20);
+              
+              ctx.fillStyle = '#00ff88';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, cx, cy - 12);
+              ctx.restore();
+              break; // 只显示第一个活跃 hotspot 的标签
+            }
           }
         } else {
-          // 非悬停：呼吸闪烁的虚线框
+          // 非悬停：mask 边缘呼吸闪烁
+          const alpha = 0.10 + pulse * 0.15;
           ctx.save();
-          const alpha = 0.12 + pulse * 0.18; // 0.12 ~ 0.30
           ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
           ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.lineDashOffset = -this.hotspotAnim * 10;
-          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+          
+          for (let py = 1; py < 639; py += 3) {
+            for (let px = 1; px < 959; px += 3) {
+              const idx = (py * 960 + px) * 4;
+              const isOn = data[idx] > 128;
+              if (isOn) {
+                const left = data[((py) * 960 + px - 3) * 4] > 128;
+                const right = data[((py) * 960 + px + 3) * 4] > 128;
+                const up = data[((py - 3) * 960 + px) * 4] > 128;
+                const down = data[((py + 3) * 960 + px) * 4] > 128;
+                if (!left || !right || !up || !down) {
+                  ctx.fillRect(px, py, 2, 2);
+                }
+              }
+            }
+          }
           ctx.restore();
+        }
+      } else if (scene.hotspots) {
+        // fallback: 无 mask 时用旧的矩形高亮
+        for (const hs of scene.hotspots) {
+          if (hs.condition && !hs.condition()) continue;
+          const isHoveredRect = (
+            this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
+            this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
+          );
+          const ctx = this.ctx;
+          if (isHoveredRect) {
+            ctx.save();
+            ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 12;
+            ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+            ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
+            ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
+            ctx.restore();
+            
+            const label = (hs.label || '').replace('▸ ', '');
+            if (label) {
+              ctx.save();
+              ctx.font = '13px "Courier New", monospace';
+              ctx.textAlign = 'center';
+              const tw = ctx.measureText(label).width + 16;
+              const tx = hs.x + hs.w / 2, ty = hs.y - 10;
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+              ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
+              ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
+              ctx.fillStyle = '#00ff88';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, tx, ty - 4);
+              ctx.restore();
+            }
+          } else {
+            ctx.save();
+            const alpha = 0.12 + pulse * 0.18;
+            ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.lineDashOffset = -this.hotspotAnim * 10;
+            ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+            ctx.restore();
+          }
         }
       }
     }
@@ -593,6 +733,19 @@ const Game = {
     const scene = SCENES[this.currentScene];
     if (!scene || !scene.hotspots) return null;
     
+    // 优先用 mask 检测
+    if (this.masks[this.currentScene]) {
+      if (!this.isMaskHit(x, y)) return null;
+      // mask 命中后找第一个符合条件的 hotspot
+      for (const hs of scene.hotspots) {
+        if (hs.condition && !hs.condition()) continue;
+        // 如果 hotspot 有 maskId，只在 mask 命中时返回（mask 已验证）
+        return hs;
+      }
+      return null;
+    }
+    
+    // fallback: 矩形检测
     for (const hs of scene.hotspots) {
       if (hs.condition && !hs.condition()) continue;
       if (x >= hs.x && x <= hs.x + hs.w && y >= hs.y && y <= hs.y + hs.h) {
