@@ -359,7 +359,7 @@ const VFX = {
   // 场景 VFX 配置 — 每个场景定义自己的动效组合
   SCENE_CONFIG: {
     apartment: {
-      rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3 },
+      rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3, clipToMask: 'apartment_window' },
       fog: { layers: 1, speed: 0.15, opacity: 0.06, color: [80, 80, 120] },
       neon: { speed: 0.008, intensity: 0.12 },
       flicker: { enabled: true, chance: 0.003, amount: 0.08 },
@@ -584,24 +584,26 @@ const VFX = {
   // ---- 雨滴渲染 ----
   _renderRain(ctx, dt, rcfg) {
     ctx.save();
+
+    // 如果指定了 clipToMask，将雨滴裁剪到 mask 区域内
+    if (rcfg.clipToMask && Game.objMasks && Game.objMasks[rcfg.clipToMask]) {
+      const mask = Game.objMasks[rcfg.clipToMask];
+      // 用 mask 创建裁剪区域
+      ctx.drawImage(mask.canvas, 0, 0, 960, 640);
+      ctx.globalCompositeOperation = 'source-in';
+    }
+
     ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
     ctx.lineWidth = 1;
     ctx.beginPath();
 
     for (const drop of this.raindrops) {
-      const x1 = drop.x;
-      const y1 = drop.y;
-      const x2 = drop.x + drop.wind * drop.length;
-      const y2 = drop.y + drop.length;
+      ctx.moveTo(drop.x, drop.y);
+      ctx.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
 
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-
-      // 更新位置
       drop.y += drop.speed;
       drop.x += drop.wind;
 
-      // 超出屏幕重置
       if (drop.y > 660) {
         drop.y = -drop.length - Math.random() * 40;
         drop.x = Math.random() * 1000 - 20;
