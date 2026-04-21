@@ -858,30 +858,18 @@ const Game = {
   },
 
   async loadImages() {
-    const NUM_FRAMES = 1; // 只需加载基础图，VFX 引擎实时生成动效
     const sceneBgs = [
       'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
     const portraits = ['portrait_kai', 'portrait_oracle'];
+    const NUM_FRAMES = 5; // 尝试加载 5 帧 (AI img2img 生成)
 
     const loadImg = (src) => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => {
-          const c = document.createElement('canvas');
-          c.width = 960; c.height = 640;
-          const cx = c.getContext('2d');
-          cx.fillStyle = '#111';
-          cx.fillRect(0, 0, 960, 640);
-          cx.fillStyle = '#333';
-          cx.font = '20px monospace';
-          cx.textAlign = 'center';
-          const name = src.split('/').pop().replace('.png', '');
-          cx.fillText(`[${name}]`, 480, 320);
-          resolve(c);
-        };
+        img.onerror = () => resolve(null);
         img.src = src;
       });
     };
@@ -889,17 +877,25 @@ const Game = {
     const promises = [];
 
     for (const bgName of sceneBgs) {
-      // 只加载 f0 作为基础背景图
+      // 尝试加载全部 5 帧 (AI img2img 生成)
+      const framePromises = [];
+      for (let fi = 0; fi < NUM_FRAMES; fi++) {
+        framePromises.push(loadImg(`assets/${bgName}_f${fi}.png`));
+      }
       promises.push(
-        loadImg(`assets/${bgName}_f0.png`).then(img => {
-          this.images[bgName] = img;
-          this.bgFrames[bgName] = [img]; // 兼容旧接口
-        }).catch(() => {
-          // f0 不存在则尝试原图
-          return loadImg(`assets/${bgName}.png`).then(img => {
-            this.images[bgName] = img;
-            this.bgFrames[bgName] = [img];
-          });
+        Promise.all(framePromises).then(frames => {
+          // 过滤掉加载失败的帧
+          const validFrames = frames.filter(f => f !== null);
+          if (validFrames.length > 0) {
+            this.bgFrames[bgName] = validFrames;
+            this.images[bgName] = validFrames[0];
+          } else {
+            // 降级：尝试加载旧格式
+            return loadImg(`assets/${bgName}.png`).then(img => {
+              this.images[bgName] = img;
+              this.bgFrames[bgName] = img ? [img] : [];
+            });
+          }
         })
       );
     }
@@ -909,6 +905,16 @@ const Game = {
     }
 
     await Promise.all(promises);
+
+    // 汇报加载结果
+    for (const bgName of sceneBgs) {
+      const count = (this.bgFrames[bgName] || []).length;
+      if (count > 1) {
+        console.log(`🎬 ${bgName}: ${count} 帧 (AI 动画模式)`);
+      } else {
+        console.log(`🖼️ ${bgName}: 1 帧 (静态 + VFX 模式)`);
+      }
+    }
   },
 
   async loadMasks() {
@@ -1004,9 +1010,21 @@ const Game = {
   startRenderLoop() {
     if (this.renderLoop) cancelAnimationFrame(this.renderLoop);
     this.lastFrameTime = performance.now();
+    this.frameTimer = 0;
+    this.currentFrame = 0;
     const loop = (now) => {
       const dt = now - this.lastFrameTime;
       this.lastFrameTime = now;
+
+      // AI 帧序列慢速播放 (~800ms/帧)
+      this.frameTimer += dt;
+      if (this.frameTimer >= this.frameInterval) {
+        this.frameTimer = 0;
+        const frames = this.bgFrames[this.currentScene];
+        if (frames && frames.length > 1) {
+          this.currentFrame = (this.currentFrame + 1) % frames.length;
+        }
+      }
 
       this.render(dt);
       this.renderLoop = requestAnimationFrame(loop);
@@ -1021,9 +1039,17 @@ const Game = {
     if (!scene) return;
 
     const bgName = scene.background;
-    const img = this.images[bgName];
 
-    // 画背景
+    // 画背景：优先使用 AI 帧序列中的当前帧
+    const frames = this.bgFrames[bgName];
+    let img;
+    if (frames && frames.length > 0) {
+      img = frames[this.currentFrame % frames.length];
+    }
+    if (!img) {
+      img = this.images[bgName];
+    }
+
     if (img) {
       this.ctx.drawImage(img, 0, 0, 960, 640);
     } else {
@@ -1031,7 +1057,7 @@ const Game = {
       this.ctx.fillRect(0, 0, 960, 640);
     }
 
-    // ★ 实时 VFX 动效渲染 ★
+    // ★ VFX 实时粒子动效叠加 (在 AI 帧之上) ★
     VFX.render(this.ctx, dt, this.currentScene);
 
     // 画可交互区域高亮（基于 mask）
