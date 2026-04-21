@@ -863,7 +863,7 @@ const Game = {
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
     const portraits = ['portrait_kai', 'portrait_oracle'];
-    const NUM_FRAMES = 5; // 尝试加载 5 帧 (AI img2img 生成)
+    const NUM_FRAMES = 12; // AI 关键帧 + 光流插值生成 12 帧/场景
 
     const loadImg = (src) => {
       return new Promise((resolve) => {
