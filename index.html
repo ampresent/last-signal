@@ -425,6 +425,8 @@ const Game = {
     this.goScene('apartment');
   },
 
+  renderLoop: null,
+
   // ---- 场景切换 ----
   async goScene(sceneId) {
     const fade = document.getElementById('fade-overlay');
@@ -434,7 +436,7 @@ const Game = {
     this.currentScene = sceneId;
     this.selectedItem = null;
     this.hideDialogue();
-    this.render();
+    this.startRenderLoop();
     this.updateHUD();
     
     // 入场对话
@@ -446,6 +448,17 @@ const Game = {
     
     fade.classList.remove('active');
   },
+
+  startRenderLoop() {
+    if (this.renderLoop) cancelAnimationFrame(this.renderLoop);
+    const loop = () => {
+      this.render();
+      this.renderLoop = requestAnimationFrame(loop);
+    };
+    loop();
+  },
+
+  hotspotAnim: 0,
 
   // ---- 渲染 ----
   render() {
@@ -469,8 +482,72 @@ const Game = {
     grad.addColorStop(1, 'rgba(0,0,0,0.5)');
     this.ctx.fillStyle = grad;
     this.ctx.fillRect(0, 0, 960, 640);
-    
-    // 画可交互区域（调试用，鼠标悬停时显示）
+
+    // 画可交互区域高亮
+    if (scene.hotspots) {
+      this.hotspotAnim += 0.03;
+      const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5; // 0~1 循环
+      
+      for (const hs of scene.hotspots) {
+        if (hs.condition && !hs.condition()) continue;
+        
+        const isHovered = (
+          this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
+          this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
+        );
+        
+        const ctx = this.ctx;
+        
+        if (isHovered) {
+          // 悬停状态：亮边框 + 标签
+          ctx.save();
+          ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = '#00ff88';
+          ctx.shadowBlur = 12;
+          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+          
+          // 半透明填充
+          ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
+          ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
+          ctx.restore();
+          
+          // 标签文字
+          const label = (hs.label || '').replace('▸ ', '');
+          if (label) {
+            ctx.save();
+            ctx.font = '13px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            const tw = ctx.measureText(label).width + 16;
+            const tx = hs.x + hs.w / 2;
+            const ty = hs.y - 10;
+            
+            // 标签背景
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
+            
+            // 标签文字
+            ctx.fillStyle = '#00ff88';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, tx, ty - 4);
+            ctx.restore();
+          }
+        } else {
+          // 非悬停：呼吸闪烁的虚线框
+          ctx.save();
+          const alpha = 0.12 + pulse * 0.18; // 0.12 ~ 0.30
+          ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.lineDashOffset = -this.hotspotAnim * 10;
+          ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
+          ctx.restore();
+        }
+      }
+    }
     
     document.getElementById('scene-name').textContent = scene.name || '';
   },
