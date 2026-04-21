@@ -366,6 +366,10 @@ const Game = {
   inventory: [],
   flags: {},
   images: {},
+  bgFrames: {},            // sceneBgName → [Image, Image, ...]  动画帧序列
+  currentFrame: 0,         // 当前动画帧索引
+  frameTimer: 0,           // 帧计时器
+  frameInterval: 800,      // 帧间隔(ms)，慢速播放
   masks: {},             // sceneId → {canvas, ctx, data: ImageData}  组合mask（悬停效果）
   objMasks: {},          // "sceneId_objId" → {canvas, ctx, data: ImageData}  单独mask（点击归属）
   selectedItem: null,
@@ -390,16 +394,17 @@ const Game = {
 
   // ---- 图片加载 ----
   async loadImages() {
-    const imageList = [
+    const NUM_FRAMES = 5;
+    const sceneBgs = [
       'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
-      'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office',
-      'portrait_kai', 'portrait_oracle'
+      'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
-    
-    const promises = imageList.map(name => {
+    const portraits = ['portrait_kai', 'portrait_oracle'];
+
+    const loadImg = (src) => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => { this.images[name] = img; resolve(); };
+        img.onload = () => resolve(img);
         img.onerror = () => {
           const c = document.createElement('canvas');
           c.width = 960; c.height = 640;
@@ -409,14 +414,35 @@ const Game = {
           cx.fillStyle = '#333';
           cx.font = '20px monospace';
           cx.textAlign = 'center';
+          const name = src.split('/').pop().replace('.png', '');
           cx.fillText(`[${name}]`, 480, 320);
-          this.images[name] = c;
-          resolve();
+          resolve(c);
         };
-        img.src = `assets/${name}.png`;
+        img.src = src;
       });
-    });
-    
+    };
+
+    const promises = [];
+
+    // 加载场景动画帧
+    for (const bgName of sceneBgs) {
+      const framePromises = [];
+      for (let fi = 0; fi < NUM_FRAMES; fi++) {
+        framePromises.push(loadImg(`assets/${bgName}_f${fi}.png`));
+      }
+      promises.push(
+        Promise.all(framePromises).then(frames => {
+          this.bgFrames[bgName] = frames;
+          this.images[bgName] = frames[0]; // 兼容：首帧作为静态引用
+        })
+      );
+    }
+
+    // 加载角色肖像（单帧）
+    for (const name of portraits) {
+      promises.push(loadImg(`assets/${name}.png`).then(img => { this.images[name] = img; }));
+    }
+
     await Promise.all(promises);
   },
 
@@ -516,11 +542,20 @@ const Game = {
 
   startRenderLoop() {
     if (this.renderLoop) cancelAnimationFrame(this.renderLoop);
-    const loop = () => {
+    this.lastFrameTime = performance.now();
+    const loop = (now) => {
+      // 动画帧计时
+      const dt = now - this.lastFrameTime;
+      this.frameTimer += dt;
+      this.lastFrameTime = now;
+      if (this.frameTimer >= this.frameInterval) {
+        this.frameTimer = 0;
+        this.currentFrame = (this.currentFrame + 1) % 5;
+      }
       this.render();
       this.renderLoop = requestAnimationFrame(loop);
     };
-    loop();
+    this.renderLoop = requestAnimationFrame(loop);
   },
 
   hotspotAnim: 0,
@@ -531,7 +566,15 @@ const Game = {
     if (!scene) return;
     
     const bgName = scene.background;
-    const img = this.images[bgName];
+    
+    // 画动画背景（循环播放帧序列）
+    const frames = this.bgFrames[bgName];
+    let img;
+    if (frames && frames.length > 0) {
+      img = frames[this.currentFrame % frames.length];
+    } else {
+      img = this.images[bgName];
+    }
     
     // 画背景
     if (img) {
