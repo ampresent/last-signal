@@ -2,11 +2,14 @@
 
 ## 目录
 - [项目概览](#项目概览)
-- [免费文生图工作流 (Pollinations.AI)](#免费文生图工作流)
+- [AI 图片生成 (Pollinations.AI)](#ai-图片生成)
+- [AI 动画帧生成](#ai-动画帧生成)
+- [VFX 实时动效引擎](#vfx-实时动效引擎)
 - [游戏引擎架构](#游戏引擎架构)
+- [Mask 交互系统](#mask-交互系统)
 - [素材生成流程](#素材生成流程)
 - [部署到 GitHub Pages](#部署到-github-pages)
-- [复用指南：如何制作新游戏](#复用指南)
+- [复用指南](#复用指南)
 
 ---
 
@@ -19,56 +22,106 @@
 | 风格 | 赛博朋克 / 冷峻 noir |
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
 | 图片生成 | Pollinations.AI（完全免费，无需 API Key） |
-| 动效系统 | Canvas 实时粒子引擎 (VFX) — 雨滴/霓虹/雾气/故障 |
+| 动画系统 | AI img2img 关键帧 + OpenCV 光流插值 + VFX 粒子引擎 |
 | 部署 | GitHub Pages（静态托管） |
-| 总大小 | ~900KB |
 
 ---
 
-## 免费文生图工作流
+## AI 图片生成
 
 ### Pollinations.AI
 
 完全免费，无需注册，无需 API Key，国内可用。
 
-**API 调用方式：**
+**文生图 (GET)：**
 ```
-https://image.pollinations.ai/prompt/{URL编码的提示词}?width=宽&height=高&seed=种子&model=flux&nologo=true
+https://image.pollinations.ai/prompt/{提示词}?width=960&height=640&seed=2087&model=flux&nologo=true
 ```
 
-**参数说明：**
+**图生图 (POST)：**
+```bash
+curl -X POST \
+  "https://image.pollinations.ai/prompt/{提示词}?width=960&height=640&seed=2087&model=flux&nologo=true" \
+  -F "image=@base_image.png" \
+  -o output.png
+```
+将 base image 作为 init image 输入，AI 在其基础上根据新提示词生成变体。
 
+**参数：**
 | 参数 | 说明 | 推荐值 |
 |------|------|--------|
-| `prompt` | 提示词（URL 编码） | 描述越详细越好 |
-| `width` | 图片宽度 | 960（背景）、512（肖像） |
-| `height` | 图片高度 | 640（背景）、512（肖像） |
-| `seed` | 随机种子 | 固定值可复现，推荐 `2087` |
-| `model` | 模型 | `flux`（推荐，质量最好） |
+| `prompt` | 提示词（URL 编码） | 越详细越好 |
+| `width/height` | 尺寸 | 960×640（背景）/ 512×512（肖像） |
+| `seed` | 随机种子 | `2087`（固定可复现） |
+| `model` | 模型 | `flux` |
 | `nologo` | 去水印 | `true` |
 
-**Python 调用模板：**
-```python
-import urllib.request
-import urllib.parse
+---
 
-def generate_image(prompt, filename, width=1024, height=1024, seed=2087):
-    encoded = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width={width}&height={height}&seed={seed}&model=flux&nologo=true"
-    
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        data = resp.read()
-        with open(filename, "wb") as f:
-            f.write(data)
-    print(f"✅ {filename} ({len(data)//1024}KB)")
+## AI 动画帧生成
+
+### 策略：img2img 关键帧 + 光流插值
+
+Pollinations 的 img2img 强度不可控（固定 diff≈25），直接用会产生帧间跳变。
+解决方案：**只生成少量关键帧，用 OpenCV 光流在关键帧之间插值中间帧。**
+
+**流程：**
+1. 生成基础图 K0（文生图）
+2. 用 img2img 生成 K1, K2, K3（微调提示词，控制场景变化方向）
+3. OpenCV Farneback 光流在每对关键帧之间插值 2 个中间帧
+4. 最后一帧 → 光流插值 → 回到第一帧 = 无缝循环
+
+**输出：** 每场景 12 帧（f0-f11），文件名 `bg_{scene}_f{0-11}.png`
+
+**帧间差异：**
+- 原始 img2img：diff≈25（跳变明显）
+- 光流插值后：diff 2-14（平滑渐变）
+- 循环质量：首尾帧 diff≈3-5（无缝衔接）
+
+### 运行
+
+```bash
+cd last-signal
+python3 gen_ai_frames.py
+# 8 场景 × 12 帧 = 96 帧，约需 10-15 分钟
 ```
 
-**提示词技巧：**
-- 开头加风格描述：`pixel art style, 16-bit retro game aesthetic`
-- 加氛围词：`dark moody atmosphere, rain-soaked, neon accents`
-- 明确用途：`game background art, no characters`
-- 保持一致：多个图使用相同的风格前缀
+### 场景动画剧本
+
+每个场景有 4 个关键帧，描述一个完整循环：
+
+| 场景 | K0 (基础) | K1 | K2 | K3 |
+|------|----------|----|----|-----|
+| apartment | 原始 | 终端微亮 | 雨变大 | 灯暗 |
+| street | 原始 | 霓虹反射增强 | 暴雨+雾 | 街灯闪烁 |
+| bar | 原始 | 紫红霓虹增强 | 烟雾变浓 | 灯光变暖 |
+| alley | 原始 | 绿色霓虹增强 | 雨滴+蒸汽 | 霓虹熄灭 |
+| tower | 原始 | 大厅灯微亮 | 雨势加大 | 一盏灯灭 |
+| server | 原始 | LED 闪烁加快 | 屏幕变亮 | 日光灯闪烁 |
+| rooftop | 原始 | 远景霓虹微亮 | 暴雨 | 闪电 |
+| office | 原始 | 全息屏增强 | 窗上雨滴 | 台灯闪烁 |
+
+---
+
+## VFX 实时动效引擎
+
+Canvas 粒子系统，在 AI 帧之上叠加实时效果。60fps，零额外文件体积。
+
+**效果类型：**
+| 效果 | 描述 | 场景 |
+|---|---|---|
+| 雨滴 | 倾斜雨丝粒子，支持风向 | 街道/小巷/楼顶/公寓 |
+| 雾气 | 径向渐变雾层，缓慢漂移 | 街道/楼顶/酒吧 |
+| 霓虹脉冲 | 绿/紫光晕呼吸叠加 | 全场景 |
+| 环境粒子 | 灰尘/蒸汽/烟雾/数据流/水滴/风尘 | 按场景区分 |
+| 水洼反射 | 底部水面波纹 | 街道 |
+| CRT 扫描线 | 滚动细线 | 公寓/酒吧/服务器室 |
+| 全局闪烁 | 随机亮度抖动 | 除楼顶外 |
+| 故障效果 | 偶发水平位移+红蓝色偏 | 全场景（低概率） |
+
+**配置：** `VFX.SCENE_CONFIG` 中每个场景独立定义效果组合和参数。
+
+**渲染顺序：** 雨滴 → 雾气 → 霓虹脉冲 → 环境粒子 → 水洼反射 → 暗角 → 闪烁 → 扫描线 → 故障
 
 ---
 
@@ -78,361 +131,155 @@ def generate_image(prompt, filename, width=1024, height=1024, seed=2087):
 ```
 last-signal/
 ├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
-├── gen_assets.py           # 素材生成脚本（Pollinations.AI + 动画帧）
-├── gen_anim_frames.py      # 动画帧生成（程序化图像效果）
+├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
+├── gen_ai_frames.py        # AI 动画帧生成（img2img 关键帧 + 光流插值）
+├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
-├── WORKFLOW.md             # 完整工作流文档
+├── WORKFLOW.md             # 本文档
 └── assets/
-    ├── bg_apartment.png    # 基础场景图 (940×627)
-    ├── bg_apartment_f0.png # 动画帧 f0 (原图)
-    ├── bg_apartment_f1.png # 动画帧 f1 (霓虹脉冲)
-    ├── bg_apartment_f2.png # 动画帧 f2 (雨滴增强)
-    ├── bg_apartment_f3.png # 动画帧 f3 (光源闪烁)
-    ├── bg_apartment_f4.png # 动画帧 f4 (薄雾弥漫)
-    ├── bg_street.png
-    ├── bg_street_f0~f4.png
-    ├── ...                 # 其他场景同理
-    ├── bg_bar.png
-    ├── bg_alley.png
-    ├── bg_tower_exterior.png
-    ├── bg_server_room.png
-    ├── bg_rooftop.png
-    ├── bg_office.png
-    ├── portrait_kai.png    # 角色肖像 (512×512)
-    ├── portrait_oracle.png
+    ├── bg_*_f0~f11.png     # 每场景 12 帧动画（AI + 光流插值）
+    ├── portrait_*.png      # 角色肖像
     └── masks/
-        ├── {scene}_mask.png           # 组合 mask（悬停效果）
-        ├── {scene}_{obj}_mask.png     # 单独物体 mask（点击归属）
+        ├── {scene}_mask.png           # 组合 mask
+        ├── {scene}_{obj}_mask.png     # 单独物体 mask
         └── mask_metadata.json
 ```
 
 ### 核心模块
 
-#### 1. Game 对象（全局状态管理）
+#### 1. Game 对象
 ```javascript
 const Game = {
   canvas, ctx,           // Canvas 渲染
   currentScene,          // 当前场景 ID
-  inventory: [],         // 背包物品列表
-  flags: {},             // 剧情标记（布尔值）
-  images: {},            // 预加载的图片缓存
-  selectedItem,          // 当前选中的物品
-  dialogueActive,        // 对话是否激活
+  bgFrames: {},          // sceneName → [Image, Image, ...] 动画帧
+  currentFrame,          // 当前帧索引
+  frameTimer,            // 帧计时器
+  frameInterval: 800,    // 帧间隔 ms
+  inventory: [],         // 背包
+  flags: {},             // 剧情标记
+  masks, objMasks,       // Mask 数据
+  _edgeCache,            // 预计算边缘像素
+  _labelCache,           // 预计算标签位置
+  _overlayCache,         // 预计算遮罩 canvas
 };
 ```
 
-#### 2. 场景系统 (SCENES)
-每个场景包含：
+#### 2. 场景系统
 ```javascript
 {
-  name: "场景显示名称",
-  background: "bg_xxx",      // 对应 assets/ 下的图片名
-  onEnter() {},              // 进入场景时的自动对话
-  hotspots: [                // 可点击区域
-    {
-      x, y, w, h,           // 点击区域坐标 (960×640 坐标系)
-      label: "▸ 提示文字",
-      condition() {},        // 可选：显示条件
-      action() {},           // 点击后的逻辑
-    }
-  ]
+  name: "场景名称",
+  background: "bg_xxx",
+  onEnter() {},          // 入场对话
+  hotspots: [{           // 可点击区域
+    x, y, w, h,          // 坐标（降级用）
+    label: "▸ 提示",
+    maskId: "obj_id",    // 对应 mask 文件
+    condition() {},       // 显示条件
+    action() {},          // 点击逻辑
+  }]
 }
 ```
 
-#### 3. 对话系统
-```javascript
-// 无选项对话
-await Game.showDialogue("说话者", "对话文本");
+#### 3. 渲染循环
+```
+loadImages() → loadMasks() → 预计算边缘/标签/遮罩
+goScene(sceneId) → VFX.init(sceneId) → startRenderLoop()
+  每帧 (~60fps):
+    drawImage(bgFrames[currentFrame])  // AI 帧序列
+    VFX.render(ctx, dt, sceneId)       // 粒子叠加
+    draw pre-computed edges/overlay    // 热点高亮（零扫描）
+```
 
-// 有选项对话
+#### 4. 性能优化
+- **willReadFrequently: true** — 告诉浏览器用 CPU canvas 加速 getImageData
+- **预计算 mask 数据** — 加载时算好边缘像素数组、标签中心、遮罩 canvas
+- **render 零扫描** — 只需遍历预计算数组画点，不扫像素
+
+#### 5. 对话系统
+```javascript
+await Game.showDialogue("说话者", "文本");
 const choice = await Game.showDialogue("说话者", "文本", [
-  { text: "选项1" },
-  { text: "选项2" },
+  { text: "选项1" }, { text: "选项2" },
 ]);
-// choice === 0 表示选了第一个选项
 ```
 
-**特性：**
-- 打字机效果（25ms/字）
-- 点击继续
-- 分支选项
-
-#### 4. 物品系统
+#### 6. 物品/音效系统
 ```javascript
-// 物品定义
-const ITEMS = {
-  datachip: { name: "数据芯片", icon: "💾", desc: "描述" },
-};
-
-// 操作
-Game.addItem("datachip");        // 获得物品
-Game.removeItem("datachip");     // 移除物品
-Game.hasItem("datachip");        // 检查是否拥有
-Game.selectedItem                // 当前选中的物品（用于"使用"交互）
+Game.addItem("datachip");  Game.hasItem("datachip");
+Game.sfx("click"|"pickup"|"door"|"error"|"success");
 ```
 
-#### 5. 剧情标记系统
-```javascript
-Game.flags.visited_bar = true;   // 设置标记
-if (Game.flags.visited_bar) {}   // 检查标记
-```
-用于控制：
-- 对话是否重复播放
-- 热点区域是否显示
-- 剧情分支走向
+---
 
-#### 6. 音效系统
-```javascript
-Game.sfx("click");     // 点击
-Game.sfx("pickup");    // 拾取
-Game.sfx("door");      // 开门
-Game.sfx("error");     // 错误
-Game.sfx("success");   // 成功
-```
-使用 Web Audio API，纯代码合成，无需音频文件。
+## Mask 交互系统
 
-#### 7. VFX 实时动效引擎
-游戏使用 Canvas 实时粒子系统渲染背景动效，替代预渲染帧序列。
+**二值 mask 图片**做像素级碰撞检测，替代矩形热区。
 
-**效果类型：**
-| 效果 | 描述 | 使用场景 |
-|---|---|---|
-| 雨滴 | 倾斜雨丝粒子，支持风向 | 街道、小巷、楼顶、公寓 |
-| 雾气 | 径向渐变雾层，缓慢漂移 | 街道、楼顶、酒吧 |
-| 霓虹脉冲 | 屏幕叠加绿/紫光晕呼吸 | 全场景（强度不同） |
-| 环境粒子 | 灰尘/蒸汽/烟雾/数据流/水滴 | 按场景类型区分 |
-| 水洼反射 | 底部水面波纹动画 | 街道 |
-| CRT 扫描线 | 滚动细线覆盖 | 公寓、酒吧、服务器室 |
-| 全局闪烁 | 随机亮度抖动 | 除楼顶外全场景 |
-| 故障效果 | 偶发水平位移+红蓝色偏 | 全场景（低概率触发） |
+- 组合 mask `masks/{scene}_mask.png` — 悬停效果
+- 单独 mask `masks/{scene}_{obj}_mask.png` — 点击归属
+- 白色 (>128) = 可交互，黑色 = 背景
 
-**配置结构（VFX.SCENE_CONFIG）：**
-```javascript
-apartment: {
-  rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3 },
-  fog:  { layers: 1, speed: 0.15, opacity: 0.06, color: [80, 80, 120] },
-  neon: { speed: 0.008, intensity: 0.12 },
-  flicker: { enabled: true, chance: 0.003, amount: 0.08 },
-  scanlines: { enabled: true, opacity: 0.03 },
-  vignette: { inner: 220, outer: 560, opacity: 0.55 },
-  particles: { type: 'dust', count: 15, speed: 0.2, opacity: 0.08 },
-}
-```
+**生成流程：**
+1. 视觉模型识别物体边界框 `[x1, y1, x2, y2]`
+2. `gen_masks.py` 用 OpenCV GrabCut 精细分割
+3. 输出非矩形精确 mask
 
-**渲染流程：**
-```
-loadImages() → goScene(sceneId) → VFX.init(sceneId) → startRenderLoop()
-  → 每帧: drawImage(bg) → VFX.render(ctx, dt, sceneId) → hotspot 高亮
-```
-
-VFX.render 按顺序执行：雨滴 → 雾气 → 霓虹脉冲 → 环境粒子 → 水洼反射 → 暗角 → 闪烁 → 扫描线 → 故障
-
-#### 8. 场景切换与对话系统
+**视觉反馈：**
+- 默认：mask 边缘呼吸闪烁（绿色像素点）
+- 悬停：发光边缘 + 绿色遮罩 + 浮动标签
 
 ---
 
 ## 素材生成流程
 
-### 一键生成全部素材
+### 一键生成
 ```bash
-cd last-signal
-python3 gen_assets.py          # VFX 引擎模式：基础图 + AI img2img 帧
-python3 gen_assets.py --legacy # Legacy 模式：基础图 + 程序化帧效果
+python3 gen_assets.py          # 基础图 + AI 帧
+python3 gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
 ```
 
-### 场景动画系统（三层叠加）
-
-游戏的背景动画由**三层系统**叠加实现，逐层递进：
-
-**第 1 层：AI img2img 帧序列 (`gen_ai_frames.py`)**
-- 使用 Pollinations.AI 的 img2img POST 端点
-- 将基础图作为 init image，配合微调提示词生成连贯变体
-- 每场景 5 帧（f0基础图 + f1-f4 变体），变化类型包括：
-  - 灯光/霓虹亮度变化
-  - 天气强度变化（雨势、雾气浓度）
-  - 光源闪烁/故障
-  - 环境氛围变化
-- 帧间差异由 AI 控制（典型值 10-25 像素均值差），保持场景一致性
-- 游戏内以 ~800ms/帧 循环播放
-
-**第 2 层：Canvas 实时 VFX 引擎 (index.html)**
-- 在 AI 帧之上叠加实时粒子效果
-- 雨滴、雾气漂移、霓虹脉冲、环境粒子、水洼反射
-- CRT 扫描线、全局亮度闪烁、偶发故障效果
-- 60fps 流畅渲染，零额外文件体积
-
-**第 3 层：Mask 交互层**
-- 基于 GrabCut 的精细 mask 做像素级碰撞检测
-- 悬停高亮 + 浮动标签
-
-**三层叠加效果示例（街道场景）：**
-1. AI 帧：基础图 → 雨势增强变体 → 霓虹脉冲变体 → 闪烁变体 → 雾气变体（慢速循环）
-2. VFX：200 个雨滴粒子实时飘落 + 雾层漂移 + 绿/紫霓虹光晕呼吸 + 蒸汽粒子
-3. Mask：可交互区域边缘呼吸闪烁 + 悬停发光
-
+### 分步生成
 ```bash
-# 单独生成 AI 帧（需要基础图已存在）
-python3 gen_ai_frames.py
-
-# 单独生成 Legacy 帧（程序化图像效果，降级方案）
-python3 gen_anim_frames.py
+python3 gen_assets.py          # 1. 生成基础场景图 + 角色肖像
+python3 gen_ai_frames.py       # 2. AI img2img 关键帧 + 光流插值 (12帧/场景)
+python3 gen_masks.py           # 3. 生成 mask（可选，已有则跳过）
 ```
 
-**单独生成动画帧：**
-```bash
-python3 gen_anim_frames.py  # 从已有的 bg_*.png 扩展
-```
-
-### 交互区域 Mask 系统
-
-游戏使用**二值 mask 图片**做像素级碰撞检测，替代传统的矩形热区。每个物体有独立的 mask 文件，用于精确判断点击归属。
-
-**原理：**
-- 组合 mask `assets/masks/{sceneId}_mask.png`（960×640 灰度图）— 用于悬停效果
-- 单独 mask `assets/masks/{sceneId}_{objId}_mask.png` — 用于精确点击归属
-- 白色区域 (RGB > 128) = 可交互
-- 黑色区域 = 背景（不可交互）
-
-**生成流程（基于 OpenCV GrabCut）：**
-1. 用视觉模型（mimo-omni）分析每个场景图片，识别可交互物体的精确边界框 `[x1, y1, x2, y2]`
-2. 在 `gen_masks.py` 中定义每个物体的 `id`、`label`、`bbox`（基于 940×627 原始图片坐标）
-3. 运行 `python3 gen_masks.py`：
-   - 对每个 bbox 使用 **OpenCV GrabCut** 进行精细图像分割
-   - 输出非矩形的精确 mask（自动形态学清理 + 边缘软化）
-   - GrabCut 失败时 fallback 到矩形 mask
-4. 边缘过渡区域（`edge_transitions`）自动绘制在组合 mask 上
-
-**数据格式（`gen_masks.py` 中）：**
-```python
-SCENES = {
-    "scene_id": {
-        "image": "bg_scene.png",
-        "objects": [
-            {
-                "id": "terminal",           # 与 hotspot maskId 对应
-                "label": "终端",
-                "bbox": [500, 380, 900, 627] # GrabCut 初始边界框
-            },
-        ],
-        "edge_transitions": [
-            {"id": "to_street", "label": "出门",
-             "zone": "bottom", "size": 50, "target": "street"}
-        ]
-    }
-}
-```
-
-**视觉反馈：**
-- 默认状态：组合 mask 边缘呼吸闪烁（绿色像素点）
-- 悬停状态：mask 边缘发光轮廓 + 半透明绿色覆盖 + 浮动标签
-- 无 mask 时 fallback 到矩形高亮
-
-### 添加新场景的步骤
-
-1. **在 `gen_assets.py` 中添加 prompt**
-```python
-PROMPTS["bg_newscene"] = f"A new cyberpunk scene, {STYLE}, 具体描述..."
-```
-
-2. **在 `index.html` 的 `SCENES` 中添加场景**
-```javascript
-newscene: {
-  name: "新场景名称",
-  background: "bg_newscene",
-  onEnter() { /* 入场对话 */ },
-  hotspots: [ /* 可点击区域 */ ],
-}
-```
-
-3. **如果有新物品，在 `ITEMS` 中添加**
-```javascript
-newitem: { name: "物品名", icon: "🔑", desc: "描述" },
-```
-
-4. **运行生成脚本并推送**
-```bash
-python3 gen_assets.py
-git add -A && git commit -m "add new scene" && git push
-```
+### 添加新场景
+1. `gen_assets.py` 添加 prompt
+2. `gen_ai_frames.py` 添加关键帧配置
+3. `gen_masks.py` 添加物体 bbox
+4. `index.html` SCENES 添加场景定义
+5. `VFX.SCENE_CONFIG` 添加动效配置
+6. 运行 `python3 gen_assets.py && python3 gen_ai_frames.py`
+7. `git add -A && git commit && git push`
 
 ---
 
 ## 部署到 GitHub Pages
 
-### 首次部署
 ```bash
-# 1. 初始化项目
-cd project-name
-git init && git checkout -b main
-
-# 2. 推送到 GitHub（需要 token 或 SSH）
-git remote add origin https://github.com/用户名/仓库名.git
-git add . && git commit -m "init"
-git push -u origin main
-
-# 3. 启用 Pages
-# GitHub → 仓库 → Settings → Pages → Source → Deploy from branch → main → / (root)
-# 或通过 API：
-curl -X PUT -H "Authorization: token TOKEN" \
-  https://api.github.com/repos/用户/仓库/pages \
-  -d '{"source":{"branch":"main","path":"/"}}'
+git remote add origin https://github.com/用户/仓库名.git
+git add . && git commit -m "init" && git push -u origin main
+# GitHub → Settings → Pages → Deploy from branch → main → / (root)
 ```
 
-### 访问地址
-```
-https://用户名.github.io/仓库名/
-```
-
-### 更新游戏
-```bash
-git add -A && git commit -m "update" && git push
-# Pages 自动重新构建，几分钟后生效
-```
+更新：`git add -A && git commit -m "update" && git push`
 
 ---
 
 ## 复用指南
 
-### 如何用这套工作流制作新游戏
-
-1. **确定剧本和场景**
-   - 写一个简单的剧情大纲
-   - 列出所有场景（5-10个为佳）
-   - 列出关键物品和角色
-
-2. **生成素材**
-   - 修改 `gen_assets.py` 中的 PROMPTS
-   - 保持统一的 STYLE 前缀以保证视觉一致性
-   - 运行脚本批量生成
-
-3. **编写场景逻辑**
-   - 复制 `index.html` 的引擎代码
-   - 在 `SCENES` 对象中定义每个场景
-   - 用 `flags` 控制剧情分支
-
-4. **测试与部署**
-   - 本地用 `python3 -m http.server 8765` 测试
-   - 推送到 GitHub Pages
-
-### 推荐 Prompt 模板
-
-**背景场景（960×640）：**
-```
-A [场景描述], pixel art style, 16-bit retro game aesthetic, [风格], [色调], [特殊元素], game background art, adventure game scene
-```
-
-**角色肖像（512×512）：**
-```
-Character portrait, pixel art, 16-bit retro style, [角色描述], [风格], dark background, upper body portrait, limited color palette, no text
-```
-
-**道具图标（256×256）：**
-```
-Pixel art game item icon, [物品描述], 16-bit retro style, transparent background, clean pixels, game asset
-```
+1. 写剧情大纲，列出场景/物品/角色
+2. 修改 `gen_assets.py` 中的 PROMPTS + `gen_ai_frames.py` 中的关键帧配置
+3. 复制引擎代码，在 `SCENES` 中定义场景
+4. `python3 gen_assets.py && python3 gen_ai_frames.py`
+5. 本地测试 `python3 -m http.server 8765`
+6. 推送部署
 
 ---
 
-*文档生成日期：2026-04-22*
-*项目仓库：https://github.com/ampresent/last-signal*
-*在线游玩：https://ampresent.github.io/last-signal/*
+*文档更新：2026-04-22*
+*仓库：https://github.com/ampresent/last-signal*
+*在线：https://ampresent.github.io/last-signal/*
