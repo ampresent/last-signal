@@ -76,10 +76,12 @@ def generate_image(prompt, filename, width=1024, height=1024, seed=2087):
 ### 文件结构
 ```
 last-signal/
-├── index.html          # 游戏主文件（HTML + CSS + JS 全内联）
-├── gen_assets.py       # 素材生成脚本（Pollinations.AI）
+├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
+├── gen_assets.py           # 素材生成脚本（Pollinations.AI）
+├── gen_masks.py            # GrabCut 精细 mask 生成器
+├── WORKFLOW.md             # 完整工作流文档
 └── assets/
-    ├── bg_apartment.png    # 场景背景 (960×640)
+    ├── bg_apartment.png    # 场景背景 (940×627, 游戏内 960×640)
     ├── bg_street.png
     ├── bg_bar.png
     ├── bg_alley.png
@@ -88,7 +90,11 @@ last-signal/
     ├── bg_rooftop.png
     ├── bg_office.png
     ├── portrait_kai.png    # 角色肖像 (512×512)
-    └── portrait_oracle.png
+    ├── portrait_oracle.png
+    └── masks/
+        ├── {scene}_mask.png           # 组合 mask（悬停效果）
+        ├── {scene}_{obj}_mask.png     # 单独物体 mask（点击归属）
+        └── mask_metadata.json
 ```
 
 ### 核心模块
@@ -196,42 +202,45 @@ python3 gen_assets.py
 
 ### 交互区域 Mask 系统
 
-游戏使用**二值 mask 图片**做像素级碰撞检测，替代传统的矩形热区。
+游戏使用**二值 mask 图片**做像素级碰撞检测，替代传统的矩形热区。每个物体有独立的 mask 文件，用于精确判断点击归属。
 
 **原理：**
-- 每个场景有一张 `assets/masks/{sceneId}_mask.png`（960×640 灰度图）
+- 组合 mask `assets/masks/{sceneId}_mask.png`（960×640 灰度图）— 用于悬停效果
+- 单独 mask `assets/masks/{sceneId}_{objId}_mask.png` — 用于精确点击归属
 - 白色区域 (RGB > 128) = 可交互
 - 黑色区域 = 背景（不可交互）
-- 鼠标移动时读取 mask 对应像素颜色，判断是否命中
 
-**生成流程：**
-1. 用视觉模型（mimo-omni）分析场景图片，识别可交互物体
-2. 在 `gen_masks.py` 中定义每个场景的交互区域（支持 rect / ellipse / polygon）
-3. 运行 `python3 gen_masks.py` 生成 mask PNG
+**生成流程（基于 OpenCV GrabCut）：**
+1. 用视觉模型（mimo-omni）分析每个场景图片，识别可交互物体的精确边界框 `[x1, y1, x2, y2]`
+2. 在 `gen_masks.py` 中定义每个物体的 `id`、`label`、`bbox`（基于 940×627 原始图片坐标）
+3. 运行 `python3 gen_masks.py`：
+   - 对每个 bbox 使用 **OpenCV GrabCut** 进行精细图像分割
+   - 输出非矩形的精确 mask（自动形态学清理 + 边缘软化）
+   - GrabCut 失败时 fallback 到矩形 mask
+4. 边缘过渡区域（`edge_transitions`）自动绘制在组合 mask 上
 
-**Mask 数据格式（`gen_masks.py` 中）：**
+**数据格式（`gen_masks.py` 中）：**
 ```python
-"scene_name": [
-    {
-        "name": "terminal",
-        "shape": "rect",        # rect / ellipse / polygon
-        "cx_pct": 45,           # 中心 X (百分比)
-        "cy_pct": 45,           # 中心 Y (百分比)
-        "w_pct": 22,            # 宽度 (百分比)
-        "h_pct": 25,            # 高度 (百分比)
-    },
-    {
-        "name": "chair",
-        "shape": "polygon",
-        "polygon_points_pct": [  # 多边形顶点 (百分比)
-            [73, 60], [70, 85], [79, 86], [82, 60]
+SCENES = {
+    "scene_id": {
+        "image": "bg_scene.png",
+        "objects": [
+            {
+                "id": "terminal",           # 与 hotspot maskId 对应
+                "label": "终端",
+                "bbox": [500, 380, 900, 627] # GrabCut 初始边界框
+            },
         ],
-    },
-]
+        "edge_transitions": [
+            {"id": "to_street", "label": "出门",
+             "zone": "bottom", "size": 50, "target": "street"}
+        ]
+    }
+}
 ```
 
 **视觉反馈：**
-- 默认状态：mask 边缘呼吸闪烁（绿色像素点）
+- 默认状态：组合 mask 边缘呼吸闪烁（绿色像素点）
 - 悬停状态：mask 边缘发光轮廓 + 半透明绿色覆盖 + 浮动标签
 - 无 mask 时 fallback 到矩形高亮
 

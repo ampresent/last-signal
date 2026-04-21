@@ -366,7 +366,8 @@ const Game = {
   inventory: [],
   flags: {},
   images: {},
-  masks: {},             // sceneId → {canvas, ctx, data: ImageData}
+  masks: {},             // sceneId → {canvas, ctx, data: ImageData}  组合mask（悬停效果）
+  objMasks: {},          // "sceneId_objId" → {canvas, ctx, data: ImageData}  单独mask（点击归属）
   selectedItem: null,
   dialogueActive: false,
   mouseX: 0,
@@ -423,7 +424,8 @@ const Game = {
   async loadMasks() {
     const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
     
-    const promises = sceneIds.map(id => {
+    // 加载组合 mask（用于悬停效果）
+    const comboPromises = sceneIds.map(id => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -435,15 +437,40 @@ const Game = {
           this.masks[id] = { canvas: c, ctx: cx, data };
           resolve();
         };
-        img.onerror = () => {
-          this.masks[id] = null;
-          resolve();
-        };
+        img.onerror = () => { this.masks[id] = null; resolve(); };
         img.src = `assets/masks/${id}_mask.png`;
       });
     });
     
-    await Promise.all(promises);
+    // 加载每个物体的单独 mask（用于点击归属判断）
+    const objMaskList = [];
+    for (const [sceneId, scene] of Object.entries(SCENES)) {
+      if (!scene.hotspots) continue;
+      for (const hs of scene.hotspots) {
+        if (!hs.maskId) continue;
+        objMaskList.push({ sceneId, objId: hs.maskId });
+      }
+    }
+    
+    const objPromises = objMaskList.map(({ sceneId, objId }) => {
+      const key = `${sceneId}_${objId}`;
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d');
+          cx.drawImage(img, 0, 0, 960, 640);
+          const data = cx.getImageData(0, 0, 960, 640);
+          this.objMasks[key] = { canvas: c, ctx: cx, data };
+          resolve();
+        };
+        img.onerror = () => { this.objMasks[key] = null; resolve(); };
+        img.src = `assets/masks/${sceneId}_${objId}_mask.png`;
+      });
+    });
+    
+    await Promise.all([...comboPromises, ...objPromises]);
   },
 
   // ---- Mask 像素检测 ----
@@ -733,14 +760,27 @@ const Game = {
     const scene = SCENES[this.currentScene];
     if (!scene || !scene.hotspots) return null;
     
-    // 优先用 mask 检测
+    // 优先用 mask 检测：检查每个 hotspot 的单独 mask
     if (this.masks[this.currentScene]) {
-      if (!this.isMaskHit(x, y)) return null;
-      // mask 命中后找第一个符合条件的 hotspot
       for (const hs of scene.hotspots) {
         if (hs.condition && !hs.condition()) continue;
-        // 如果 hotspot 有 maskId，只在 mask 命中时返回（mask 已验证）
-        return hs;
+        
+        if (hs.maskId) {
+          // 使用单独的物体 mask 判断点击归属
+          const key = `${this.currentScene}_${hs.maskId}`;
+          const objMask = this.objMasks[key];
+          if (objMask) {
+            const px = Math.floor(x), py = Math.floor(y);
+            if (px >= 0 && px < 960 && py >= 0 && py < 640) {
+              if (objMask.data.data[(py * 960 + px) * 4] > 128) {
+                return hs;
+              }
+            }
+          }
+        } else if (hs.isEdge) {
+          // 边缘过渡区域：检查组合 mask
+          if (this.isMaskHit(x, y)) return hs;
+        }
       }
       return null;
     }
@@ -974,6 +1014,7 @@ const SCENES = {
       {
         x: 350, y: 250, w: 250, h: 200,
         label: '▸ 终端',
+        maskId: 'terminal',
         action() {
           if (!Game.hasItem('datachip') && !Game.flags.read_terminal) {
             Game.flags.read_terminal = true;
@@ -989,6 +1030,7 @@ const SCENES = {
       {
         x: 50, y: 450, w: 200, h: 150,
         label: '▸ 窗户',
+        maskId: 'window',
         action() {
           Game.showDialogue('凯', '雨下个不停。霓虹灯在水洼里碎成一片。\n\n旧工业带在城市的另一边。得找辆车。');
         }
@@ -996,6 +1038,7 @@ const SCENES = {
       {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 门',
+        maskId: 'door',
         action() {
           Game.showDialogue('凯', '该走了。', [
             { text: '出门前往街道' },
@@ -1029,6 +1072,7 @@ const SCENES = {
       {
         x: 100, y: 200, w: 300, h: 350,
         label: '▸ The Rust 酒吧',
+        maskId: 'bar_entrance',
         action() {
           Game.sfx('door');
           Game.goScene('bar');
@@ -1037,6 +1081,7 @@ const SCENES = {
       {
         x: 600, y: 150, w: 300, h: 400,
         label: '▸ 通往旧工业带的路',
+        maskId: 'road_right',
         action() {
           if (Game.hasItem('keycard')) {
             Game.showDialogue('凯', '有了安全卡，应该能进 ECHO 大楼了。').then(() => {
@@ -1051,6 +1096,7 @@ const SCENES = {
       {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 小巷',
+        maskId: 'alley_entrance',
         action() {
           Game.sfx('click');
           Game.goScene('alley');
@@ -1059,6 +1105,7 @@ const SCENES = {
       {
         x: 450, y: 400, w: 100, h: 100,
         label: '▸ 垃圾桶',
+        maskId: 'dumpster',
         action() {
           if (!Game.flags.searched_dumpster) {
             Game.flags.searched_dumpster = true;
@@ -1091,6 +1138,7 @@ const SCENES = {
       {
         x: 350, y: 250, w: 250, h: 250,
         label: '▸ 酒保',
+        maskId: 'bartender',
         action() {
           if (Game.hasItem('datachip') && !Game.flags.asked_bartender) {
             Game.flags.asked_bartender = true;
@@ -1127,6 +1175,7 @@ const SCENES = {
       {
         x: 200, y: 300, w: 100, h: 150,
         label: '▸ 神秘客人',
+        maskId: 'oracle',
         action() {
           if (!Game.flags.talked_oracle_hint) {
             Game.flags.talked_oracle_hint = true;
@@ -1156,6 +1205,7 @@ const SCENES = {
       {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 出口',
+        maskId: 'exit',
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -1182,6 +1232,7 @@ const SCENES = {
       {
         x: 350, y: 200, w: 250, h: 300,
         label: '▸ 影子 (数据贩子)',
+        maskId: 'shadow',
         action() {
           if (Game.hasItem('datachip') && !Game.hasItem('keycard')) {
             Game.showDialogue('影子', 'ECHO 的旧芯片？有意思。', [
@@ -1214,6 +1265,7 @@ const SCENES = {
       {
         x: 50, y: 400, w: 200, h: 200,
         label: '▸ 涂鸦墙',
+        maskId: 'graffiti',
         action() {
           Game.showDialogue(null, '墙上的涂鸦写着："他们烧掉了真相，却忘了灰烬会说话。"\n\n下面有一个小小的 Oracle 符号。').then(() => {
             return Game.showDialogue('凯', 'Oracle 到处留下痕迹。她在引导我。');
@@ -1223,6 +1275,7 @@ const SCENES = {
       {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
+        maskId: 'exit',
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -1249,6 +1302,7 @@ const SCENES = {
       {
         x: 380, y: 250, w: 200, h: 300,
         label: '▸ 正门扫描仪',
+        maskId: 'scanner',
         action() {
           if (Game.hasItem('keycard')) {
             Game.sfx('success');
@@ -1269,6 +1323,7 @@ const SCENES = {
       {
         x: 100, y: 350, w: 200, h: 200,
         label: '▸ 警卫亭',
+        maskId: 'guard_booth',
         action() {
           if (!Game.flags.tower_guard) {
             Game.flags.tower_guard = true;
@@ -1283,6 +1338,7 @@ const SCENES = {
       {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
+        maskId: 'exit',
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -1309,6 +1365,7 @@ const SCENES = {
       {
         x: 300, y: 200, w: 350, h: 300,
         label: '▸ 终端',
+        maskId: 'terminal',
         action() {
           if (!Game.flags.accessed_terminal) {
             Game.flags.accessed_terminal = true;
@@ -1338,6 +1395,7 @@ const SCENES = {
       {
         x: 100, y: 300, w: 150, h: 200,
         label: '▸ 服务器机柜',
+        maskId: 'rack',
         action() {
           Game.showDialogue(null, '服务器机柜嗡嗡作响。有些机柜被强行关闭了——封条上的日期是三年前。').then(() => {
             return Game.showDialogue('凯', '他们关闭了事故相关的服务器。但数据没有完全清除。');
@@ -1347,6 +1405,7 @@ const SCENES = {
       {
         x: 800, y: 200, w: 120, h: 300,
         label: '▸ 通往楼顶的通道',
+        maskId: 'rooftop_exit',
         action() {
           if (Game.flags.oracle_rooftop) {
             Game.showDialogue('凯', '最后一步了。', [
@@ -1366,6 +1425,7 @@ const SCENES = {
       {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 返回大厅',
+        maskId: 'lobby_exit',
         action() {
           Game.sfx('door');
           Game.goScene('tower');
