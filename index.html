@@ -1106,6 +1106,8 @@ const Game = {
     if (img) {
       this.ctx.drawImage(img, 0, 0, 960, 640);
     } else {
+      // 调试：如果图片没加载，打印到控制台
+      if (!this._bgWarned) { console.warn('BG not loaded:', bgName, 'frames:', frames?.length, 'images:', !!this.images[bgName]); this._bgWarned = true; }
       this.ctx.fillStyle = '#111';
       this.ctx.fillRect(0, 0, 960, 640);
     }
