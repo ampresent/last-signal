@@ -349,7 +349,7 @@
 const VFX = {
   // 全局状态
   raindrops: [],        // 雨滴粒子
-  fogLayers: [],        // 雾气层
+  fogLayers: [],
   neonPulse: 0,         // 霓虹脉冲相位
   lightFlicker: 1.0,    // 全局亮度闪烁因子
   scanlineOffset: 0,    // CRT 扫描线偏移
@@ -846,7 +846,7 @@ const Game = {
 
   async init() {
     this.canvas = document.getElementById('scene-canvas');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.ctx.imageSmoothingEnabled = false;
 
     this.canvas.addEventListener('click', (e) => this.handleClick(e));
@@ -920,52 +920,85 @@ const Game = {
   async loadMasks() {
     const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
 
-    const comboPromises = sceneIds.map(id => {
+    const loadMask = (url) => {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
           const c = document.createElement('canvas');
           c.width = 960; c.height = 640;
-          const cx = c.getContext('2d');
+          const cx = c.getContext('2d', { willReadFrequently: true });
           cx.drawImage(img, 0, 0, 960, 640);
           const data = cx.getImageData(0, 0, 960, 640);
-          this.masks[id] = { canvas: c, ctx: cx, data };
-          resolve();
+          resolve({ canvas: c, ctx: cx, data });
         };
-        img.onerror = () => { this.masks[id] = null; resolve(); };
-        img.src = `assets/masks/${id}_mask.png`;
+        img.onerror = () => resolve(null);
+        img.src = url;
       });
-    });
+    };
+
+    const comboPromises = sceneIds.map(id =>
+      loadMask(`assets/masks/${id}_mask.png`).then(m => { this.masks[id] = m; })
+    );
 
     const objMaskList = [];
     for (const [sceneId, scene] of Object.entries(SCENES)) {
       if (!scene.hotspots) continue;
       for (const hs of scene.hotspots) {
-        if (!hs.maskId) continue;
-        objMaskList.push({ sceneId, objId: hs.maskId });
+        if (hs.maskId) objMaskList.push({ sceneId, objId: hs.maskId });
       }
     }
-
-    const objPromises = objMaskList.map(({ sceneId, objId }) => {
-      const key = `${sceneId}_${objId}`;
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const c = document.createElement('canvas');
-          c.width = 960; c.height = 640;
-          const cx = c.getContext('2d');
-          cx.drawImage(img, 0, 0, 960, 640);
-          const data = cx.getImageData(0, 0, 960, 640);
-          this.objMasks[key] = { canvas: c, ctx: cx, data };
-          resolve();
-        };
-        img.onerror = () => { this.objMasks[key] = null; resolve(); };
-        img.src = `assets/masks/${sceneId}_${objId}_mask.png`;
-      });
-    });
+    const objPromises = objMaskList.map(({ sceneId, objId }) =>
+      loadMask(`assets/masks/${sceneId}_${objId}_mask.png`).then(m => {
+        if (m) this.objMasks[`${sceneId}_${objId}`] = m;
+      })
+    );
 
     await Promise.all([...comboPromises, ...objPromises]);
+
+    // 预计算边缘像素、标签位置、遮罩层
+    for (const id of sceneIds) {
+      const mask = this.masks[id];
+      if (!mask) continue;
+      const d = mask.data.data;
+      const edges = [];
+      for (let y = 1; y < 639; y += 3) {
+        for (let x = 1; x < 959; x += 3) {
+          if (d[(y * 960 + x) * 4] > 128) {
+            if (d[((y) * 960 + x - 3) * 4] <= 128 ||
+                d[((y) * 960 + x + 3) * 4] <= 128 ||
+                d[((y - 3) * 960 + x) * 4] <= 128 ||
+                d[((y + 3) * 960 + x) * 4] <= 128) {
+              edges.push(x, y);
+            }
+          }
+        }
+      }
+      this._edgeCache[id] = edges;
+
+      let sx = 0, sy = 0, cnt = 0;
+      for (let y = 0; y < 640; y += 8) {
+        for (let x = 0; x < 960; x += 8) {
+          if (d[(y * 960 + x) * 4] > 128) { sx += x; sy += y; cnt++; }
+        }
+      }
+      if (cnt > 0) this._labelCache[id] = { x: sx / cnt, y: sy / cnt };
+
+      const oc = document.createElement('canvas');
+      oc.width = 960; oc.height = 640;
+      const ox = oc.getContext('2d');
+      ox.fillStyle = 'rgba(0,255,136,0.12)';
+      for (let y = 0; y < 640; y += 3) {
+        for (let x = 0; x < 960; x += 3) {
+          if (d[(y * 960 + x) * 4] > 128) ox.fillRect(x, y, 3, 3);
+        }
+      }
+      this._overlayCache[id] = oc;
+    }
   },
+
+  _edgeCache: {},
+  _labelCache: {},
+  _overlayCache: {},
 
   isMaskHit(x, y) {
     const mask = this.masks[this.currentScene];
@@ -1039,16 +1072,10 @@ const Game = {
     if (!scene) return;
 
     const bgName = scene.background;
-
-    // 画背景：优先使用 AI 帧序列中的当前帧
     const frames = this.bgFrames[bgName];
     let img;
-    if (frames && frames.length > 0) {
-      img = frames[this.currentFrame % frames.length];
-    }
-    if (!img) {
-      img = this.images[bgName];
-    }
+    if (frames && frames.length > 0) img = frames[this.currentFrame % frames.length];
+    if (!img) img = this.images[bgName];
 
     if (img) {
       this.ctx.drawImage(img, 0, 0, 960, 640);
@@ -1057,137 +1084,83 @@ const Game = {
       this.ctx.fillRect(0, 0, 960, 640);
     }
 
-    // ★ VFX 实时粒子动效叠加 (在 AI 帧之上) ★
+    // ★ VFX 实时粒子动效叠加 ★
     VFX.render(this.ctx, dt, this.currentScene);
 
-    // 画可交互区域高亮（基于 mask）
+    // 画可交互区域高亮（使用预计算数据，零扫描）
     this.hotspotAnim += 0.03;
     const pulse = Math.sin(this.hotspotAnim) * 0.5 + 0.5;
-    const mask = this.masks[this.currentScene];
+    const sceneId = this.currentScene;
+    const edges = this._edgeCache[sceneId];
+    const labelPos = this._labelCache[sceneId];
+    const overlay = this._overlayCache[sceneId];
     const isHovered = this.isMaskHit(this.mouseX, this.mouseY);
+    const ctx = this.ctx;
 
-    if (mask) {
-      const ctx = this.ctx;
-      const data = mask.data.data;
-
+    if (edges && edges.length > 0) {
       if (isHovered) {
+        // 悬停：发光边缘 + 绿色遮罩 + 标签
         ctx.save();
         ctx.strokeStyle = 'rgba(0, 255, 136, 0.85)';
         ctx.lineWidth = 2;
         ctx.shadowColor = '#00ff88';
         ctx.shadowBlur = 10;
-
-        for (let py = 1; py < 639; py += 2) {
-          for (let px = 1; px < 959; px += 2) {
-            const idx = (py * 960 + px) * 4;
-            const isOn = data[idx] > 128;
-            if (isOn) {
-              const left = data[((py) * 960 + px - 2) * 4] > 128;
-              const right = data[((py) * 960 + px + 2) * 4] > 128;
-              const up = data[((py - 2) * 960 + px) * 4] > 128;
-              const down = data[((py + 2) * 960 + px) * 4] > 128;
-              if (!left || !right || !up || !down) {
-                ctx.fillRect(px, py, 2, 2);
-              }
-            }
-          }
+        for (let i = 0; i < edges.length; i += 2) {
+          ctx.fillRect(edges[i], edges[i + 1], 2, 2);
         }
         ctx.restore();
 
-        // mask 区域半透明绿色覆盖
-        ctx.save();
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 960; tempCanvas.height = 640;
-        const tc = tempCanvas.getContext('2d');
-        tc.fillStyle = 'rgba(0, 255, 136, 0.12)';
-        for (let py = 0; py < 640; py += 3) {
-          for (let px = 0; px < 960; px += 3) {
-            if (data[(py * 960 + px) * 4] > 128) {
-              tc.fillRect(px, py, 3, 3);
-            }
-          }
-        }
-        ctx.drawImage(tempCanvas, 0, 0);
-        ctx.restore();
+        if (overlay) ctx.drawImage(overlay, 0, 0);
 
-        // 浮动标签
-        if (scene.hotspots) {
-          for (const hs of scene.hotspots) {
-            if (hs.condition && !hs.condition()) continue;
-            const label = (hs.label || '').replace('▸ ', '');
-            if (!label) continue;
-
-            let sumX = 0, sumY = 0, count = 0;
-            for (let py = 0; py < 640; py += 6) {
-              for (let px = 0; px < 960; px += 6) {
-                if (data[(py * 960 + px) * 4] > 128) {
-                  sumX += px; sumY += py; count++;
-                }
-              }
-            }
-            if (count === 0) continue;
-            const cx = sumX / count, cy = sumY / count;
-
+        if (labelPos && scene.hotspots) {
+          const hs = scene.hotspots.find(h => {
+            if (h.condition && !h.condition()) return false;
+            return h.label;
+          });
+          if (hs) {
+            const label = hs.label.replace('▸ ', '');
             ctx.save();
             ctx.font = '13px "Courier New", monospace';
             ctx.textAlign = 'center';
             const tw = ctx.measureText(label).width + 16;
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-            ctx.fillRect(cx - tw / 2, cy - 22, tw, 20);
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(labelPos.x - tw / 2, labelPos.y - 22, tw, 20);
+            ctx.strokeStyle = 'rgba(0,255,136,0.8)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(cx - tw / 2, cy - 22, tw, 20);
-
+            ctx.strokeRect(labelPos.x - tw / 2, labelPos.y - 22, tw, 20);
             ctx.fillStyle = '#00ff88';
             ctx.textBaseline = 'middle';
-            ctx.fillText(label, cx, cy - 12);
+            ctx.fillText(label, labelPos.x, labelPos.y - 12);
             ctx.restore();
-            break;
           }
         }
       } else {
+        // 非悬停：呼吸闪烁边缘
         const alpha = 0.10 + pulse * 0.15;
         ctx.save();
         ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
         ctx.lineWidth = 1;
-
-        for (let py = 1; py < 639; py += 3) {
-          for (let px = 1; px < 959; px += 3) {
-            const idx = (py * 960 + px) * 4;
-            const isOn = data[idx] > 128;
-            if (isOn) {
-              const left = data[((py) * 960 + px - 3) * 4] > 128;
-              const right = data[((py) * 960 + px + 3) * 4] > 128;
-              const up = data[((py - 3) * 960 + px) * 4] > 128;
-              const down = data[((py + 3) * 960 + px) * 4] > 128;
-              if (!left || !right || !up || !down) {
-                ctx.fillRect(px, py, 2, 2);
-              }
-            }
-          }
+        for (let i = 0; i < edges.length; i += 2) {
+          ctx.fillRect(edges[i], edges[i + 1], 2, 2);
         }
         ctx.restore();
       }
     } else if (scene.hotspots) {
+      // 降级：矩形热点
       for (const hs of scene.hotspots) {
         if (hs.condition && !hs.condition()) continue;
-        const isHoveredRect = (
-          this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
-          this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h
-        );
-        const ctx = this.ctx;
-        if (isHoveredRect) {
+        const isH = this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
+                     this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h;
+        if (isH) {
           ctx.save();
-          ctx.strokeStyle = `rgba(0, 255, 136, 0.9)`;
+          ctx.strokeStyle = 'rgba(0,255,136,0.9)';
           ctx.lineWidth = 2;
           ctx.shadowColor = '#00ff88';
           ctx.shadowBlur = 12;
           ctx.strokeRect(hs.x, hs.y, hs.w, hs.h);
-          ctx.fillStyle = `rgba(0, 255, 136, 0.08)`;
+          ctx.fillStyle = 'rgba(0,255,136,0.08)';
           ctx.fillRect(hs.x, hs.y, hs.w, hs.h);
           ctx.restore();
-
           const label = (hs.label || '').replace('▸ ', '');
           if (label) {
             ctx.save();
@@ -1195,9 +1168,9 @@ const Game = {
             ctx.textAlign = 'center';
             const tw = ctx.measureText(label).width + 16;
             const tx = hs.x + hs.w / 2, ty = hs.y - 10;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
             ctx.fillRect(tx - tw / 2, ty - 14, tw, 20);
-            ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.strokeStyle = 'rgba(0,255,136,0.8)';
             ctx.lineWidth = 1;
             ctx.strokeRect(tx - tw / 2, ty - 14, tw, 20);
             ctx.fillStyle = '#00ff88';
