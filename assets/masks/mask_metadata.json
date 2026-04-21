@@ -1,0 +1,177 @@
+{
+  "apartment": {
+    "objects": [
+      {
+        "id": "terminal",
+        "label": "终端",
+        "mask": "masks/apartment_terminal_mask.png"
+      },
+      {
+        "id": "window",
+        "label": "窗户",
+        "mask": "masks/apartment_window_mask.png"
+      },
+      {
+        "id": "door",
+        "label": "门",
+        "mask": "masks/apartment_door_mask.png"
+      }
+    ],
+    "edge_transitions": [
+      {
+        "id": "to_street",
+        "label": "出门",
+        "zone": "bottom",
+        "target": "street"
+      }
+    ]
+  },
+  "street": {
+    "objects": [
+      {
+        "id": "bar_entrance",
+        "label": "The Rust 酒吧",
+        "mask": "masks/street_bar_entrance_mask.png"
+      },
+      {
+        "id": "alley_entrance",
+        "label": "小巷",
+        "mask": "masks/street_alley_entrance_mask.png"
+      },
+      {
+        "id": "road_right",
+        "label": "通往旧工业带",
+        "mask": "masks/street_road_right_mask.png"
+      },
+      {
+        "id": "dumpster",
+        "label": "垃圾桶",
+        "mask": "masks/street_dumpster_mask.png"
+      }
+    ],
+    "edge_transitions": [
+      {
+        "id": "to_alley",
+        "label": "进入小巷",
+        "zone": "left",
+        "target": "alley"
+      }
+    ]
+  },
+  "bar": {
+    "objects": [
+      {
+        "id": "bartender",
+        "label": "酒保",
+        "mask": "masks/bar_bartender_mask.png"
+      },
+      {
+        "id": "oracle",
+        "label": "神秘客人",
+        "mask": "masks/bar_oracle_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "出口",
+        "mask": "masks/bar_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "alley": {
+    "objects": [
+      {
+        "id": "shadow",
+        "label": "影子 (数据贩子)",
+        "mask": "masks/alley_shadow_mask.png"
+      },
+      {
+        "id": "graffiti",
+        "label": "涂鸦墙",
+        "mask": "masks/alley_graffiti_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "返回街道",
+        "mask": "masks/alley_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "tower": {
+    "objects": [
+      {
+        "id": "scanner",
+        "label": "正门扫描仪",
+        "mask": "masks/tower_scanner_mask.png"
+      },
+      {
+        "id": "guard_booth",
+        "label": "警卫亭",
+        "mask": "masks/tower_guard_booth_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "返回街道",
+        "mask": "masks/tower_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "server": {
+    "objects": [
+      {
+        "id": "terminal",
+        "label": "终端",
+        "mask": "masks/server_terminal_mask.png"
+      },
+      {
+        "id": "rack",
+        "label": "服务器机柜",
+        "mask": "masks/server_rack_mask.png"
+      },
+      {
+        "id": "rooftop_exit",
+        "label": "通往楼顶",
+        "mask": "masks/server_rooftop_exit_mask.png"
+      },
+      {
+        "id": "lobby_exit",
+        "label": "返回大厅",
+        "mask": "masks/server_lobby_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "rooftop": {
+    "objects": [],
+    "edge_transitions": [
+      {
+        "id": "to_server",
+        "label": "下楼",
+        "zone": "bottom",
+        "target": "server"
+      }
+    ]
+  },
+  "office": {
+    "objects": [
+      {
+        "id": "terminal",
+        "label": "终端",
+        "mask": "masks/office_terminal_mask.png"
+      },
+      {
+        "id": "safe",
+        "label": "保险柜",
+        "mask": "masks/office_safe_mask.png"
+      },
+      {
+        "id": "chair",
+        "label": "办公椅",
+        "mask": "masks/office_chair_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  }
+}

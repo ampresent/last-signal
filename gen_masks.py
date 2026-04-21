@@ -1,156 +1,292 @@
+#!/usr/bin/env python3
 """
-根据视觉模型识别结果，为每个场景生成交互区域的 mask 文件
-白色(255) = 可交互区域，黑色(0) = 背景
-支持矩形、椭圆、多边形
+LAST SIGNAL - 基于 GrabCut 的精细 Mask 生成器
+使用 OpenCV GrabCut 基于图像内容进行精细分割，以视觉模型识别的区域为引导。
+每个场景生成：
+  - 组合 mask (sceneId_mask.png): 所有可交互区域 + 边缘过渡
+  - 单独 mask (sceneId_objId_mask.png): 每个物体的精确 mask
+输出精确的非矩形 mask。
+
+依赖: pip install opencv-python-headless numpy pillow
 """
 
-from PIL import Image, ImageDraw
+import cv2
+import numpy as np
+import json
 import os
 
-W, H = 960, 640
-MASK_DIR = "/root/.openclaw/workspace/last-signal/assets/masks"
+IMG_W, IMG_H = 940, 627       # AI 生成图片原始尺寸
+GAME_W, GAME_H = 960, 640     # 游戏画布尺寸
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+MASK_DIR = os.path.join(ASSETS_DIR, "masks")
 os.makedirs(MASK_DIR, exist_ok=True)
 
-# 场景名 → 可交互对象列表
-# 每个对象: {name, shape, cx_pct, cy_pct, w_pct, h_pct, polygon_points(可选)}
-# polygon_points: [[x_pct, y_pct], ...] 百分比坐标
+# ============================================================
+# 场景交互区域定义
+#
+# 坐标基于 AI 生成图片 (940x627)。
+# bbox 由视觉模型 (mimo-omni) 识别后人工调整。
+#
+# objects: 场景中的可交互物体
+#   - id:    英文标识，与 index.html 中 hotspot 的 maskId 对应
+#   - label: 中文显示名
+#   - bbox:  [x1, y1, x2, y2] GrabCut 初始边界框
+#
+# edge_transitions: 场景边缘过渡区域
+#   - zone:  bottom/top/left/right
+#   - size:  过渡区域像素宽度
+#   - target: 目标场景 ID
+# ============================================================
 
-SCENE_MASKS = {
-    "apartment": [
-        # 终端
-        {"name": "terminal", "shape": "rect", "cx_pct": 45, "cy_pct": 45, "w_pct": 22, "h_pct": 25},
-        # 窗户
-        {"name": "window", "shape": "rect", "cx_pct": 12, "cy_pct": 55, "w_pct": 18, "h_pct": 30},
-        # 门
-        {"name": "door", "shape": "rect", "cx_pct": 82, "cy_pct": 55, "w_pct": 14, "h_pct": 38},
-    ],
-    "street": [
-        # 酒吧入口（左建筑）
-        {"name": "bar", "shape": "rect", "cx_pct": 22, "cy_pct": 48, "w_pct": 28, "h_pct": 45},
-        # 右侧街道（通往旧工业带）
-        {"name": "road_right", "shape": "rect", "cx_pct": 72, "cy_pct": 42, "w_pct": 26, "h_pct": 50},
-        # 小巷入口
-        {"name": "alley", "shape": "rect", "cx_pct": 8, "cy_pct": 78, "w_pct": 16, "h_pct": 15},
-        # 垃圾桶
-        {"name": "dumpster", "shape": "rect", "cx_pct": 50, "cy_pct": 65, "w_pct": 10, "h_pct": 14},
-    ],
-    "bar": [
-        # 酒保（右侧吧台后）
-        {"name": "bartender", "shape": "rect", "cx_pct": 62, "cy_pct": 48, "w_pct": 18, "h_pct": 30},
-        # 神秘客人/Oracle（角落）
-        {"name": "oracle", "shape": "rect", "cx_pct": 28, "cy_pct": 50, "w_pct": 14, "h_pct": 28},
-        # 出口（门）
-        {"name": "exit", "shape": "rect", "cx_pct": 82, "cy_pct": 50, "w_pct": 14, "h_pct": 38},
-    ],
-    "alley": [
-        # 影子/数据贩子（中间偏右）
-        {"name": "shadow", "shape": "rect", "cx_pct": 50, "cy_pct": 48, "w_pct": 22, "h_pct": 35},
-        # 涂鸦墙（左侧）
-        {"name": "graffiti", "shape": "rect", "cx_pct": 14, "cy_pct": 55, "w_pct": 18, "h_pct": 30},
-        # 返回街道（右侧出口）
-        {"name": "exit", "shape": "rect", "cx_pct": 88, "cy_pct": 62, "w_pct": 12, "h_pct": 28},
-    ],
-    "tower": [
-        # 正门扫描仪（中心）
-        {"name": "scanner", "shape": "rect", "cx_pct": 50, "cy_pct": 50, "w_pct": 18, "h_pct": 35},
-        # 警卫亭（左侧）
-        {"name": "guard_booth", "shape": "rect", "cx_pct": 18, "cy_pct": 55, "w_pct": 18, "h_pct": 25},
-        # 返回街道
-        {"name": "exit", "shape": "rect", "cx_pct": 88, "cy_pct": 62, "w_pct": 12, "h_pct": 28},
-    ],
-    "server": [
-        # 终端（中心）
-        {"name": "terminal", "shape": "rect", "cx_pct": 50, "cy_pct": 45, "w_pct": 25, "h_pct": 30},
-        # 服务器机柜（左侧）
-        {"name": "rack", "shape": "rect", "cx_pct": 14, "cy_pct": 50, "w_pct": 14, "h_pct": 50},
-        # 通往楼顶的通道（右上）
-        {"name": "rooftop_exit", "shape": "rect", "cx_pct": 85, "cy_pct": 40, "w_pct": 12, "h_pct": 38},
-        # 返回大厅（左下）
-        {"name": "lobby_exit", "shape": "rect", "cx_pct": 8, "cy_pct": 82, "w_pct": 14, "h_pct": 12},
-    ],
-    "rooftop": [
-        # 结局场景无热区
-    ],
-    "office": [
-        # 主显示器/终端
-        {"name": "terminal", "shape": "rect", "cx_pct": 37, "cy_pct": 50, "w_pct": 25, "h_pct": 35},
-        # 保险柜（右上角服务器柜区域）
-        {"name": "safe", "shape": "rect", "cx_pct": 90, "cy_pct": 50, "w_pct": 12, "h_pct": 35},
-        # 办公椅
-        {"name": "chair", "shape": "polygon", "polygon_points_pct": [
-            [73, 60], [70, 85], [79, 86], [82, 60], [78, 58], [75, 58]
-        ]},
-    ],
+SCENES = {
+    "apartment": {
+        "image": "bg_apartment.png",
+        "objects": [
+            {"id": "terminal", "label": "终端",
+             "bbox": [500, 380, 900, 627]},
+            {"id": "window", "label": "窗户",
+             "bbox": [10, 140, 460, 590]},
+            {"id": "door", "label": "门",
+             "bbox": [760, 140, 938, 600]},
+        ],
+        "edge_transitions": [
+            {"id": "to_street", "label": "出门", "zone": "bottom",
+             "size": 50, "target": "street"},
+        ]
+    },
+    "street": {
+        "image": "bg_street.png",
+        "objects": [
+            {"id": "bar_entrance", "label": "The Rust 酒吧",
+             "bbox": [80, 80, 380, 520]},
+            {"id": "alley_entrance", "label": "小巷",
+             "bbox": [0, 380, 140, 627]},
+            {"id": "road_right", "label": "通往旧工业带",
+             "bbox": [520, 80, 938, 520]},
+            {"id": "dumpster", "label": "垃圾桶",
+             "bbox": [350, 440, 540, 600]},
+        ],
+        "edge_transitions": [
+            {"id": "to_alley", "label": "进入小巷", "zone": "left",
+             "size": 50, "target": "alley"},
+        ]
+    },
+    "bar": {
+        "image": "bg_bar.png",
+        "objects": [
+            {"id": "bartender", "label": "酒保",
+             "bbox": [420, 280, 700, 530]},
+            {"id": "oracle", "label": "神秘客人",
+             "bbox": [200, 300, 420, 560]},
+            {"id": "exit", "label": "出口",
+             "bbox": [760, 200, 938, 600]},
+        ],
+        "edge_transitions": []
+    },
+    "alley": {
+        "image": "bg_alley.png",
+        "objects": [
+            {"id": "shadow", "label": "影子 (数据贩子)",
+             "bbox": [230, 120, 520, 480]},
+            {"id": "graffiti", "label": "涂鸦墙",
+             "bbox": [10, 200, 230, 560]},
+            {"id": "exit", "label": "返回街道",
+             "bbox": [740, 300, 938, 627]},
+        ],
+        "edge_transitions": []
+    },
+    "tower": {
+        "image": "bg_tower_exterior.png",
+        "objects": [
+            {"id": "scanner", "label": "正门扫描仪",
+             "bbox": [380, 350, 620, 610]},
+            {"id": "guard_booth", "label": "警卫亭",
+             "bbox": [220, 480, 420, 620]},
+            {"id": "exit", "label": "返回街道",
+             "bbox": [780, 400, 938, 627]},
+        ],
+        "edge_transitions": []
+    },
+    "server": {
+        "image": "bg_server_room.png",
+        "objects": [
+            {"id": "terminal", "label": "终端",
+             "bbox": [235, 200, 720, 520]},
+            {"id": "rack", "label": "服务器机柜",
+             "bbox": [0, 0, 240, 627]},
+            {"id": "rooftop_exit", "label": "通往楼顶",
+             "bbox": [380, 400, 600, 627]},
+            {"id": "lobby_exit", "label": "返回大厅",
+             "bbox": [0, 500, 250, 627]},
+        ],
+        "edge_transitions": []
+    },
+    "rooftop": {
+        "image": "bg_rooftop.png",
+        "objects": [],
+        "edge_transitions": [
+            {"id": "to_server", "label": "下楼", "zone": "bottom",
+             "size": 60, "target": "server"},
+        ]
+    },
+    "office": {
+        "image": "bg_office.png",
+        "objects": [
+            {"id": "terminal", "label": "终端",
+             "bbox": [250, 200, 600, 580]},
+            {"id": "safe", "label": "保险柜",
+             "bbox": [750, 280, 938, 620]},
+            {"id": "chair", "label": "办公椅",
+             "bbox": [640, 380, 830, 620]},
+        ],
+        "edge_transitions": []
+    },
 }
 
 
-def draw_shape(draw, obj, w, h):
-    """在 mask 上绘制形状"""
-    shape = obj["shape"]
-    
-    if shape == "rect":
-        cx = obj["cx_pct"] / 100 * w
-        cy = obj["cy_pct"] / 100 * h
-        ow = obj["w_pct"] / 100 * w
-        oh = obj["h_pct"] / 100 * h
-        x0 = cx - ow / 2
-        y0 = cy - oh / 2
-        x1 = cx + ow / 2
-        y1 = cy + oh / 2
-        draw.rectangle([x0, y0, x1, y1], fill=255)
-        
-    elif shape == "ellipse":
-        cx = obj["cx_pct"] / 100 * w
-        cy = obj["cy_pct"] / 100 * h
-        ow = obj["w_pct"] / 100 * w
-        oh = obj["h_pct"] / 100 * h
-        x0 = cx - ow / 2
-        y0 = cy - oh / 2
-        x1 = cx + ow / 2
-        y1 = cy + oh / 2
-        draw.ellipse([x0, y0, x1, y1], fill=255)
-        
-    elif shape == "polygon":
-        points = obj.get("polygon_points_pct") or obj.get("polygon_points")
-        if points:
-            # 如果是百分比坐标，转换为像素坐标
-            abs_points = []
-            for pt in points:
-                # 检查是否已经是像素坐标（大于100的）
-                if pt[0] > 100 or pt[1] > 100:
-                    abs_points.append((pt[0], pt[1]))
-                else:
-                    abs_points.append((pt[0] / 100 * w, pt[1] / 100 * h))
-            draw.polygon(abs_points, fill=255)
+def grabcut_segment(img, bbox, iter_count=5):
+    """
+    使用 GrabCut 对边界框内区域进行精细分割。
+    返回二值 mask (0=背景, 255=前景)。
+    """
+    h, w = img.shape[:2]
+    x1, y1, x2, y2 = bbox
+    x1 = max(0, min(x1, w - 2))
+    y1 = max(0, min(y1, h - 2))
+    x2 = max(x1 + 2, min(x2, w))
+    y2 = max(y1 + 2, min(y2, h))
+
+    mask = np.zeros((h, w), np.uint8)
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+
+    try:
+        cv2.grabCut(img, mask, (x1, y1, x2 - x1, y2 - y1),
+                     bgd_model, fgd_model, iter_count, cv2.GC_INIT_WITH_RECT)
+        result = np.where(
+            (mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0
+        ).astype(np.uint8)
+    except cv2.error:
+        result = np.zeros((h, w), np.uint8)
+        result[y1:y2, x1:x2] = 255
+        return result
+
+    # 形态学清理
+    result = cv2.morphologyEx(
+        result, cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    )
+    result = cv2.morphologyEx(
+        result, cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    )
+
+    # 高斯模糊软化边缘
+    result = cv2.GaussianBlur(result, (5, 5), 0)
+    _, result = cv2.threshold(result, 127, 255, cv2.THRESH_BINARY)
+    return result
 
 
-def generate_masks():
-    """为每个场景生成 mask PNG"""
-    results = {}
-    
-    for scene_name, objects in SCENE_MASKS.items():
-        mask = Image.new("L", (W, H), 0)  # 灰度图，全黑
-        draw = ImageDraw.Draw(mask)
-        
-        for obj in objects:
-            draw_shape(draw, obj, W, H)
-        
-        filepath = os.path.join(MASK_DIR, f"{scene_name}_mask.png")
-        mask.save(filepath)
-        
-        results[scene_name] = {
-            "file": f"assets/masks/{scene_name}_mask.png",
-            "objects": [{"name": o["name"], "shape": o["shape"]} for o in objects]
+def add_edge_transition(mask, zone, size, w, h):
+    """在 mask 指定边缘添加过渡区域"""
+    if zone == "bottom":
+        mask[h - size:h, :] = 255
+    elif zone == "top":
+        mask[0:size, :] = 255
+    elif zone == "left":
+        mask[:, 0:size] = 255
+    elif zone == "right":
+        mask[:, w - size:w] = 255
+
+
+def process_scene(scene_id, data):
+    """处理单个场景，生成组合 mask + 每个物体的单独 mask"""
+    img_path = os.path.join(ASSETS_DIR, data["image"])
+    if not os.path.exists(img_path):
+        print(f"  ❌ 图片不存在: {img_path}")
+        return
+
+    img = cv2.imread(img_path)
+    if img is None:
+        print(f"  ❌ 无法读取: {img_path}")
+        return
+
+    h, w = img.shape[:2]
+    combined = np.zeros((h, w), np.uint8)
+
+    for obj in data["objects"]:
+        bbox = obj["bbox"]
+        seg = grabcut_segment(img, bbox)
+        ratio = np.count_nonzero(seg) / (h * w) * 100
+
+        # 质量检查 + fallback
+        if ratio < 0.05:
+            seg = np.zeros((h, w), np.uint8)
+            x1, y1, x2, y2 = bbox
+            seg[y1:y2, x1:x2] = 255
+        elif ratio > 35:
+            x1, y1, x2, y2 = bbox
+            mx, my = int((x2 - x1) * 0.2), int((y2 - y1) * 0.2)
+            s2 = grabcut_segment(img, [x1 + mx, y1 + my, x2 - mx, y2 - my])
+            s2_ratio = np.count_nonzero(s2) / (h * w) * 100
+            if 0.05 < s2_ratio < 35:
+                seg = s2
+                ratio = s2_ratio
+            else:
+                seg = np.zeros((h, w), np.uint8)
+                seg[y1:y2, x1:x2] = 255
+
+        # 保存单独 mask（缩放到游戏尺寸）
+        obj_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_{obj['id']}_mask.png"), obj_game)
+
+        combined = cv2.bitwise_or(combined, seg)
+        print(f"  🎯 {obj['label']} ({obj['id']}): {ratio:.1f}%")
+
+    # 边缘过渡
+    for edge in data.get("edge_transitions", []):
+        add_edge_transition(combined, edge["zone"], edge["size"], w, h)
+        print(f"  🚪 边缘过渡: {edge['label']} ({edge['zone']})")
+
+    # 保存组合 mask
+    combined_game = cv2.resize(combined, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
+    cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_mask.png"), combined_game)
+    total_pct = np.count_nonzero(combined_game) / (GAME_W * GAME_H) * 100
+    print(f"  💾 {scene_id}_mask.png ({total_pct:.1f}% 覆盖)")
+
+
+def main():
+    print("=" * 60)
+    print("🎭 LAST SIGNAL - GrabCut 精细 Mask 生成器")
+    print("=" * 60)
+
+    for scene_id, data in SCENES.items():
+        print(f"\n🎬 {scene_id}")
+        process_scene(scene_id, data)
+
+    # 保存元数据
+    meta = {}
+    for sid, sd in SCENES.items():
+        meta[sid] = {
+            "objects": [
+                {"id": o["id"], "label": o["label"],
+                 "mask": f"masks/{sid}_{o['id']}_mask.png"}
+                for o in sd["objects"]
+            ],
+            "edge_transitions": [
+                {"id": e["id"], "label": e["label"],
+                 "zone": e["zone"], "target": e.get("target", "")}
+                for e in sd.get("edge_transitions", [])
+            ]
         }
-        print(f"✅ {scene_name}_mask.png — {len(objects)} 个交互区域")
-    
-    return results
+    with open(os.path.join(MASK_DIR, "mask_metadata.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+    total_obj = sum(len(s["objects"]) for s in SCENES.values())
+    total_edge = sum(len(s.get("edge_transitions", [])) for s in SCENES.values())
+    print(f"\n✅ 完成: {total_obj} 个物体 + {total_edge} 个边缘过渡")
+    print(f"📁 {MASK_DIR}")
 
 
 if __name__ == "__main__":
-    print("=" * 50)
-    print("🎭 生成交互区域 Mask")
-    print("=" * 50)
-    results = generate_masks()
-    print(f"\n📁 {MASK_DIR}")
-    print(f"共 {sum(len(v['objects']) for v in results.values())} 个交互区域")
+    main()
