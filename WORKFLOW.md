@@ -19,6 +19,7 @@
 | 风格 | 赛博朋克 / 冷峻 noir |
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
 | 图片生成 | Pollinations.AI（完全免费，无需 API Key） |
+| 动效系统 | Canvas 实时粒子引擎 (VFX) — 雨滴/霓虹/雾气/故障 |
 | 部署 | GitHub Pages（静态托管） |
 | 总大小 | ~900KB |
 
@@ -190,13 +191,43 @@ Game.sfx("success");   // 成功
 ```
 使用 Web Audio API，纯代码合成，无需音频文件。
 
-#### 7. 渲染流程
+#### 7. VFX 实时动效引擎
+游戏使用 Canvas 实时粒子系统渲染背景动效，替代预渲染帧序列。
+
+**效果类型：**
+| 效果 | 描述 | 使用场景 |
+|---|---|---|
+| 雨滴 | 倾斜雨丝粒子，支持风向 | 街道、小巷、楼顶、公寓 |
+| 雾气 | 径向渐变雾层，缓慢漂移 | 街道、楼顶、酒吧 |
+| 霓虹脉冲 | 屏幕叠加绿/紫光晕呼吸 | 全场景（强度不同） |
+| 环境粒子 | 灰尘/蒸汽/烟雾/数据流/水滴 | 按场景类型区分 |
+| 水洼反射 | 底部水面波纹动画 | 街道 |
+| CRT 扫描线 | 滚动细线覆盖 | 公寓、酒吧、服务器室 |
+| 全局闪烁 | 随机亮度抖动 | 除楼顶外全场景 |
+| 故障效果 | 偶发水平位移+红蓝色偏 | 全场景（低概率触发） |
+
+**配置结构（VFX.SCENE_CONFIG）：**
+```javascript
+apartment: {
+  rain: { count: 60, speed: [3, 6], length: [8, 16], opacity: 0.15, wind: 0.3 },
+  fog:  { layers: 1, speed: 0.15, opacity: 0.06, color: [80, 80, 120] },
+  neon: { speed: 0.008, intensity: 0.12 },
+  flicker: { enabled: true, chance: 0.003, amount: 0.08 },
+  scanlines: { enabled: true, opacity: 0.03 },
+  vignette: { inner: 220, outer: 560, opacity: 0.55 },
+  particles: { type: 'dust', count: 15, speed: 0.2, opacity: 0.08 },
+}
 ```
-loadImages() → goScene(sceneId) → render()
-  → 绘制背景图
-  → 绘制暗角效果 (radial gradient)
-  → HUD (物品栏 + 场景名)
+
+**渲染流程：**
 ```
+loadImages() → goScene(sceneId) → VFX.init(sceneId) → startRenderLoop()
+  → 每帧: drawImage(bg) → VFX.render(ctx, dt, sceneId) → hotspot 高亮
+```
+
+VFX.render 按顺序执行：雨滴 → 雾气 → 霓虹脉冲 → 环境粒子 → 水洼反射 → 暗角 → 闪烁 → 扫描线 → 故障
+
+#### 8. 场景切换与对话系统
 
 ---
 
@@ -205,27 +236,24 @@ loadImages() → goScene(sceneId) → render()
 ### 一键生成全部素材
 ```bash
 cd last-signal
-python3 gen_assets.py
-# 自动生成基础场景图 + 动画帧 + 角色肖像
+python3 gen_assets.py          # VFX 引擎模式：每场景 1 张基础图
+python3 gen_assets.py --legacy # Legacy 模式：每场景 5 帧预渲染
+# 自动生成基础场景图 + 角色肖像
 ```
 
-### 场景动画系统
+### 场景动画系统（VFX 引擎）
 
-每个场景有 5 帧动画（`bg_{scene}_f0.png` ~ `f4.png`），游戏内以 ~800ms/帧 循环播放，形成缓慢呼吸的环境动画。
+**新版（默认）：Canvas 实时粒子引擎**
+- 每场景只需 1 张基础背景图（`bg_{scene}_f0.png`）
+- VFX 引擎在客户端 Canvas 上实时渲染：雨滴、雾气、霓虹、粒子、扫描线、故障等
+- 优点：动效连续流畅（60fps）、零额外文件体积、效果可按场景独立配置
+- 缺点：依赖 JS 执行
 
-**帧效果：**
-| 帧 | 文件后缀 | 效果 |
-|---|---|---|
-| f0 | `_f0.png` | 原图 |
-| f1 | `_f1.png` | 霓虹脉冲 — 高饱和区域提亮 |
-| f2 | `_f2.png` | 雨滴增强 — 添加雨丝 + 底部湿润反光 |
-| f3 | `_f3.png` | 光源闪烁 — 整体微暗 + 局部随机暗区 |
-| f4 | `_f4.png` | 薄雾弥漫 — 从上方渐变蓝灰雾气 |
-
-**生成流程：**
-1. `gen_assets.py` 用 Pollinations.AI 生成基础场景图（`bg_{scene}.png`）
-2. 自动调用 `gen_anim_frames.py`，用程序化图像效果从基础图扩展 5 帧
-3. 帧间差异微妙，Mask 仍基于首帧生成即可
+**旧版（Legacy）：预渲染帧序列**
+- 每场景 5 帧（`bg_{scene}_f0.png` ~ `f4.png`），800ms/帧 循环播放
+- 使用 `--legacy` 参数生成
+- 优点：不依赖 JS，纯静态图片即可播放
+- 缺点：帧间差异有限、文件体积大
 
 **单独生成动画帧：**
 ```bash
