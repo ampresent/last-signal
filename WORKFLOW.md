@@ -194,6 +194,47 @@ cd last-signal
 python3 gen_assets.py
 ```
 
+### 交互区域 Mask 系统
+
+游戏使用**二值 mask 图片**做像素级碰撞检测，替代传统的矩形热区。
+
+**原理：**
+- 每个场景有一张 `assets/masks/{sceneId}_mask.png`（960×640 灰度图）
+- 白色区域 (RGB > 128) = 可交互
+- 黑色区域 = 背景（不可交互）
+- 鼠标移动时读取 mask 对应像素颜色，判断是否命中
+
+**生成流程：**
+1. 用视觉模型（mimo-omni）分析场景图片，识别可交互物体
+2. 在 `gen_masks.py` 中定义每个场景的交互区域（支持 rect / ellipse / polygon）
+3. 运行 `python3 gen_masks.py` 生成 mask PNG
+
+**Mask 数据格式（`gen_masks.py` 中）：**
+```python
+"scene_name": [
+    {
+        "name": "terminal",
+        "shape": "rect",        # rect / ellipse / polygon
+        "cx_pct": 45,           # 中心 X (百分比)
+        "cy_pct": 45,           # 中心 Y (百分比)
+        "w_pct": 22,            # 宽度 (百分比)
+        "h_pct": 25,            # 高度 (百分比)
+    },
+    {
+        "name": "chair",
+        "shape": "polygon",
+        "polygon_points_pct": [  # 多边形顶点 (百分比)
+            [73, 60], [70, 85], [79, 86], [82, 60]
+        ],
+    },
+]
+```
+
+**视觉反馈：**
+- 默认状态：mask 边缘呼吸闪烁（绿色像素点）
+- 悬停状态：mask 边缘发光轮廓 + 半透明绿色覆盖 + 浮动标签
+- 无 mask 时 fallback 到矩形高亮
+
 ### 添加新场景的步骤
 
 1. **在 `gen_assets.py` 中添加 prompt**
