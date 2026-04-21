@@ -1091,6 +1091,8 @@ const Game = {
     this.renderLoop = requestAnimationFrame(loop);
   },
 
+  hotspotAnim: 0,
+
   render(dt) {
     const scene = SCENES[this.currentScene];
     if (!scene) return;
@@ -1111,7 +1113,7 @@ const Game = {
     // ★ VFX 实时粒子动效叠加 ★
     VFX.render(this.ctx, dt, this.currentScene);
 
-    // mask 静默用于交互检测（isMaskHit / getHotspotAt），不绘制任何视觉效果
+    // mask 静默 — 不绘制任何视觉效果，仅用于交互检测
 
     document.getElementById('scene-name').textContent = scene.name || '';
   },
