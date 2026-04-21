@@ -172,4 +172,12 @@ if __name__ == "__main__":
         print(f"\n{'='*50}")
         print("🎬 生成动画帧 (legacy)...")
         import subprocess
-        subprocess.run(["python3", os.path.join(os.path.dirname(__file__), "gen_anim_frames.py")])
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_anim_frames.py")])
+    else:
+        # VFX 引擎模式：运行 AI img2img 帧生成
+        print(f"\n{'='*50}")
+        print("🎬 生成 AI img2img 动画帧...")
+        import subprocess
+        result = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_ai_frames.py")])
+        if result.returncode != 0:
+            print("⚠️ AI 帧生成失败，可运行 python3 gen_anim_frames.py 作为降级方案")
