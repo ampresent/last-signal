@@ -12,7 +12,7 @@ Current animation uses Pollinations img2img + OpenCV optical flow interpolation.
 
 ## Approach
 
-Single base image + MiDaS depth estimation + programmatic 2D depth-based lighting. No AI generation per frame — fully deterministic, perfectly stable.
+Single base image + **Depth-Anything-V2-Large** depth estimation + programmatic 2D depth-based lighting. No AI generation per frame — fully deterministic, perfectly stable.
 
 ## Pipeline
 
@@ -20,7 +20,7 @@ Single base image + MiDaS depth estimation + programmatic 2D depth-based lightin
 bg_apartment.png (base)
        │
        ▼
-  MiDaS depth estimation → depth_map.png (grayscale, 960×640)
+  Depth-Anything-V2-Large → depth_map.png (grayscale, 960×640)
        │
        ▼
   For each frame (f0–f11):
@@ -40,13 +40,21 @@ bg_apartment.png (base)
 
 ### 1. Depth Map Generation (`gen_depth.py`)
 
-- Use MiDaS DPT_Large model (via `torch` + `torchvision` + `midas` hub)
+- Use **Depth-Anything-V2-Large** (ViT-Large, 335M params) via the repo's `DepthAnythingV2` class
+- Checkpoint: `models/depth_anything_v2_vitl.pth` (also on R2: `s3://mystore/depth_anything_v2_vitl.pth`)
 - Input: `bg_apartment.png` (960×640)
 - Output: `assets/apartment_depth.png` (grayscale, 0=near, 255=far)
 - Post-process: bilateral filter for smooth gradients while preserving object boundaries
 - Cache: skip if depth map exists and is newer than base image
 
-**Dependencies (new):** `torch`, `torchvision`, `timm` (MiDaS runs on CPU, ~5s per image)
+**Why Depth-Anything-V2 over MiDaS:**
+- Higher accuracy, especially on fine structures and edges
+- Better on stylized/pixel-art imagery (MiDaS struggles here)
+- More robust depth ordering for lighting occlusion
+- Same inference speed on CPU (~3-5s per image)
+
+**Dependencies:** `torch` (CPU), `opencv-python`, `numpy`, `timm`
+**Model repo:** Clone `https://github.com/DepthAnything/Depth-Anything-V2` for `depth_anything_v2/dpt.py`
 
 ### 2. Rendering Masks
 
@@ -145,9 +153,9 @@ Single script, all logic inline. Flow:
 | Speed | ~30s (CPU MiDaS + rendering) | ~3min (API calls + interpolation) |
 | Flexibility | Adjust params, instant re-render | Re-prompt, hope for consistency |
 | Artifact risk | None (no optical flow) | Ghosting, morphing, color drift |
-| Depth accuracy | MiDaS may struggle with pixel art | N/A |
+| Depth accuracy | DA2-Large handles pixel art better than MiDaS | N/A |
 
-**Risk:** MiDaS depth estimation on pixel art may be noisy or inaccurate. Mitigation: bilateral filter post-process + manual depth correction mask if needed.
+**Risk:** Depth estimation on pixel art may still have edge artifacts. Mitigation: bilateral filter post-process + manual depth correction mask if needed. DA2-Large is significantly better than MiDaS on this style.
 
 ## Verification
 
@@ -162,10 +170,45 @@ After generation:
 
 | File | Action |
 |------|--------|
-| `gen_apartment_lighting.py` | **New** — depth lighting renderer |
-| `assets/apartment_depth.png` | **New** — cached depth map |
-| `assets/bg_apartment_f0–f11.png` | **Overwrite** — 12 new frames |
+| `gen_apartment_lighting.py` | **New** ✅ — depth lighting renderer (DA2-Large) |
+| `depth_anything_v2/` | **New** ✅ — model package dir (clone from repo or use timm/transformers fallback) |
+| `assets/apartment_depth.png` | Generated at runtime — cached depth map |
+| `assets/bg_apartment_f0–f11.png` | Overwritten at runtime — 12 new frames |
 | `WORKFLOW.md` | Update animation section with new pipeline description |
+
+## Implementation Notes
+
+### Model Loading Strategy (3 fallback levels)
+
+1. **Official**: `depth_anything_v2/` package in project root + local `.pth` checkpoint
+2. **timm**: `timm` ViT-Large backbone + custom DPT head (simplified, loads `.pth` with `strict=False`)
+3. **transformers**: HuggingFace `DepthAnythingV2ForDepthEstimation` (may download extra files)
+
+### Dependencies
+
+```bash
+pip install torch numpy opencv-python
+# Plus one of: [timm] or [transformers] or depth_anything_v2/ package
+```
+
+### Running
+
+```bash
+# Full pipeline (depth + lighting)
+python3 gen_apartment_lighting.py
+
+# Depth only
+python3 gen_apartment_lighting.py --depth-only
+
+# Lighting only (re-render with different params, reuse cached depth)
+python3 gen_apartment_lighting.py --lighting-only
+```
+
+### Performance (CPU)
+
+- Depth estimation: ~3-5s (ViT-Large on CPU)
+- Frame rendering: ~10-15s per frame (48-step shadow ray march)
+- Total: ~2-3 minutes for 12 frames
 
 ## Files NOT Changed
 
