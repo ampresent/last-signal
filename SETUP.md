@@ -36,7 +36,7 @@ pip3 install --break-system-packages s3cmd
 
 ### 2.2 写入凭据
 
-创建 `~/.s3cfg`：
+参考 ./r2mount.py 里的信息，来自动创建 `~/.s3cfg`：
 
 ```ini
 [default]
