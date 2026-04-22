@@ -2,199 +2,185 @@
 
 > 环境搭建、凭据配置、依赖下载 — 从零到可开发。
 >
-> **核心原则**：所有大文件（>50MB）优先从 R2 桶下载，避免外网慢速。
+> **核心原则**：一切能从 R2 桶获取的，不走外网。
 
 ---
 
-## 1. Clone 仓库
-
-使用 GitHub Personal Access Token 认证（避免 SSH 配置）：
+## 一键初始化
 
 ```bash
-# 1. 将 token 存入本地文件（仅当前用户可读）
-echo 'YOUR_GITHUB_TOKEN' > /root/.openclaw/workspace/.github-token
-chmod 600 /root/.openclaw/workspace/.github-token
-
-# 2. 用 token 文件 clone（保留完整 commit log，禁止浅克隆/压缩包解压）
-cd /root/.openclaw/workspace
-git clone https://github.com/ampresent/last-signal.git
+cd /root/.openclaw/workspace/last-signal
+bash setup.sh
 ```
 
-> ⚠️ Token 文件仅用于初始 clone，不要提交到仓库。clone 完成后建议 `git remote set-url origin` 改为 SSH 方式。
+自动完成 7 步：阿里云源 → s3cmd + R2 → PyTorch → torchvision stub → pip 依赖 → 模型并行下载 → git 配置。
 
 ---
 
-## 2. 配置 Cloudflare R2 存储桶
+## R2 桶全景 (`s3://mystore`)
 
-项目使用 Cloudflare R2 (`mystore`) 存放模型权重和预缓存依赖。
+| 路径 | 大小 | 来源 | 用途 |
+|------|------|------|------|
+| **deps/** | | | Python 依赖（R2 缓存） |
+| `deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl` | 182MB | 自构建 | PyTorch CPU wheel |
+| `deps/torchvision-0.22.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl` | 2.0MB | PyTorch CDN 备份 | 原生 wheel（ABI 不兼容，备用） |
+| `deps/torchvision-0.22.0+cpu.stub-py3-none-any.whl` | 5KB | 本机构建 | **纯 Python stub**，解决 torch 2.11.0 ABI 问题 |
+| **models/** | | | 模型权重 |
+| `depth_anything_v2_vitl.pth` | 1.3GB | R2 原始 | DA2-Large 原始权重 |
+| `models/depth-anything-v2-large-hf/model.safetensors` | 1.3GB | R2 原始 | DA2-Large transformers 权重 |
+| `models/depth-anything-v2-large-hf/config.json` | 1KB | R2 原始 | transformers 配置 |
+| `models/depth-anything-v2-large-hf/preprocessor_config.json` | 1KB | R2 原始 | 预处理配置 |
+| **scripts/** | | | 工具脚本 |
+| `scripts/setup.sh` | 13KB | 本机上传 | 一键初始化脚本 |
 
-### 2.1 安装 s3cmd
+**总计：~2.8GB**
+
+---
+
+## 1. 阿里云软件源
+
+### pip
+
+```bash
+cat > /etc/pip.conf << 'EOF'
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+EOF
+```
+
+### apt (Ubuntu 24.04 Noble)
+
+```bash
+cat > /etc/apt/sources.list << 'EOF'
+deb http://mirrors.cloud.aliyuncs.com/ubuntu noble main restricted universe multiverse
+deb http://mirrors.cloud.aliyuncs.com/ubuntu noble-updates main restricted universe multiverse
+deb http://mirrors.cloud.aliyuncs.com/ubuntu noble-backports main restricted universe multiverse
+deb http://mirrors.cloud.aliyuncs.com/ubuntu noble-security main restricted universe multiverse
+EOF
+apt-get update
+```
+
+> 阿里云 ECS 出厂通常已预配。非阿里云机器需手动执行。
+
+---
+
+## 2. Clone 仓库
+
+```bash
+git -c credential.helper='store --file=/path/to/.git-credentials-file' \
+  clone https://github.com/ampresent/last-signal.git
+```
+
+---
+
+## 3. s3cmd + R2 凭据
+
+凭据在 `./r2mount.py`，自动写入 `~/.s3cfg`：
 
 ```bash
 pip3 install --break-system-packages s3cmd
-```
 
-### 2.2 写入凭据
-
-参考 ./r2mount.py 里的信息，来自动创建 `~/.s3cfg`：
-
-```ini
-[default]
-access_key = <R2_ACCESS_KEY_ID>
-secret_key = <R2_SECRET_ACCESS_KEY>
-host_base = <ACCOUNT_ID>.r2.cloudflarestorage.com
-host_bucket = %(bucket)s.<ACCOUNT_ID>.r2.cloudflarestorage.com
+python3 -c "
+import re, pathlib
+src = pathlib.Path('r2mount.py').read_text()
+ak = re.search(r'R2_ACCESS_KEY\s*=\s*\"(.+?)\"', src).group(1)
+sk = re.search(r'R2_SECRET_KEY\s*=\s*\"(.+?)\"', src).group(1)
+ep = re.search(r'R2_ENDPOINT\s*=\s*\"https://(.+?)\"', src).group(1)
+pathlib.Path(pathlib.Path.home() / '.s3cfg').write_text(f'''[default]
+access_key = {ak}
+secret_key = {sk}
+host_base = {ep}
+host_bucket = %(bucket)s.{ep}
 use_https = True
+''')
+" && chmod 600 ~/.s3cfg
+
+# 验证（必须 --region=auto）
+s3cmd --region=auto ls   # 应看到 s3://mystore
 ```
-
-### 2.3 验证连接
-
-```bash
-# 列出所有桶（必须加 --region=auto，R2 不接受默认 US 区域名）
-s3cmd --region=auto ls
-```
-
-预期输出应包含 `s3://mystore`。
-
-### 2.4 常用操作
-
-```bash
-s3cmd --region=auto put ./local-file s3://mystore/path/to/file      # 上传
-s3cmd --region=auto get s3://mystore/path/to/file ./local-file      # 下载
-s3cmd --region=auto ls --recursive s3://mystore/                     # 列出全部
-s3cmd --region=auto del s3://mystore/path/to/file                    # 删除
-```
-
-> **关键**：所有 `s3cmd` 命令必须带 `--region=auto`，否则会报 `InvalidRegionName: 'US' is not valid`。
 
 ---
 
-## 3. 安装 Python 依赖
+## 4. 安装 Python 依赖
 
-基础依赖直接 pip 安装（体积小）：
-
-```bash
-pip3 install --break-system-packages numpy opencv-python-headless s3cmd
-```
-
-### 3.1 PyTorch CPU（~190MB，R2 缓存）
-
-从 PyTorch CDN 直接下载极慢，改从 R2：
+### 顺序：torch 先装 → 再装其余
 
 ```bash
+# 从 R2 装 torch（~182MB，6MB/s，CDN 要 20min+）
 s3cmd --region=auto get \
   s3://mystore/deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl \
-  /tmp/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl
+  /tmp/
 
 pip3 install --break-system-packages \
   /tmp/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl
-```
 
-> 如需其他 Python 版本或平台，替换对应的 wheel 文件名。
-
-### 3.2 transformers + timm
-
-```bash
-pip3 install --break-system-packages transformers timm
-```
-
----
-
-## 4. 下载模型文件
-
-### 4.1 Depth-Anything-V2-Large 原始权重（~1.3GB，R2 缓存）
-
-用于 `gen_depth.py` 等脚本直接加载：
-
-```bash
-mkdir -p models
+# 从 R2 装 torchvision stub（5KB，解决 ABI 不兼容）
 s3cmd --region=auto get \
-  s3://mystore/depth_anything_v2_vitl.pth \
-  models/depth_anything_v2_vitl.pth
+  s3://mystore/deps/torchvision-0.22.0+cpu.stub-py3-none-any.whl \
+  /tmp/
+
+pip3 install --break-system-packages --no-deps \
+  /tmp/torchvision-0.22.0+cpu.stub-py3-none-any.whl
+
+# 其余从阿里云 PyPI 装（快）
+pip3 install --break-system-packages \
+  numpy opencv-python-headless transformers timm
 ```
 
-### 4.2 transformers 格式权重（~1.3GB，R2 缓存）
+### torchvision stub 说明
 
-用于 `gen_apartment_lighting.py` 等通过 transformers 加载的脚本：
+torch 2.11.0+cpu 和原生 torchvision C++ ABI 不兼容：
+- `RuntimeError: operator torchvision::nms does not exist`
+- `Segmentation fault (core dumped)`
+
+**stub 是纯 Python 实现**，提供 timm 所需的 `FrozenBatchNorm2d`、`ToTensor`、`InterpolationMode` 等接口。无需 C++ 扩展，兼容任意 torch 版本。
+
+---
+
+## 5. 下载模型文件（并行）
 
 ```bash
-mkdir -p models/depth-anything-v2-large-hf
+mkdir -p models models/depth-anything-v2-large-hf
+
+s3cmd --region=auto get s3://mystore/depth_anything_v2_vitl.pth models/depth_anything_v2_vitl.pth &
 for f in config.json preprocessor_config.json model.safetensors; do
-  s3cmd --region=auto get \
-    "s3://mystore/models/depth-anything-v2-large-hf/$f" \
-    "models/depth-anything-v2-large-hf/$f"
+  s3cmd --region=auto get "s3://mystore/models/depth-anything-v2-large-hf/$f" \
+    "models/depth-anything-v2-large-hf/$f" &
 done
+wait
 ```
 
-然后设置环境变量让 transformers 使用本地文件：
+---
+
+## 6. 环境检查
 
 ```bash
-export HF_ENDPOINT=https://hf-mirror.com   # 回退时使用镜像
-# 或者在代码中指定 local_files_only=True + cache_dir
+python3 -c "import torch; print(torch.__version__)"          # 2.11.0+cpu
+python3 -c "import torchvision; print(torchvision.__version__)"  # 0.22.0+cpu-stub
+python3 -c "import transformers; print(transformers.__version__)"
+python3 -c "import timm; print(timm.__version__)"
+python3 -c "import cv2; print(cv2.__version__)"
+python3 -c "import numpy; print(numpy.__version__)"
+ls -lh models/depth_anything_v2_vitl.pth                     # ~1.3GB
+ls -lh models/depth-anything-v2-large-hf/model.safetensors   # ~1.3GB
 ```
 
-> 完整模型也已备份到 R2 以防止 HuggingFace 镜像失效。
-
 ---
 
-## 5. R2 桶文件清单
+## 7. 已知问题
 
-以下大文件已预上传到 `mystore` 桶，初始化时直接下载：
+### torch + torchvision ABI 不兼容
 
-| R2 路径 | 大小 | 用途 |
-|---------|------|------|
-| `deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl` | 182MB | PyTorch CPU wheel |
-| `depth_anything_v2_vitl.pth` | 1.3GB | DA2-Large 原始权重 |
-| `models/depth-anything-v2-large-hf/model.safetensors` | 1.3GB | DA2-Large transformers 权重 |
-| `models/depth-anything-v2-large-hf/config.json` | 1KB | transformers 模型配置 |
-| `models/depth-anything-v2-large-hf/preprocessor_config.json` | 1KB | 图像预处理配置 |
+torch 2.11.0+cpu 是自定义构建版本，原生 torchvision C++ 扩展与其 ABI 不匹配。**用 stub 解决**。等官方发布匹配版本后可替换。
 
----
+### pip `externally-managed-environment`
 
-## 6. 环境检查清单
+Ubuntu 24.04 的 Python 被系统管理，所有 pip 命令需加 `--break-system-packages`。
 
-| 项目 | 检查命令 | 预期结果 |
-|------|----------|----------|
-| Git 仓库 | `git log --oneline \| wc -l` | 有完整 commit 历史 |
-| R2 连接 | `s3cmd --region=auto ls` | 可见 `mystore` 桶 |
-| PyTorch | `python3 -c "import torch; print(torch.__version__)"` | 输出版本号 |
-| transformers | `python3 -c "import transformers; print(transformers.__version__)"` | 输出版本号 |
-| OpenCV | `python3 -c "import cv2; print(cv2.__version__)"` | 输出版本号 |
-| DA2 模型 | `ls -lh models/depth_anything_v2_vitl.pth` | ~1.3GB |
+### s3cmd `InvalidRegionName`
 
----
-
-## 7. FUSE 挂载（可选）
-
-如需将 R2 桶挂载为本地目录（当前环境因 libfuse 版本兼容问题未成功）：
-
-```bash
-# rclone（推荐）
-rclone config  →  选 s3 → Cloudflare R2
-  endpoint = https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-  region = auto
-rclone mount mystore:/ /mnt/mystore --daemon
-
-# goofys（轻量替代）
-goofys --region auto --endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com mystore /mnt/mystore
-```
-
-> 如果只是上传/下载文件，`s3cmd` 已完全够用，无需 FUSE。
-
----
-
-## 8. 外网依赖安装速度参考
-
-| 包 | 大小 | 来源 | 速度 | 建议 |
-|----|------|------|------|------|
-| `torch` CPU | ~190MB | PyTorch CDN | 极慢 (20min+) | ✅ 从 R2 下载 |
-| `torchvision` CPU | ~7MB | PyTorch CDN | 中等 | pip 直装 |
-| `transformers` | ~97MB | PyPI | 快 | pip 直装 |
-| `timm` | ~15MB | PyPI | 快 | pip 直装 |
-| `opencv-python-headless` | ~40MB | PyPI | 快 | pip 直装 |
-| `numpy` | ~42MB | PyPI | 快 | pip 直装 |
-| DA2-Large `.pth` | ~1.3GB | HuggingFace/镜像 | 极慢 (3-5min+) | ✅ 从 R2 下载 |
-| DA2-Large transformers | ~1.3GB | HuggingFace/镜像 | 极慢 | ✅ 从 R2 下载 |
+R2 必须 `--region=auto`，否则默认 US 区域名会报错。
 
 ---
 

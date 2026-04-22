@@ -1,1 +1,9 @@
 __pycache__/
+
+# 模型权重（大文件，从 R2 下载）
+models/
+
+# 凭据文件（禁止入库）
+.git-credentials-file
+.github-token
+.s3cfg
