@@ -47,16 +47,17 @@ SCENE_KEYFRAMES = {
             "cyberpunk noir, limited color palette, dark moody atmosphere, "
             "messy desk with old computer terminal, rain on window, dim ceiling light, "
             "posters on wall, worn furniture, coffee mug, cables everywhere, "
-            "game background art, no characters"
+            "game background art, no characters, static camera, fixed perspective"
         ),
         "keyframes": [
             "",  # K0: base (原始)
-            "bright green CRT glow illuminating the entire desk area, terminal screen fully lit, "
-            "green light reflecting on nearby walls and ceiling, room looks noticeably brighter from screen",  # K1: 终端大亮
-            "heavy rain streaks streaming down the window, water droplets thick and visible, "
-            "ceiling light off the room is darker, only window light and screen glow visible",  # K2: 雨大+灯灭
-            "ceiling light flickering warm orange, terminal screen dark and powered off, "
-            "room lit mainly by overhead warm light, shadows deeper, cozy warm tones",  # K3: 灯亮终端灭
+            # 锁定 same composition + same perspective，只改光照色彩
+            "same composition same perspective same objects, "
+            "terminal screen green glow reflecting on desk surface and nearby wall",  # K1
+            "same composition same perspective same objects, "
+            "heavier rain visible on window, ceiling light dimmer, slightly blue tint",  # K2
+            "same composition same perspective same objects, "
+            "ceiling light warmer orange glow, terminal screen darker, room warmer tone",  # K3
         ],
     },
     "bg_street": {
@@ -338,6 +339,16 @@ def generate_scene_animation(scene_name, config):
     if len(keyframes) < 2:
         print(f"  ❌ 关键帧不足，无法插值")
         return 0
+
+    # Step 3.5: 将 AI 关键帧混合回原图，压低变化幅度
+    # 只保留环境变化 (光照/色彩)，抑制物体形变
+    BLEND_ALPHA = 0.55  # 55% AI变化 + 45% 原图
+    print(f"  🔧 混合关键帧 (α={BLEND_ALPHA})...")
+    base_kf = keyframes[0].astype(np.float32)
+    for i in range(1, len(keyframes)):
+        ai_kf = keyframes[i].astype(np.float32)
+        blended = base_kf * (1 - BLEND_ALPHA) + ai_kf * BLEND_ALPHA
+        keyframes[i] = np.clip(blended, 0, 255).astype(np.uint8)
 
     # Step 4: 光流插值生成所有帧
     print(f"  🔄 光流插值生成动画...")
