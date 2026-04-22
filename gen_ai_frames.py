@@ -51,9 +51,12 @@ SCENE_KEYFRAMES = {
         ),
         "keyframes": [
             "",  # K0: base (原始)
-            "terminal screen glowing slightly brighter green, ambient light slightly warmer",  # K1: 终端微亮
-            "rain drops more visible on window glass, slightly blue-tinted light",  # K2: 雨变大
-            "dimmer overall lighting, terminal flickering subtly, cool blue tones",  # K3: 灯暗
+            "bright green CRT glow illuminating the entire desk area, terminal screen fully lit, "
+            "green light reflecting on nearby walls and ceiling, room looks noticeably brighter from screen",  # K1: 终端大亮
+            "heavy rain streaks streaming down the window, water droplets thick and visible, "
+            "ceiling light off the room is darker, only window light and screen glow visible",  # K2: 雨大+灯灭
+            "ceiling light flickering warm orange, terminal screen dark and powered off, "
+            "room lit mainly by overhead warm light, shadows deeper, cozy warm tones",  # K3: 灯亮终端灭
         ],
     },
     "bg_street": {
