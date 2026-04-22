@@ -1,276 +1,318 @@
 #!/usr/bin/env python3
 """
-LAST SIGNAL - Depth-Based Lighting for Apartment Scene
-Uses Depth-Anything-V2-Large for depth estimation, then renders
-deterministic per-pixel lighting with shadow ray marching.
+gen_apartment_lightning.py — Pre-rendered depth lighting for apartment scene
+
+Uses Depth-Anything-V2-Large for depth estimation + programmatic 2D depth-based
+lighting with 3 simultaneous light sources (120° phase offset sinusoidal curves).
 
 Usage:
-    python3 gen_apartment_lighting.py                    # full pipeline
-    python3 gen_apartment_lighting.py --depth-only       # only generate depth map
-    python3 gen_apartment_lighting.py --lighting-only    # only render frames (reuse depth)
+    python3 gen_apartment_lightning.py              # full pipeline
+    python3 gen_apartment_lightning.py --depth-only  # depth map only
+    python3 gen_apartment_lightning.py --lighting-only # lighting only (reuse cached depth)
 """
 
+import sys
+import os
+import time
 import argparse
 import math
-import os
-import sys
-import time
+from pathlib import Path
 
-import cv2
 import numpy as np
+import cv2
+import torch
+import torch.nn.functional as F
 
-# ============================================================
-# Config
-# ============================================================
+# Add Depth-Anything-V2 repo to path
+REPO_DIR = Path(__file__).parent / "depth_anything_v2_repo"
+sys.path.insert(0, str(REPO_DIR))
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-DEPTH_OUT = os.path.join(ASSETS_DIR, "apartment_depth.png")
-BASE_IMG = os.path.join(ASSETS_DIR, "bg_apartment.png")
-FRAME_FMT = os.path.join(ASSETS_DIR, "bg_apartment_f{}.png")
+from depth_anything_v2.dpt import DepthAnythingV2
 
+# ── Constants ──────────────────────────────────────────────────────
+BASE_IMAGE = "assets/bg_apartment.png"
+DEPTH_CACHE = "assets/apartment_depth.png"
+OUTPUT_FMT = "assets/bg_apartment_f{frame}.png"
+INPUT_SIZE = 518  # DA2 input size (must be multiple of 14)
 NUM_FRAMES = 12
+SHADOW_STEPS = 48
+AMBIENT = 0.05
 
-# Light sources: sinusoidal intensity, 120° phase offsets
+# ── Light Source Definitions ───────────────────────────────────────
+# Each: (x, y, color_rgb, intensity_base, intensity_amp, radius)
 LIGHT_SOURCES = [
+    # Terminal (green glow) — center of desk ~ (700, 500)
     {
         "name": "terminal",
-        "x": 680, "y": 480,
-        "color": (0.2, 0.9, 0.3),      # cyberpunk green
-        "radius": 350,
-        "intensity_lo": 0.6, "intensity_hi": 1.0,
+        "pos": (700, 500),
+        "color": np.array([0.2, 0.9, 0.3]),
+        "intensity_range": (0.6, 1.0),
+        "radius": 350.0,
         "phase_deg": 0,
     },
+    # Ceiling light (warm amber) — center-top ~ (480, 80)
     {
         "name": "ceiling",
-        "x": 480, "y": 80,
-        "color": (1.0, 0.85, 0.6),      # warm amber
-        "radius": 500,
-        "intensity_lo": 0.5, "intensity_hi": 0.9,
+        "pos": (480, 80),
+        "color": np.array([1.0, 0.85, 0.6]),
+        "intensity_range": (0.5, 0.9),
+        "radius": 500.0,
         "phase_deg": 120,
     },
+    # Window ambient (cool blue) — left side ~ (50, 350)
     {
         "name": "window",
-        "x": 50, "y": 350,
-        "color": (0.3, 0.5, 0.8),       # cool blue
-        "radius": 600,
-        "intensity_lo": 0.3, "intensity_hi": 0.7,
+        "pos": (50, 350),
+        "color": np.array([0.3, 0.5, 0.8]),
+        "intensity_range": (0.3, 0.7),
+        "radius": 600.0,
         "phase_deg": 240,
     },
 ]
 
-AMBIENT = 0.05
-SHADOW_STEPS = 48
-SHADOW_DEPTH_THRESH = 0.03
-
-
-# ============================================================
-# Depth Estimation
-# ============================================================
 
 def load_depth_model():
-    """Load Depth-Anything-V2-Large via transformers."""
-    import torch
-    from transformers import AutoModelForDepthEstimation, AutoImageProcessor
-
-    model_id = "depth-anything/Depth-Anything-V2-Large-hf"
-    print(f"  📦 Loading {model_id}...")
-    processor = AutoImageProcessor.from_pretrained(model_id)
-    model = AutoModelForDepthEstimation.from_pretrained(model_id)
+    """Load Depth-Anything-V2-Large model from local checkpoint."""
+    model = DepthAnythingV2(encoder='vitl', features=256,
+                            out_channels=[256, 512, 1024, 1024])
+    
+    ckpt_path = "models/depth_anything_v2_vitl.pth"
+    if not os.path.exists(ckpt_path):
+        print(f"  ✗ Checkpoint not found: {ckpt_path}")
+        sys.exit(1)
+    
+    state = torch.load(ckpt_path, map_location='cpu', weights_only=True)
+    model.load_state_dict(state)
     model.eval()
-    return model, processor
+    
+    device = 'cpu'
+    model = model.to(device)
+    print(f"  ✓ Model loaded on {device}")
+    return model
 
 
-def estimate_depth(img_bgr, model, processor):
-    """Run depth estimation. Returns float32 [H,W] in [0,1], 0=near 1=far."""
-    import torch
-    from PIL import Image
+def generate_depth_map(model, base_image):
+    """Generate depth map from base image using DA2-Large."""
+    # DA2 expects BGR input
+    bgr = cv2.cvtColor(base_image, cv2.COLOR_RGB2BGR)
+    depth = model.infer_image(bgr, input_size=INPUT_SIZE)
+    
+    # Normalize to 0-255 (0=near, 255=far)
+    depth_norm = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
+    depth_u8 = (depth_norm * 255).astype(np.uint8)
+    
+    # Bilateral filter for smooth gradients while preserving edges
+    depth_smooth = cv2.bilateralFilter(depth_u8, 9, 75, 75)
+    
+    return depth_smooth
 
-    h, w = img_bgr.shape[:2]
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(img_rgb)
 
-    inputs = processor(images=pil_img, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model(**inputs)
+def compute_lighting_for_frame(depth_map, frame_idx, img_h, img_w):
+    """
+    Compute per-pixel lighting for a single frame.
+    
+    Returns: lighting array (H, W, 3) in [0, 1] range.
+    """
+    depth_float = depth_map.astype(np.float32) / 255.0  # 0=near, 1=far
+    
+    # Pixel coordinate grids
+    yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
+    
+    # Total lighting accumulator
+    total_light = np.zeros((img_h, img_w, 3), dtype=np.float32)
+    total_light += AMBIENT  # base ambient
+    
+    for src in LIGHT_SOURCES:
+        lx, ly = src["pos"]
+        color = src["color"]
+        r_min, r_max = src["intensity_range"]
+        radius = src["radius"]
+        phase_rad = math.radians(src["phase_deg"])
+        
+        # Sinusoidal intensity for this frame
+        t = 2 * math.pi * frame_idx / NUM_FRAMES
+        intensity = r_min + (r_max - r_min) * (0.5 + 0.5 * math.sin(t + phase_rad))
+        
+        # Distance from each pixel to light source
+        dist = np.sqrt((xx - lx) ** 2 + (yy - ly) ** 2)
+        
+        # Inverse-square attenuation with radius clamp
+        attenuation = 1.0 / (1.0 + (dist / radius) ** 2)
+        
+        # Depth modulation: closer surfaces get more light
+        depth_factor = 1.0 - depth_float
+        
+        # Shadow ray march: step from pixel toward light, check depth occlusion
+        shadow = ray_march_shadows(depth_float, (lx, ly), img_h, img_w)
+        
+        # Combine
+        contrib = (color[np.newaxis, np.newaxis, :] *
+                   intensity *
+                   attenuation[:, :, np.newaxis] *
+                   depth_factor[:, :, np.newaxis] *
+                   shadow[:, :, np.newaxis])
+        
+        total_light += contrib
+    
+    return np.clip(total_light, 0.0, 1.5)  # allow slight overexposure for HDR feel
 
-    depth = outputs.predicted_depth.squeeze().numpy()
-    depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_CUBIC)
 
-    # Normalize: higher value = farther
-    d_min, d_max = depth.min(), depth.max()
-    if d_max > d_min:
-        depth = (depth - d_min) / (d_max - d_min)
+def ray_march_shadows(depth_map, light_pos, img_h, img_w):
+    """
+    March shadow rays from each pixel toward the light source.
+    
+    For each pixel, step along the line toward the light. If any intermediate
+    pixel has depth significantly greater than the current pixel → shadowed.
+    
+    Returns: shadow map (H, W) in [0, 1] where 1.0 = fully lit.
+    """
+    lx, ly = light_pos
+    yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
+    
+    # Direction vectors from each pixel to light
+    dx = lx - xx
+    dy = ly - yy
+    dist = np.sqrt(dx * dx + dy * dy)
+    
+    # Normalize direction
+    eps = 1e-8
+    dx_norm = dx / (dist + eps)
+    dy_norm = dy / (dist + eps)
+    
+    # Step size: total distance / num_steps
+    max_steps = SHADOW_STEPS
+    step_dist = dist / max_steps
+    
+    shadow = np.ones((img_h, img_w), dtype=np.float32)
+    current_depth = depth_map
+    
+    for step in range(1, max_steps + 1):
+        # Sample position along the ray
+        sx = xx + dx_norm * step_dist * step
+        sy = yy + dy_norm * step_dist * step
+        
+        # Clamp to image bounds
+        sx_clamped = np.clip(sx, 0, img_w - 1).astype(np.int32)
+        sy_clamped = np.clip(sy, 0, img_h - 1).astype(np.int32)
+        
+        # Look up depth at sampled position
+        sampled_depth = depth_map[sy_clamped, sx_clamped]
+        
+        # If sampled depth is significantly greater than current pixel depth → occluded
+        shadow_mask = (sampled_depth > current_depth + 0.05).astype(np.float32)
+        
+        # Accumulate shadow (once shadowed, stays shadowed)
+        shadow *= (1.0 - shadow_mask)
+    
+    return shadow
+
+
+def composite_frame(base_image, lighting):
+    """Composite base image with lighting using multiplicative + additive blend."""
+    base_float = base_image.astype(np.float32) / 255.0
+    
+    # Multiplicative: base * lighting
+    result = base_float * lighting
+    
+    # Clamp and convert back
+    result = np.clip(result * 255, 0, 255).astype(np.uint8)
+    return result
+
+
+def quality_report(frames):
+    """Print quality metrics for generated frames."""
+    print("\n── Quality Report ──")
+    
+    diffs = []
+    for i in range(1, len(frames)):
+        d = np.mean(cv2.absdiff(frames[i - 1], frames[i]))
+        diffs.append(d)
+        print(f"  f{i-1} → f{i}: mean diff = {d:.2f}")
+    
+    # Loop closure
+    loop_diff = np.mean(cv2.absdiff(frames[0], frames[-1]))
+    print(f"  f0 ↔ f11 (loop): mean diff = {loop_diff:.2f}")
+    
+    # Peak brightness per frame
+    for i, f in enumerate(frames):
+        peak = f.max()
+        print(f"  f{i}: peak brightness = {peak}")
+    
+    avg_diff = np.mean(diffs)
+    print(f"\n  Average inter-frame diff: {avg_diff:.2f}")
+    if avg_diff > 20:
+        print("  ⚠️  High inter-frame variation — check light params")
+    elif avg_diff < 2:
+        print("  ⚠️  Very low variation — lights may be too subtle")
     else:
-        depth = np.zeros_like(depth)
+        print("  ✓ Variation looks good")
+    
+    if loop_diff > 5:
+        print(f"  ⚠️  Loop closure diff ({loop_diff:.2f}) > 5 — may see pop")
+    else:
+        print(f"  ✓ Loop closure smooth")
 
-    # Invert: DA2 outputs inverse depth (closer = higher), so flip to 0=near
-    depth = 1.0 - depth
-
-    # Bilateral filter: smooth gradients, keep edges
-    depth_u8 = (depth * 255).astype(np.uint8)
-    depth_filtered = cv2.bilateralFilter(depth_u8, 9, 75, 75)
-    return depth_filtered.astype(np.float32) / 255.0
-
-
-# ============================================================
-# Lighting Renderer
-# ============================================================
-
-def get_intensity(light, frame_idx):
-    """Sinusoidal intensity for a light at given frame."""
-    lo, hi = light["intensity_lo"], light["intensity_hi"]
-    phase = math.radians(light["phase_deg"])
-    t = (frame_idx / NUM_FRAMES) * 2 * math.pi
-    val = math.sin(t + phase)
-    return lo + (hi - lo) * (val + 1) / 2
-
-
-def render_frame(base_img, depth_map, lights):
-    """Render one frame with per-pixel lighting + shadow ray march."""
-    h, w = base_img.shape[:2]
-    base_f = base_img.astype(np.float32) / 255.0
-    light_map = np.full((h, w, 3), AMBIENT, dtype=np.float32)
-
-    py_grid, px_grid = np.mgrid[0:h, 0:w].astype(np.float32)
-
-    for light in lights:
-        # Distance attenuation
-        dist = np.sqrt((px_grid - light["x"])**2 + (py_grid - light["y"])**2)
-        r = light["radius"]
-        atten = 1.0 / (1.0 + (dist * dist) / (r * r))
-
-        # Depth modulation
-        depth_factor = 1.0 - depth_map * 0.7
-
-        # Shadow ray march (every 2px for speed)
-        shadow = np.ones((h, w), dtype=np.float32)
-        step = 2
-        for sy in range(0, h, step):
-            for sx in range(0, w, step):
-                shadow[sy, sx] = _ray_march(sx, sy, light, depth_map)
-        # Nearest-neighbor fill for skipped pixels
-        if step > 1:
-            for sy in range(0, h, step):
-                for sx in range(1, w, step):
-                    shadow[sy, sx] = shadow[sy, sx - 1]
-            for sy in range(1, h, step):
-                shadow[sy, :] = shadow[sy - 1, :]
-
-        intensity = light["current_intensity"]
-        cr, cg, cb = light["color"]
-        factor = intensity * atten * depth_factor * shadow
-        light_map[:, :, 0] += cr * factor
-        light_map[:, :, 1] += cg * factor
-        light_map[:, :, 2] += cb * factor
-
-    result = np.clip(base_f * light_map, 0, 1.0)
-    return (result * 255).astype(np.uint8)
-
-
-def _ray_march(px, py, light, depth_map):
-    """March shadow ray from pixel to light. Returns [0.15, 1.0]."""
-    lx, ly = light["x"], light["y"]
-    dx, dy = lx - px, ly - py
-    dist = math.sqrt(dx * dx + dy * dy)
-    if dist < 1:
-        return 1.0
-
-    sx = dx / dist
-    sy = dy / dist
-    seg = dist / SHADOW_STEPS
-    cur_depth = depth_map[py, px]
-    h, w = depth_map.shape
-
-    for i in range(1, SHADOW_STEPS):
-        mx = int(px + sx * seg * i)
-        my = int(py + sy * seg * i)
-        if mx < 0 or mx >= w or my < 0 or my >= h:
-            break
-        if depth_map[my, mx] > cur_depth + SHADOW_DEPTH_THRESH:
-            return 0.15  # shadowed (ambient leak)
-    return 1.0
-
-
-# ============================================================
-# Main
-# ============================================================
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--depth-only", action="store_true")
-    parser.add_argument("--lighting-only", action="store_true")
+    parser = argparse.ArgumentParser(description="Apartment depth lighting renderer")
+    parser.add_argument("--depth-only", action="store_true", help="Generate depth map only")
+    parser.add_argument("--lighting-only", action="store_true", help="Lighting only (reuse cached depth)")
     args = parser.parse_args()
-
-    print("=" * 50)
-    print("🔦 LAST SIGNAL - Depth Lighting (DA2-Large)")
-    print("=" * 50)
-
-    base = cv2.imread(BASE_IMG)
-    if base is None:
-        sys.exit(f"❌ Cannot read {BASE_IMG}")
-    print(f"  📷 Base: {base.shape[1]}×{base.shape[0]}")
-
-    # --- Depth ---
-    if not args.lighting_only:
-        t0 = time.time()
-        model, processor = load_depth_model()
-        print(f"  ⏱️  Model loaded: {time.time()-t0:.1f}s")
-
-        t0 = time.time()
-        depth = estimate_depth(base, model, processor)
-        print(f"  ⏱️  Depth estimated: {time.time()-t0:.1f}s")
-
-        cv2.imwrite(DEPTH_OUT, (depth * 255).astype(np.uint8))
-        print(f"  💾 Saved: {DEPTH_OUT}")
-
-        del model, processor
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        if args.depth_only:
-            print("\n✅ Depth-only done.")
-            return
+    
+    start_all = time.time()
+    
+    # ── Load base image ──
+    print("Loading base image...")
+    base_image = cv2.imread(BASE_IMAGE)
+    if base_image is None:
+        print(f"  ✗ Cannot load {BASE_IMAGE}")
+        sys.exit(1)
+    base_rgb = cv2.cvtColor(base_image, cv2.COLOR_BGR2RGB)
+    img_h, img_w = base_rgb.shape[:2]
+    print(f"  ✓ {img_w}×{img_h}")
+    
+    # ── Generate or load depth map ──
+    if args.lighting_only:
+        print("Loading cached depth map...")
+        depth_map = cv2.imread(DEPTH_CACHE, cv2.IMREAD_GRAYSCALE)
+        if depth_map is None:
+            print(f"  ✗ No cached depth at {DEPTH_CACHE}")
+            sys.exit(1)
+        print(f"  ✓ Loaded {DEPTH_CACHE}")
     else:
-        if not os.path.exists(DEPTH_OUT):
-            sys.exit(f"❌ No depth map: {DEPTH_OUT}")
-        depth = cv2.imread(DEPTH_OUT, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
-        print(f"  🗺️  Depth map loaded")
-
-    # --- Render ---
-    print(f"\n  🎬 Rendering {NUM_FRAMES} frames...")
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    frames = []
-
-    for fi in range(NUM_FRAMES):
+        print("Generating depth map (DA2-Large)...")
         t0 = time.time()
-        lights = []
-        for src in LIGHT_SOURCES:
-            l = dict(src)
-            l["current_intensity"] = get_intensity(src, fi)
-            lights.append(l)
-
-        frame = render_frame(base, depth, lights)
+        model = load_depth_model()
+        depth_map = generate_depth_map(model, base_rgb)
+        cv2.imwrite(DEPTH_CACHE, depth_map)
+        print(f"  ✓ Depth map saved to {DEPTH_CACHE} ({time.time()-t0:.1f}s)")
+        del model  # free memory
+    
+    if args.depth_only:
+        print("\n✓ Depth-only mode complete.")
+        return
+    
+    # ── Render frames ──
+    print(f"\nRendering {NUM_FRAMES} frames...")
+    frames = []
+    
+    for i in range(NUM_FRAMES):
+        t0 = time.time()
+        lighting = compute_lighting_for_frame(depth_map, i, img_h, img_w)
+        frame = composite_frame(base_rgb, lighting)
+        
+        out_path = OUTPUT_FMT.format(frame=i)
+        cv2.imwrite(out_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         frames.append(frame)
-        cv2.imwrite(FRAME_FMT.format(fi), frame)
-
-        sz = os.path.getsize(FRAME_FMT.format(fi)) // 1024
+        
         dt = time.time() - t0
-        intens = "  ".join(f"{l['name'][0]}:{l['current_intensity']:.2f}" for l in lights)
-        print(f"    ✅ f{fi:2d}  {sz:5d}KB  {dt:4.1f}s  [{intens}]")
-
-    # --- Quality ---
-    print(f"\n📊 Frame diffs (vs f0):")
-    for i in range(1, len(frames)):
-        d = np.mean(cv2.absdiff(frames[0], frames[i]))
-        bar = "█" * int(d) + "░" * max(0, 20 - int(d))
-        tag = "微妙" if d < 5 else "可见" if d < 15 else "明显"
-        print(f"    f0↔f{i:2d}: {d:5.1f}  {bar}  [{tag}]")
-
-    loop = np.mean(cv2.absdiff(frames[0], frames[-1]))
-    print(f"    循环 f0↔f{NUM_FRAMES-1}: {loop:.1f}")
-    print(f"\n✅ Done.")
+        print(f"  ✓ f{i} → {out_path} ({dt:.1f}s)")
+    
+    # ── Quality report ──
+    quality_report(frames)
+    
+    total = time.time() - start_all
+    print(f"\n✓ Done in {total:.1f}s")
 
 
 if __name__ == "__main__":
