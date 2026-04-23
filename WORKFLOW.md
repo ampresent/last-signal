@@ -367,11 +367,43 @@ await Game.showCasualChat("说话者", "文本", { expression: "happy" });
 ### 架构
 
 ```
-CharacterSystem     — 角色管理（加载、渲染、碰撞）
-gen_character_sprites.py — 角色行走帧生成（Pollinations.AI）
-gen_walk_masks.py   — 可行走区域 mask 生成
-dragonbones_rig.py  — DragonBones 骨骼自动绑定
+CharacterSystem       — 角色管理（加载、渲染、碰撞）
+gen_character_views.py — 角色视角生成（正面→img2img 三角度）
+gen_character_sprites.py — 旧版行走帧生成（已弃用，保留兼容）
+gen_walk_masks.py     — 可行走区域 mask 生成
+dragonbones_rig.py    — DragonBones 骨骼自动绑定
 ```
+
+### 生成流程（v2：正面→img2img）
+
+**核心思路：先生成高质量正面图，再用 img2img 保持角色一致性地生成其他角度。**
+
+```bash
+# Step 1: 生成角色正面 + img2img 其他角度
+python3 gen_character_views.py              # 全部角色
+python3 gen_character_views.py --char joker # 单个角色
+python3 gen_character_views.py --front-only # 只生成正面
+
+# Step 2: 骨骼绑定 + sprite sheet
+python3 dragonbones_rig.py --batch
+```
+
+**流程图：**
+```
+text2img(Pollinations) → raw_{char}_down.png (正面)
+       │
+       ▼
+cutout(rembg/fallback) → cutout_{char}_down.png (正面抠图)
+       │
+       ├──img2img(正面→左) → raw_{char}_left.png → cutout
+       ├──img2img(正面→右) → raw_{char}_right.png → cutout
+       └──img2img(正面→后) → raw_{char}_up.png   → cutout
+       │
+       ▼
+dragonbones_rig.py → 4方向 × 8帧行走动画 + sprite sheet
+```
+
+**img2img 优势：** 角色外观、配色、服装在四个角度间保持一致，避免独立生成导致的角色"变脸"。
 
 ### 角色数据
 
@@ -442,11 +474,12 @@ python3 dragonbones_rig.py --batch
 
 ### 身体部位检测原理
 
-使用 alpha 通道水平/垂直投影分析：
-- **头部**：顶部区域，通过颈部收缩识别边界
-- **躯干**：中部区域，最宽部分
-- **手臂**：躯干两侧，通过水平投影定位
-- **腿部**：底部区域，通过中心间隙分割左右腿
+使用 alpha 通道垂直投影分析：
+- **颈部检测**：扫描上半身 45% 区域，找到行宽最小值（局部最小值 = 颈部）
+- **头部**：顶部 → 颈部，使用 mask 像素确定宽度
+- **躯干**：颈部 → 55% 高度处
+- **手臂**：躯干边界外侧的像素区域
+- **腿部**：下半身，通过中心间隙分割左右腿
 
 ### 骨骼层级
 
@@ -490,7 +523,8 @@ last-signal/
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
-├── gen_character_sprites.py # 角色行走帧生成（Pollinations.AI）
+├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
+├── gen_character_sprites.py  # 旧版角色行走帧生成（已弃用，保留兼容）
 ├── gen_walk_masks.py       # 可行走区域 mask 生成
 ├── dragonbones_rig.py      # DragonBones 骨骼自动绑定 + sprite sheet 生成
 ├── WORKFLOW.md             # 本文档

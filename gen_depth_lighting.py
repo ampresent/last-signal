@@ -811,15 +811,24 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
 def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
     """March shadow rays from each pixel toward the light source.
 
-    Tracks the shallowest surface encountered along the ray. A surface
-    deeper than this minimum casts shadow on everything behind it.
-    Surfaces that continue getting shallower do NOT block — light
-    travels through progressively shallower regions freely.
+    Tracks the DEEPEST surface encountered along each ray (from pixel
+    toward light).  If we've seen a surface deeper than the current pixel
+    along the ray, that surface is blocking the light path behind it,
+    so the current pixel is in shadow.
 
-    Examples (depth 0=near, 1=far):
-      deep(0.7) → shallow(0.3) → shallower(0.1) : NOT blocked ✓
-      deep(0.7) → shallow(0.3) → deep(0.6)      : blocked (wall behind)
-      shallow(0.3) → deeper(0.5) → deeper(0.7)   : blocked (pixel blocks behind)
+    This correctly handles:
+      - Light sources don't shadow nearby surfaces (lamp is shallow,
+        doesn't count as a blocker for deeper surfaces).
+      - Walls/furniture block light behind them (deep surface encountered
+        before reaching the light → everything behind is shadowed).
+      - Progressive depth changes (floor getting deeper away from light)
+        don't cause false shadows — only sudden deep-to-shallow-to-deeper
+        transitions indicate real occluders.
+
+    Examples (depth 0=near/camera, 1=far/background):
+      light(0.1) → floor(0.3) → floor(0.4)     : NOT blocked ✓
+      light(0.1) → wall(0.8) → floor(0.6)      : blocked ✓ (wall occludes)
+      light(0.1) → lamp(0.1) → street(0.3)     : NOT blocked ✓ (lamp is shallow, not a blocker)
 
     Args:
         depth_map: (H,W) float32, 0=near, 1=far
@@ -841,9 +850,9 @@ def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
     step_dist = dist / SHADOW_STEPS
     shadow = np.ones((img_h, img_w), dtype=np.float32)
 
-    # Track the shallowest surface encountered along each ray.
-    # Once a shallow surface is found, everything deeper behind it is shadowed.
-    shallowest_so_far = depth_map.copy()
+    # Track the deepest surface seen so far along each ray.
+    # A deep surface blocks light for everything behind it (deeper than it).
+    deepest_so_far = np.zeros((img_h, img_w), dtype=np.float32)
 
     blocker_threshold = 0.04
 
@@ -852,14 +861,14 @@ def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
         sy = np.clip(yy + dy_norm * step_dist * step, 0, img_h - 1).astype(np.int32)
         sampled_depth = depth_map[sy, sx]
 
-        # A surface is shadowed if it's deeper than the shallowest surface
-        # we've encountered so far along the ray — meaning something is
-        # blocking the light path behind that shallow surface.
-        diff = sampled_depth - shallowest_so_far
+        # A pixel is shadowed if the deepest surface seen along the ray
+        # is deeper than the pixel itself — meaning that deep surface is
+        # an occluder blocking the light behind it.
+        diff = deepest_so_far - depth_map
         shadow *= np.where(diff > blocker_threshold, 0.0, 1.0)
 
-        # Update shallowest: only track shallower surfaces (lower depth)
-        shallowest_so_far = np.minimum(shallowest_so_far, sampled_depth)
+        # Update deepest: track deeper surfaces (higher depth value)
+        deepest_so_far = np.maximum(deepest_so_far, sampled_depth)
 
     return shadow
 
