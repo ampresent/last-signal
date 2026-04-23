@@ -789,7 +789,13 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
             dist = np.sqrt((xx - lx) ** 2 + (yy - ly) ** 2)
             attenuation = 1.0 / (1.0 + (dist / radius) ** 2)
             depth_factor = 1.0 - depth_float
-            shadow = ray_march_shadows(depth_float, (lx, ly), img_h, img_w)
+            # Light depth: use configured value, or sample depth map at light position
+            light_depth = src.get("depth", None)
+            if light_depth is None:
+                lix = int(np.clip(lx, 0, img_w - 1))
+                liy = int(np.clip(ly, 0, img_h - 1))
+                light_depth = float(depth_float[liy, lix])
+            shadow = ray_march_shadows(depth_float, (lx, ly), light_depth, img_h, img_w)
             contrib = (color[np.newaxis, np.newaxis, :] *
                        intensity *
                        attenuation[:, :, np.newaxis] *
@@ -802,8 +808,18 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
     return np.clip(total_light, 0.0, 1.5)
 
 
-def ray_march_shadows(depth_map, light_pos, img_h, img_w):
-    """March shadow rays from each pixel toward the light source."""
+def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
+    """March shadow rays from each pixel toward the light source.
+
+    Detects occluders along the light path by comparing sampled depth
+    against the expected interpolated depth at each step.
+
+    Args:
+        depth_map: (H,W) float32, 0=near, 1=far
+        light_pos: (lx, ly) in pixel coords
+        light_depth: z-depth of the light source (0-1)
+        img_h, img_w: image dimensions
+    """
     lx, ly = light_pos
     yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
 
@@ -817,13 +833,24 @@ def ray_march_shadows(depth_map, light_pos, img_h, img_w):
 
     step_dist = dist / SHADOW_STEPS
     shadow = np.ones((img_h, img_w), dtype=np.float32)
-    current_depth = depth_map
+
+    # Interpolate depth from pixel to light at each step
+    pixel_depth = depth_map  # starting depth at each pixel
 
     for step in range(1, SHADOW_STEPS + 1):
+        t = step / SHADOW_STEPS  # 0→1 along ray
         sx = np.clip(xx + dx_norm * step_dist * step, 0, img_w - 1).astype(np.int32)
         sy = np.clip(yy + dy_norm * step_dist * step, 0, img_h - 1).astype(np.int32)
         sampled_depth = depth_map[sy, sx]
-        shadow_mask = (sampled_depth > current_depth + 0.05).astype(np.float32)
+
+        # Expected depth at this point: linear interpolation from pixel to light
+        expected_depth = pixel_depth + (light_depth - pixel_depth) * t
+
+        # Occluder: sampled surface is significantly shallower than expected
+        # (something is blocking the light path)
+        blocker_threshold = 0.04
+        diff = expected_depth - sampled_depth
+        shadow_mask = (diff > blocker_threshold).astype(np.float32)
         shadow *= (1.0 - shadow_mask)
 
     return shadow

@@ -51,7 +51,7 @@ class LightingEngine {
       }
     `;
 
-    // Fragment shader: per-pixel depth-based lighting with up to 16 lights
+    // Fragment shader: per-pixel depth-based lighting with shadow ray march
     const fsSource = `
       precision mediump float;
       varying vec2 vTexCoord;
@@ -64,7 +64,7 @@ class LightingEngine {
 
       // Light uniforms (max 16)
       uniform int uLightCount;
-      uniform vec3 uLightPos[16];      // x, y, z (z = height for directional)
+      uniform vec3 uLightPos[16];      // x, y, z (z = depth plane)
       uniform vec3 uLightColor[16];
       uniform float uLightRadius[16];
       uniform float uLightIntensity[16];
@@ -76,7 +76,43 @@ class LightingEngine {
       uniform float uPhaseTime;
 
       float depthAt(vec2 uv) {
+        // Clamp UV to edge to avoid wrapping artifacts
+        uv = clamp(uv, vec2(0.0), vec2(1.0));
         return texture2D(uDepthTex, uv).r;
+      }
+
+      // ── Shadow Ray March ──
+      // Traces from pixel toward light, detecting occluders along the way.
+      // Returns 0.0 = fully shadowed, 1.0 = fully lit.
+      float shadowRayMarch(vec2 pixelUV, vec2 lightUV, float pixelDepth, float lightDepth) {
+        vec2 dir = lightUV - pixelUV;
+        float totalDist = length(dir);
+        if (totalDist < 0.001) return 1.0;
+
+        vec2 stepUV = dir / 12.0;  // 12 steps
+        float stepDepth = (lightDepth - pixelDepth) / 12.0;
+
+        float shadow = 1.0;
+        float blockerThreshold = 0.04;  // minimum depth difference to count as blocker
+
+        for (int s = 1; s <= 12; s++) {
+          vec2 sampleUV = pixelUV + stepUV * float(s);
+          float sampleDepth = depthAt(sampleUV);
+
+          // Expected depth at this point along the ray (linear interpolation)
+          float expectedDepth = pixelDepth + stepDepth * float(s);
+
+          // If the sampled surface is significantly shallower than expected,
+          // something is blocking the light path
+          float diff = expectedDepth - sampleDepth;
+          if (diff > blockerThreshold) {
+            // Occluder found — compute blocking strength based on how much it protrudes
+            float blockStrength = smoothstep(blockerThreshold, blockerThreshold + 0.08, diff);
+            shadow *= (1.0 - blockStrength);
+          }
+        }
+
+        return shadow;
       }
 
       void main() {
@@ -115,7 +151,7 @@ class LightingEngine {
             spatialFalloff = max(spatialFalloff, 0.0);
             totalLight += lightColor * depthAtten * spatialFalloff;
           } else {
-            // Point light
+            // Point light with shadow ray march
             vec2 lightUV = uLightPos[i].xy;
             float lightZ = uLightPos[i].z;
             float radius = uLightRadius[i] / max(uResolution.x, uResolution.y);
@@ -123,22 +159,24 @@ class LightingEngine {
             // Distance from pixel to light in UV space
             float dist = distance(uv, lightUV);
 
-            // Depth-based occlusion: if pixel is behind light's depth plane,
-            // attenuate based on depth difference
-            float lightDepth = lightZ;
-            float depthDiff = linearDepth - lightDepth;
+            // ── Shadow ray march: detect occluders between pixel and light ──
+            float shadow = shadowRayMarch(uv, lightUV, linearDepth, lightZ);
+
+            // ── Simple depth plane test: pixel behind light = no light ──
             float depthOcclude = 1.0;
-            if (depthDiff > 0.0) {
-              // Pixel is farther than light — apply occlusion
-              depthOcclude = 1.0 - smoothstep(0.0, 0.3, depthDiff);
+            if (linearDepth > lightZ + 0.02) {
+              depthOcclude = 0.0;
             }
+
+            // Combine: hard depth test + ray march shadow
+            float occlusion = depthOcclude * shadow;
 
             // Inverse-square distance attenuation
             float atten = 1.0 / (1.0 + (dist / radius) * (dist / radius) * 10.0);
             // Soft edge falloff
             atten *= 1.0 - smoothstep(radius * 0.7, radius, dist);
 
-            totalLight += lightColor * atten * max(depthOcclude, 0.0);
+            totalLight += lightColor * atten * max(occlusion, 0.0);
           }
         }
 
