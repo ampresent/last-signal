@@ -26,18 +26,17 @@ import cv2
 def detect_body_parts(img_rgba):
     """Detect body part bounding boxes from a front-facing character image.
 
-    Uses alpha channel + vertical/horizontal projection to find:
-    head, torso, left_arm, right_arm, left_leg, right_leg
+    Uses alpha channel + vertical projection to find neck as a local width
+    minimum, then splits the character into head / torso / legs proportionally.
+    Arms are detected from pixels that extend beyond the torso envelope.
 
     Returns dict of {part: (x, y, w, h)} in pixel coords.
     """
     h, w = img_rgba.shape[:2]
     alpha = img_rgba[:, :, 3] if img_rgba.shape[2] == 4 else np.ones((h, w), dtype=np.uint8) * 255
 
-    # Binary mask of character
     mask = (alpha > 30).astype(np.uint8)
 
-    # Find character bounding box
     ys, xs = np.where(mask > 0)
     if len(ys) == 0:
         return None
@@ -47,31 +46,25 @@ def detect_body_parts(img_rgba):
     char_w = char_x2 - char_x1
     char_h = char_y2 - char_y1
 
-    # Vertical projection (how many pixels per row)
+    # Row widths
     v_proj = mask.sum(axis=1).astype(np.float32)
-    # Horizontal projection (how many pixels per column)
-    h_proj = mask.sum(axis=0).astype(np.float32)
 
-    # ── Find head region ──
-    # Head is the top region with consistent width, separated by a narrow neck
+    # ── Find NECK by local minimum in upper 45% ──
+    scan_end = char_y1 + int(char_h * 0.45)
+    neck_y = char_y1 + int(char_h * 0.22)  # default fallback
+    min_neck_width = 1e9
+
+    for y in range(char_y1 + int(char_h * 0.10), scan_end):
+        rw = v_proj[y]
+        if rw < min_neck_width:
+            min_neck_width = rw
+            neck_y = y
+
+    # ── Head: char_y1 → neck_y ──
     head_top = char_y1
-    # Find where the character starts narrowing (neck)
-    head_bottom = char_y1
-    max_width_at_top = 0
-    for y in range(char_y1, char_y1 + int(char_h * 0.5)):
-        row_width = int(v_proj[y])
-        if row_width > max_width_at_top * 0.7:
-            max_width_at_top = max(max_width_at_top, row_width)
-            head_bottom = y
-        elif row_width < max_width_at_top * 0.5:
-            break
+    head_bottom = neck_y
 
-    head_h = head_bottom - head_top
-    if head_h < char_h * 0.15:
-        head_h = int(char_h * 0.28)
-        head_bottom = head_top + head_h
-
-    # Head width: find the widest row in head region
+    # Head bbox from mask pixels in head region
     head_region = mask[head_top:head_bottom, :]
     head_h_proj = head_region.sum(axis=0)
     head_xs = np.where(head_h_proj > 0)[0]
@@ -81,16 +74,10 @@ def detect_body_parts(img_rgba):
         head_x1 = char_x1 + int(char_w * 0.25)
         head_x2 = char_x2 - int(char_w * 0.25)
 
-    head_w = head_x2 - head_x1
-    head_cx = (head_x1 + head_x2) // 2
+    # ── Torso: neck_y → ~55% of character height ──
+    torso_top = neck_y
+    torso_bottom = char_y1 + int(char_h * 0.55)
 
-    # ── Find torso region ──
-    torso_top = head_bottom
-    torso_bottom = torso_top + int(char_h * 0.3)
-    if torso_bottom > char_y2:
-        torso_bottom = char_y2
-
-    # Torso width from projection
     torso_region = mask[torso_top:torso_bottom, :]
     torso_h_proj = torso_region.sum(axis=0)
     torso_xs = np.where(torso_h_proj > 0)[0]
@@ -103,69 +90,69 @@ def detect_body_parts(img_rgba):
     torso_cx = (torso_x1 + torso_x2) // 2
     torso_w = torso_x2 - torso_x1
 
-    # ── Find leg region ──
+    # ── Legs: torso_bottom → char_y2 ──
     legs_top = torso_bottom
     legs_bottom = char_y2
-    legs_h = legs_bottom - legs_top
 
-    # Split legs by finding the gap between them
     leg_region = mask[legs_top:legs_bottom, :]
     leg_h_proj = leg_region.sum(axis=0)
 
-    # Find center gap (where legs separate)
+    # Split legs at center gap
     center_x = torso_cx
-    gap_search_range = int(torso_w * 0.3)
+    gap_range = int(torso_w * 0.3)
+    cs = max(0, center_x - gap_range)
+    ce = min(w, center_x + gap_range)
+    center_profile = leg_h_proj[cs:ce]
     left_leg_x2 = center_x - 2
     right_leg_x1 = center_x + 2
 
-    # Look for minimum in horizontal projection near center
-    center_start = max(0, center_x - gap_search_range)
-    center_end = min(w, center_x + gap_search_range)
-    center_profile = leg_h_proj[center_start:center_end]
     if len(center_profile) > 4:
-        # Smooth and find minimum
         kernel = np.ones(3) / 3
         smoothed = np.convolve(center_profile, kernel, mode='same')
         min_idx = np.argmin(smoothed)
-        gap_x = center_start + min_idx
+        gap_x = cs + min_idx
         left_leg_x2 = gap_x - 1
         right_leg_x1 = gap_x + 1
 
-    # Left leg bounding box
     left_leg_mask = leg_region[:, :left_leg_x2]
     lxs = np.where(left_leg_mask.sum(axis=0) > 0)[0]
     left_leg_x1 = lxs.min() if len(lxs) > 0 else torso_x1
 
-    # Right leg bounding box
     right_leg_mask = leg_region[:, right_leg_x1:]
     rxs = np.where(right_leg_mask.sum(axis=0) > 0)[0]
     right_leg_x2 = (right_leg_x1 + rxs.max()) if len(rxs) > 0 else torso_x2
 
-    # ── Find arm regions ──
-    arm_top = torso_top + int((torso_bottom - torso_top) * 0.1)
-    arm_bottom = torso_top + int((torso_bottom - torso_top) * 0.9)
+    # ── Arms: pixels outside torso envelope ──
+    arm_top = torso_top + int((torso_bottom - torso_top) * 0.05)
+    arm_bottom = min(char_y2, torso_top + int((torso_bottom - torso_top) * 1.0))
 
-    arm_region = mask[arm_top:arm_bottom, :]
-    arm_v_proj = arm_region.sum(axis=1)
+    # Left arm: any row pixel left of torso_x1 in arm region
+    left_arm_x1, left_arm_x2 = torso_x1, torso_x1
+    for y in range(arm_top, arm_bottom):
+        row_xs = np.where(mask[y, :torso_x1] > 0)[0]
+        if len(row_xs) > 0:
+            left_arm_x1 = min(left_arm_x1, row_xs.min()) if left_arm_x1 > 0 else row_xs.min()
+            left_arm_x2 = max(left_arm_x2, row_xs.max())
 
-    # Left arm: find leftmost pixels in torso-upper region
-    left_arm_x1 = max(0, torso_x1 - int(torso_w * 0.5))
-    left_arm_x2 = torso_x1 + int(torso_w * 0.15)
+    # Right arm: any row pixel right of torso_x2
+    right_arm_x1, right_arm_x2 = torso_x2, torso_x2
+    for y in range(arm_top, arm_bottom):
+        row_xs = np.where(mask[y, torso_x2:] > 0)[0]
+        if len(row_xs) > 0:
+            right_arm_x1 = min(right_arm_x1, torso_x2 + row_xs.min()) if right_arm_x1 > torso_x2 else torso_x2 + row_xs.min()
+            right_arm_x2 = max(right_arm_x2, torso_x2 + row_xs.max())
 
-    # Right arm: find rightmost pixels
-    right_arm_x1 = torso_x2 - int(torso_w * 0.15)
-    right_arm_x2 = min(w, torso_x2 + int(torso_w * 0.5))
+    # Fallback if no arms detected
+    if left_arm_x2 <= left_arm_x1:
+        left_arm_x1 = torso_x1 - int(torso_w * 0.3)
+        left_arm_x2 = torso_x1
+    if right_arm_x2 <= right_arm_x1:
+        right_arm_x1 = torso_x2
+        right_arm_x2 = torso_x2 + int(torso_w * 0.3)
 
-    # Check if arms exist (have pixels)
-    left_arm_region = mask[arm_top:arm_bottom, left_arm_x1:left_arm_x2]
-    right_arm_region = mask[arm_top:arm_bottom, right_arm_x1:right_arm_x2]
-
-    if left_arm_region.sum() < 10:
-        left_arm_x1 = torso_x1
-        left_arm_x2 = torso_x1 + int(torso_w * 0.1)
-    if right_arm_region.sum() < 10:
-        right_arm_x1 = torso_x2 - int(torso_w * 0.1)
-        right_arm_x2 = torso_x2
+    # Clamp
+    left_arm_x1 = max(0, left_arm_x1)
+    right_arm_x2 = min(w, right_arm_x2)
 
     parts = {
         "head":     (head_x1, head_top, head_x2 - head_x1, head_bottom - head_top),
@@ -937,152 +924,6 @@ def main():
 
     print(f"\n✅ Done!")
 
-    # Load source image
-    img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
-    if img is None:
-        print(f"✗ Cannot load {img_path}")
-        return False
-    h, w = img.shape[:2]
-
-    # ── Build skeleton JSON ──
-    db_bones = []
-    for b in skeleton_bones:
-        db_bones.append({
-            "name": b["name"],
-            "parent": b["parent"],
-            "length": b["length"],
-            "transform": b["transform"]
-        })
-
-    # ── Build animation keyframes ──
-    num_frames = len(walk_frames)
-
-    # For each bone, create timeline with keyframes
-    bone_timelines = []
-    for bone in skeleton_bones:
-        bname = bone["name"]
-        timeline = {"bone": bname, "scale": 1, "offset": 0, "keyframes": []}
-
-        for fi, frame_data in enumerate(walk_frames):
-            if bname in frame_data:
-                fd = frame_data[bname]
-                kf = {
-                    "duration": 1,
-                    "tweenEasing": 0,
-                    "transform": {
-                        "x": fd.get("x", 0),
-                        "y": fd.get("y", 0),
-                        "skX": fd.get("skX", fd.get("skZ", 0)),
-                        "skY": fd.get("skY", fd.get("skZ", 0)),
-                        "scX": fd.get("scX", 1),
-                        "scY": fd.get("scY", 1)
-                    }
-                }
-                timeline["keyframes"].append(kf)
-
-        if timeline["keyframes"]:
-            bone_timelines.append(timeline)
-
-    # ── Build slot timeline (image display) ──
-    # For simplicity, show the same image in all frames
-    # In a full rig, each frame would reference different mesh deformations
-    slot_timelines = [{
-        "slot": "body",
-        "keyframes": [{
-            "duration": 1,
-            "displayIndex": 0,
-            "tweenEasing": 0
-        }] * num_frames
-    }]
-
-    skeleton_json = {
-        "version": "5.7.0",
-        "name": name,
-        "frameRate": 8,
-        "type": "Armature",
-        "userData": {
-            "generator": "dragonbones_rig.py (auto-rig)",
-            "source_image": str(img_path)
-        },
-        "armature": [{
-            "name": name,
-            "type": "Armature",
-            "bone": db_bones,
-            "slot": [{
-                "name": "body",
-                "parent": "spine",
-                "displayIndex": 0,
-                "display": [{
-                    "name": name,
-                    "type": "image",
-                    "path": name
-                }]
-            }],
-            "skin": [{
-                "name": "default",
-                "slot": [{
-                    "name": "body",
-                    "display": [{
-                        "name": name,
-                        "type": "image",
-                        "path": name,
-                        "transform": {
-                            "x": 0,
-                            "y": 0,
-                            "scX": 1,
-                            "scY": 1
-                        }
-                    }]
-                }]
-            }],
-            "animation": [{
-                "name": "walk",
-                "duration": num_frames,
-                "playTimes": 0,
-                "scale": 1,
-                "fadeInTime": 0,
-                "bone": bone_timelines,
-                "slot": slot_timelines,
-                "timeline": []
-            }]
-        }]
-    }
-
-    # Save skeleton JSON
-    ske_path = out_dir / f"{name}_ske.json"
-    with open(ske_path, "w") as f:
-        json.dump(skeleton_json, f, indent=2, ensure_ascii=False)
-    print(f"  ✓ Skeleton: {ske_path}")
-
-    # ── Build texture atlas ──
-    atlas_json = {
-        "name": name,
-        "imagePath": f"{name}.png",
-        "width": w,
-        "height": h,
-        "SubTexture": [{
-            "name": name,
-            "x": 0,
-            "y": 0,
-            "width": w,
-            "height": h
-        }]
-    }
-
-    tex_path = out_dir / f"{name}_tex.json"
-    with open(tex_path, "w") as f:
-        json.dump(atlas_json, f, indent=2, ensure_ascii=False)
-    print(f"  ✓ Atlas: {tex_path}")
-
-    # Copy source image
-    img_out = out_dir / f"{name}.png"
-    cv2.imwrite(str(img_out), img)
-    print(f"  ✓ Image: {img_out}")
-
-    return True
-
-
-# ── Visual Preview ─────────────────────────────────────────────────
 
 def generate_preview(img_path, parts, bones, out_path):
     """Generate a visual preview of the detected skeleton overlay."""

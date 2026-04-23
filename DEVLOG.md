@@ -231,3 +231,75 @@
 - 合成方式要与设计文档一致（additive vs multiplicative）
 - 循环数学要验证首尾帧一致性
 - shadow ray march 步数要与设计文档一致（64 步）
+
+---
+
+## 2026-04-24 04:57 — 深度光照阴影修复 + 角色生成流程改造
+
+### 🔴 P0 — 深度光照阴影逻辑反转 (ray_march_shadows)
+
+#### 问题
+阴影射线步进算法追踪的是路径上**最浅**的表面 (`shallowest_so_far`)，然后把比它深的像素全部判定为阴影。这导致光源本身（浅 depth 值）会"遮挡"其后面的表面。
+
+**示例**：路灯 depth=0.1，近处街道 depth=0.3，远处街道 depth=0.6
+- 从近处街道向路灯做 ray march → 采样到路灯 depth=0.1
+- `shallowest_so_far = 0.1`，街道 depth=0.3 > 0.1 → 被判定为阴影 ❌
+- 结果：灯只照远处，不照近处
+
+#### 修复
+改为追踪路径上**最深**的表面 (`deepest_so_far`)：
+- 只有当光线经过一个比当前像素更深的表面时，才判定为阴影
+- 浅表面不会遮挡深表面（灯不会挡住地面）
+- 深表面会遮挡其后的区域（墙壁挡住后面的地板）✓
+
+#### 验证
+- street 场景 24 帧全部渲染成功
+- 近灯区域 avg brightness=24.64，远区域=21.50（近处比远处亮，符合物理规律）
+- 帧间差异 1.45（良好），循环闭合 1.62（平滑）
+
+### 🟡 P1 — 骨骼绑定身体部位检测修复 (detect_body_parts)
+
+#### 问题
+头部检测阈值 `0.7` 太宽松，脖子和上躯干被归入头部，导致：
+- 头部 bbox 过大（占身体 40%+）
+- 其他部位被挤掉
+- 渲染结果只有胸、大腿、小腿，头和手脚消失
+
+#### 修复
+改为基于**颈部局部最小值**检测：
+- 扫描上半身 45% 区域，找到行宽最小值点 = 颈部
+- 头部 = 顶部 → 颈部
+- 躯干 = 颈部 → 55% 高度
+- 手臂 = 躯干边界外侧像素
+- 腿部 = 下半身中心分割
+
+#### 验证
+- joker: head=38px(15%), torso=97px(39%), legs=112px(45%)
+- kai: head=24px(10%), torso=105px(44%), legs=107px(45%)
+- oracle: head=23px(10%), torso=108px(45%), legs=108px(45%)
+- Sprite sheet 8 帧全部有内容（每帧 6600-7800px 不透明像素）
+
+### 🟢 P2 — 角色生成流程改造 (gen_character_views.py)
+
+#### 变更
+旧流程：4 个方向各自独立 text2img → 角色外观不一致
+新流程：正面 text2img → 抠图 → img2img(正面→左/右/后) → 抠图
+
+#### 新文件
+- `gen_character_views.py` — 新版角色视角生成器
+- 支持 `--char`、`--front-only`、`--force` 参数
+- img2img 使用 Pollinations.AI POST multipart 端点
+- 抠图 fallback：rembg → OpenCV 阈值 + 形态学清理
+
+#### 代码清理
+- 删除 `dragonbone_rig.py` 尾部 146 行重复代码（export_dragonbones 副本）
+- 更新 WORKFLOW.md：新流程文档 + 文件结构
+
+### 全部改动文件
+| 文件 | 改动 |
+|------|------|
+| `gen_depth_lighting.py` | ray_march_shadows: shallowest→deepest |
+| `dragonbones_rig.py` | detect_body_parts: 颈部最小值检测; 删除重复代码 |
+| `gen_character_views.py` | **新文件** — 正面→img2img 流程 |
+| `WORKFLOW.md` | 角色生成流程文档更新 |
+| `DEVLOG.md` | 本文档 |
