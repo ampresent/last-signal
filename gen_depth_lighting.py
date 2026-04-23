@@ -21,7 +21,6 @@ from pathlib import Path
 
 import numpy as np
 import cv2
-import torch
 
 # ── Constants ──────────────────────────────────────────────────────
 ASSETS_DIR = "assets"
@@ -68,6 +67,18 @@ def _irregular_car(frame_idx, num_frames):
     else:
         v = 0.6 + (v - 0.6) * 1.5  # 拉高亮区
     return max(0.0, min(1.0, v))
+
+
+def _car_sweep(frame_idx, num_frames):
+    """车灯 mask 平移相位：从左到右匀速扫过窗户区域。
+    返回 0~1，0=车在最左（光刚进窗），1=车在最右（光已离开窗）。
+    """
+    t = frame_idx / num_frames
+    # 用两个半周期：0→1→0，形成往返效果
+    if t < 0.5:
+        return t * 2.0
+    else:
+        return 2.0 - t * 2.0
 
 def _irregular_screen(frame_idx, num_frames):
     """屏幕/LED：不规则亮度闪烁。"""
@@ -127,15 +138,22 @@ SCENE_LIGHTS = {
              "color": [0.55, 0.65, 0.85], "intensity": (0.15, 0.45),
              "phase": _moonlight_clouds,
              "mask": {"type": "rect", "region": (0, 80, 400, 450), "feather": 120}},
-            # 车灯：点光源，位置在街上（窗户左下方远处）
-            {"name": "car1", "pos": (-200, 500),
-             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.6),
-             "radius": 800, "phase": _irregular_car,
-             "mask": {"type": "rect", "region": (0, 60, 350, 430), "feather": 80}},
-            {"name": "car2", "pos": (400, 600),
-             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.35),
-             "radius": 900, "phase": _phase_shift(_irregular_car, 3),
-             "mask": {"type": "rect", "region": (0, 60, 350, 430), "feather": 100}},
+            # 车灯：方向光（平行光），从窗户射入，不会穿墙
+            # mask 平移模拟车辆驶过，强度已降低
+            {"name": "car1",
+             "distant": True,
+             "dir": (1, 0.4),
+             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.22),
+             "phase": _irregular_car,
+             "mask": {"type": "rect", "region": (0, 60, 300, 430), "feather": 60},
+             "mask_phase": {"func": _car_sweep, "range": (-300, 640), "axis": "x"}},
+            {"name": "car2",
+             "distant": True,
+             "dir": (1, 0.35),
+             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.15),
+             "phase": _phase_shift(_irregular_car, 3),
+             "mask": {"type": "rect", "region": (0, 60, 300, 430), "feather": 80},
+             "mask_phase": {"func": _phase_shift(_car_sweep, 6), "range": (-300, 640), "axis": "x"}},
             # 屏幕光：照亮桌面和面对屏幕的墙壁
             {"name": "screen", "pos": (770, 320),
              "color": [0.15, 0.7, 0.25], "intensity": (0.06, 0.35),
@@ -391,6 +409,7 @@ def get_mask_cache_key(mask_def):
 
 def load_depth_model():
     """Load Depth-Anything-V2-Large via transformers pipeline."""
+    import torch
     from transformers import pipeline
     print(f"  Loading model from {HF_ENDPOINT}...")
     t0 = time.time()
@@ -436,12 +455,32 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
         r_min, r_max = src["intensity"]
         intensity = r_min + (r_max - r_min) * src["phase"](frame_idx, NUM_FRAMES)
 
-        # Light mask
+        # Light mask (support dynamic mask_phase for sweeping)
         mask_def = src.get("mask")
         if mask_def:
             lx = src["pos"][0] if "pos" in src else img_w // 2
             ly = src["pos"][1] if "pos" in src else img_h // 2
-            light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
+            # Apply mask_phase to shift mask region dynamically
+            mp = src.get("mask_phase")
+            if mp:
+                t = mp["func"](frame_idx, NUM_FRAMES)
+                lo, hi = mp["range"]
+                offset = lo + (hi - lo) * t
+                # Shift mask region along the specified axis
+                mask_def_shifted = dict(mask_def)
+                region = list(mask_def["region"])
+                if mp.get("axis", "x") == "x":
+                    w = region[2] - region[0]
+                    region[0] = int(offset)
+                    region[2] = int(offset + w)
+                else:
+                    h = region[3] - region[1]
+                    region[1] = int(offset)
+                    region[3] = int(offset + h)
+                mask_def_shifted["region"] = tuple(region)
+                light_mask = generate_light_mask(mask_def_shifted, img_h, img_w, (lx, ly))
+            else:
+                light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
         else:
             light_mask = np.ones((img_h, img_w), dtype=np.float32)
 
