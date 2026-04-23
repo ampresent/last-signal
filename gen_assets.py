@@ -48,6 +48,17 @@ SCENE_PROMPTS = {
     "bg_rooftop": "A rainy cyberpunk building rooftop at night, {style}, city skyline with neon lights in background, antenna tower, puddles on concrete, wind and rain, helicopter pad markings, edge railing, dramatic atmosphere, fog, adventure game scene",
 
     "bg_office": "A cyberpunk corporate office, {style}, large desk with holographic display, executive chair, city view through floor-to-ceiling windows, luxury meets decay, filing cabinets, security safe, dim lighting, rain on windows, adventure game scene",
+
+    # ── 新增场景 ──
+    "bg_echo_lobby": "Grand corporate lobby of a cyberpunk mega-corp tower, {style}, marble floor reflecting cold overhead lights, security scanner gates, holographic corporate logo floating above reception desk, empty guard post with flickering monitors, elevator doors with red RESTRICTED signs, potted plants dying under artificial light, rain visible through glass doors, adventure game scene, no characters",
+
+    "bg_maintenance": "Narrow underground maintenance tunnel beneath a corporate building, {style}, exposed pipes and conduits along walls, steam venting from joints, dim red emergency lighting, puddles on grated floor, warning signs on walls, rusted metal walls, distant end of corridor with heavy blast door, cables hanging from ceiling, dripping water, industrial decay atmosphere, adventure game scene, no characters",
+
+    "bg_data_haven": "Abandoned subway station converted into hacker den, {style}, multiple computer screens glowing in different colors, cables and wires everywhere like a web, makeshift workstations on old platform benches, graffiti on tiled walls, dim neon strips, old subway train used as living quarters, food wrappers and energy drink cans, antenna arrays on ceiling, cyberpunk underground sanctuary, adventure game scene, no characters",
+
+    "bg_flashback": "Clean sterile corporate laboratory, {style}, bright white clinical lighting, rows of transparent cylindrical pods with neural interfaces, scientists in white coats faded ghostly, pristine white floor, holographic monitoring displays, alarm warning lights starting to flash red, one pod with error warnings on its screen, everything looks newer and cleaner than present day, slight desaturated dreamlike quality, adventure game scene, no characters",
+
+    "bg_hospital": "Hospital corridor in a cyberpunk city, {style}, warm sunlight streaming through large windows at end of hall, clean white walls with subtle wear, recovery room doors with patient names on digital displays, a few people walking in distance silhouettes, indoor plants near windows, peaceful atmosphere, contrast of hope against the usual dark cyberpunk, morning light breaking through clouds outside, adventure game scene, no characters",
 }
 
 # --- 动画帧生成选项 ---
