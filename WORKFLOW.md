@@ -4,6 +4,11 @@
 - [项目概览](#项目概览)
 - [AI 图片生成 (Pollinations.AI)](#ai-图片生成)
 - [AI 动画帧生成](#ai-动画帧生成)
+- [实时光照系统](#实时光照系统)
+- [光照编辑器](#光照编辑器)
+- [对话系统](#对话系统)
+- [角色行走系统](#角色行走系统)
+- [DragonBones 骨骼动画](#dragonbones-骨骼动画)
 - [VFX 实时动效引擎](#vfx-实时动效引擎)
 - [游戏引擎架构](#游戏引擎架构)
 - [Mask 交互系统](#mask-交互系统)
@@ -179,16 +184,315 @@ Canvas 粒子系统，在 AI 帧之上叠加实时效果。60fps，零额外文�
 
 ---
 
+## 实时光照系统
+
+基于 WebGL 的逐像素深度光照渲染器，替代预渲染帧序列，实现实时动态光照。
+
+### 架构
+
+```
+lighting-engine.js   — WebGL 光照引擎（独立模块）
+lighting-config.json  — 各场景光源配置
+lighting-editor.html  — 可视化编辑器（开发用）
+index.html            — 游戏主文件（加载引擎 + 配置）
+```
+
+### 光源类型
+
+| 类型 | 说明 | 用途 |
+|------|------|------|
+| `point` | 点光源，有位置和半径 | 霓虹灯、台灯、屏幕光 |
+| `directional` | 方向光，平行光线 | 月光、车灯 |
+| `global` | 全局光，无方向 | 闪电、环境脉冲 |
+
+### 光源参数
+
+| 参数 | 说明 |
+|------|------|
+| `x, y` | 归一化坐标 (0-1) |
+| `color` | RGB 颜色 `[r, g, b]` |
+| `radius` | 点光源衰减半径 |
+| `intensity` | 亮度强度 |
+| `depth` | 光源 Z 深度 (0=near, 1=far) |
+| `dir` | 方向光方向向量 `[dx, dy]` |
+| `phase` | 动画相位函数 |
+| `noise` | 随机噪声控制 |
+
+### 相位动画系统
+
+| 类型 | 说明 |
+|------|------|
+| `sine` | 正弦波呼吸 |
+| `pulse` | 脉冲（可配速度/min/max） |
+| `flicker` | 不规则闪烁（霓虹灯） |
+| `car_sweep` | 车灯扫过相位 |
+| `lightning` | 闪电（大部分时间暗，峰值闪亮） |
+| `burst` | 突发闪烁 |
+| `steady` | 恒定 |
+
+### 噪声系统
+
+每个光源可叠加随机噪声，产生有机、非机械的光照行为：
+
+| 参数 | 说明 |
+|------|------|
+| `noise.intensity` | 噪声幅度 (0=关闭) |
+| `noise.speed` | 噪声变化速度 |
+| `noise.phase` | 噪声相位偏移 |
+
+### 深度遮挡（Shadow Ray Marching）
+
+逐像素从表面向光源投射阴影射线，64 步采样：
+
+- 跟踪路径上最浅表面
+- 比最浅表面更深的区域被遮挡
+- 持续变浅的区域不遮挡（光能穿过浅区照亮更浅处）
+- 详见 `gen_depth_lighting.py` → `ray_march_shadows()`
+
+### 配置文件格式
+
+```json
+{
+  "version": "1.0",
+  "canvas": { "width": 960, "height": 640 },
+  "ambient": 0.02,
+  "scenes": {
+    "scene_id": {
+      "name": "场景名称",
+      "base": "bg_scene.png",
+      "depth": "scene_depth.png",
+      "lights": [ ... ]
+    }
+  }
+}
+```
+
+### 运行
+
+```javascript
+// 在 index.html 中
+const engine = new LightingEngine(canvas, config);
+engine.setScene('apartment');
+engine.start();
+```
+
+---
+
+## 光照编辑器
+
+可视化光照参数编辑器（`lighting-editor.html`），用于实时调试光源。
+
+### 功能
+
+| 功能 | 说明 |
+|------|------|
+| 滑块控件 | 对数曲线（gamma 2.2），适合宽范围参数 |
+| 3D Gizmo | 画布上直接拖拽光源位置（红=X, 绿=Y, 蓝=Z, Shift+拖拽=Z） |
+| 吸色器 | 从渲染画布采样颜色 |
+| 深度地图叠加 | D 键或 🗺️ 按钮切换深度可视化 |
+| 自动深度采样 | 📍自动 按钮，点光源放置/拖拽时自动读取深度图 |
+| 坐标叠加 | 显示光标位置 + 该点深度值 |
+| CORS 安全保存 | 画布导出为 PNG（preserveDrawingBuffer） |
+| 随机化 | 一键随机化选中光源参数 |
+| 深度/强度范围 | 已扩展到 [0, 1] 全范围 |
+
+### 快捷键
+
+| 键 | 功能 |
+|----|------|
+| `D` | 切换深度地图叠加 |
+| `Shift+拖拽` | 3D Gizmo Z 轴移动 |
+| `Delete` | 删除选中光源 |
+
+### 工作流
+
+1. 打开 `lighting-editor.html`
+2. 选择场景
+3. 点击画布放置光源，或从列表选择现有光源
+4. 用滑块调整参数（颜色、强度、半径、相位、噪声）
+5. 用 3D Gizmo 直接在画布上拖拽位置
+6. 点击 💾 保存到 `lighting-config.json`
+
+---
+
+## 对话系统
+
+### 核心 API
+
+```javascript
+// 基础对话
+await Game.showDialogue("说话者", "文本内容");
+
+// 带选项的对话
+const choice = await Game.showDialogue("说话者", "文本", [
+  { text: "选项1", action: () => { ... } },
+  { text: "选项2", action: () => { ... } },
+]);
+
+// 带表情的对话（自动切换头像）
+await Game.showDialogue("Joker", "……", { expression: "angry" });
+
+// 闲聊对话（非主线，可重复触发）
+await Game.showCasualChat("说话者", "文本", { expression: "happy" });
+```
+
+### 表情系统
+
+3 角色 × 6 表情 = 18 张 img2img 表情变体（Pollinations.AI 生成）。
+
+| 角色 | 表情 |
+|------|------|
+| Joker | neutral, happy, angry, sad, surprised, thinking |
+| Kai | neutral, happy, angry, sad, surprised, thinking |
+| Oracle | neutral, happy, angry, sad, surprised, thinking |
+
+表情图片：`assets/expressions/{character}_{expression}.png`
+
+### 闲聊热点
+
+非主线对话，分布在各场景可交互物体上：
+
+| 场景 | 热点 | 触发方式 |
+|------|------|----------|
+| 公寓 | 收音机 | 点击 |
+| 街道 | 拉面摊 | 点击 |
+| 酒吧 | 点唱机 | 点击 |
+| 小巷 | 流浪猫 | 点击 |
+| 塔楼 | 玻璃碎片 | 点击 |
+
+---
+
+## 角色行走系统
+
+### 架构
+
+```
+CharacterSystem     — 角色管理（加载、渲染、碰撞）
+gen_character_sprites.py — 角色行走帧生成（Pollinations.AI）
+gen_walk_masks.py   — 可行走区域 mask 生成
+dragonbones_rig.py  — DragonBones 骨骼自动绑定
+```
+
+### 角色数据
+
+3 角色 × 4 方向 × 8 帧 = 96 张行走帧 PNG。
+
+| 角色 | 文件名 |
+|------|--------|
+| Joker | `joker_{dir}_f{0-7}.png` |
+| Kai | `kai_{dir}_f{0-7}.png` |
+| Oracle | `oracle_{dir}_f{0-7}.png` |
+
+Sprite Sheet：`sheet_{character}_{direction}.png`（8 帧水平排列）
+
+### 移动方式
+
+- **点击移动**：点击场景中可行走区域，角色自动寻路
+- **键盘移动**：WASD / 方向键，8 方向移动
+- **深度排序**：角色根据 Y 坐标（深度）自动排序渲染，实现前后遮挡
+
+### 碰撞检测
+
+- 使用 `masks/{scene}_walkable_mask.png` 判定可行走区域
+- 白色 (>128) = 可行走，黑色 = 不可行走
+- 角色移动时实时检测目标点是否在可行走区域内
+
+### 可行走 Mask 生成
+
+```bash
+python3 gen_walk_masks.py              # 所有场景
+python3 gen_walk_masks.py --scene bar  # 单个场景
+```
+
+输出：`assets/masks/{scene}_walkable_mask.png`
+
+---
+
+## DragonBones 骨骼动画
+
+自动生成 DragonBones 格式骨骼 + 行走动画，用于替代逐帧手绘。
+
+### 功能
+
+1. **自动身体部位检测** — 从正面角色图识别头、躯干、左/右臂、左/右腿
+2. **骨骼层级生成** — 12 节骨骼（root → hip → spine → head，四肢各 2 节）
+3. **方向行走动画** — 4 方向各 8 帧（腿部摆动、手臂反向摆动、髋部弹动）
+4. **Sprite Sheet 渲染** — 基于骨骼旋转的逐帧图像变形
+5. **DragonBones JSON 导出** — `_ske.json` + `_tex.json`
+
+### 使用
+
+```bash
+# 单个角色/方向
+python3 dragonbones_rig.py assets/sprites/cutout_joker_down.png -o assets/rig_joker --preview
+
+# 批量处理所有角色 × 所有方向
+python3 dragonbones_rig.py --batch
+```
+
+### 输出
+
+每个角色/方向生成：
+- `sheet_{char}_{dir}.png` — 8 帧 sprite sheet
+- `{char}_{dir}_f{0-7}.png` — 逐帧 PNG
+- `rig_{char}_{dir}/` — DragonBones 骨骼数据
+  - `{name}_ske.json` — 骨骼 + 动画数据
+  - `{name}_tex.json` — 纹理图集
+  - `{name}.png` — 角色图片
+
+### 身体部位检测原理
+
+使用 alpha 通道水平/垂直投影分析：
+- **头部**：顶部区域，通过颈部收缩识别边界
+- **躯干**：中部区域，最宽部分
+- **手臂**：躯干两侧，通过水平投影定位
+- **腿部**：底部区域，通过中心间隙分割左右腿
+
+### 骨骼层级
+
+```
+root
+└── hip (髋部中心)
+    ├── spine (躯干中心)
+    │   ├── head (头部)
+    │   ├── left_upper_arm → left_lower_arm
+    │   └── right_upper_arm → right_lower_arm
+    ├── left_upper_leg → left_lower_leg
+    └── right_upper_leg → right_lower_leg
+```
+
+### 行走动画参数（按方向）
+
+| 方向 | 腿部摆动 | 手臂摆动 | 髋部弹动 | 特点 |
+|------|----------|----------|----------|------|
+| down/up | ±20° | ±15°/±10.5° | 2px | 正面/背面，腿交叉 |
+| left/right | ±25° | ±18° | 2.5px | 侧面，步幅更大 |
+
+### 导入 DragonBones Pro
+
+1. 打开 DragonBones Pro
+2. 文件 → 导入 → 选择 `{name}_ske.json`
+3. 自动加载骨骼 + 行走动画
+4. 可继续编辑动画细节、添加 mesh 变形
+
+---
+
 ## 游戏引擎架构
 
 ### 文件结构
 ```
 last-signal/
 ├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
+├── lighting-engine.js      # WebGL 光照引擎
+├── lighting-config.json    # 各场景光源配置
+├── lighting-editor.html    # 可视化光照编辑器
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
+├── gen_character_sprites.py # 角色行走帧生成（Pollinations.AI）
+├── gen_walk_masks.py       # 可行走区域 mask 生成
+├── dragonbones_rig.py      # DragonBones 骨骼自动绑定 + sprite sheet 生成
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
@@ -196,9 +500,17 @@ last-signal/
     ├── bg_*_f0~f11.png     # 每场景 12 帧动画（Depth Lighting）
     ├── *_depth.png          # 各场景深度图缓存
     ├── portrait_*.png       # 角色肖像
+    ├── expressions/         # 角色表情变体（3角色×6表情）
+    ├── sprites/
+    │   ├── cutout_{char}_{dir}.png    # 角色抠图
+    │   ├── raw_{char}_{dir}.png       # 原始角色图
+    │   ├── sheet_{char}_{dir}.png     # Sprite Sheet（8帧）
+    │   ├── {char}_{dir}_f{0-7}.png    # 逐帧 PNG
+    │   └── rig_{char}_{dir}/          # DragonBones 骨骼数据
     └── masks/
         ├── {scene}_mask.png           # 组合 mask
         ├── {scene}_{obj}_mask.png     # 单独物体 mask
+        ├── {scene}_walkable_mask.png  # 可行走区域 mask
         └── mask_metadata.json
 ```
 
@@ -309,11 +621,13 @@ python3 gen_masks.py               # 3. 生成 mask（可选，已有则跳过�
 ### 添加新场景
 1. `gen_assets.py` 添加 prompt
 2. `gen_depth_lighting.py` 的 `SCENE_LIGHTS` 添加光源配置（位置/颜色/半径/相位函数）
-3. `gen_masks.py` 添加物体 bbox
-4. `index.html` SCENES 添加场景定义
-5. `VFX.SCENE_CONFIG` 添加动效配置
-6. 运行生成脚本
-7. `git add -A && git commit && git push`
+3. `lighting-config.json` 添加实时渲染光源配置
+4. `gen_masks.py` 添加物体 bbox
+5. `gen_walk_masks.py` 添加可行走区域
+6. `index.html` SCENES 添加场景定义
+7. `VFX.SCENE_CONFIG` 添加动效配置
+8. 运行生成脚本
+9. `git add -A && git commit && git push`
 
 ---
 
@@ -386,6 +700,6 @@ git add . && git commit -m "init" && git push -u origin main
 
 ---
 
-*文档更新：2026-04-23*
+*文档更新：2026-04-24*
 *仓库：https://github.com/ampresent/last-signal*
 *在线：https://ampresent.github.io/last-signal/*
