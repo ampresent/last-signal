@@ -11,3 +11,7 @@ models/
 
 # 预览 GIF
 preview_*.gif
+.github-token
+.hf-token
+.s3cfg
+.git-credentials-file
