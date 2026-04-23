@@ -2,7 +2,7 @@
 
 > 环境搭建、凭据配置 — 从零到可开发。
 >
-> **核心原则**：深度模型通过 HuggingFace Serverless Inference API 调用，无需本地部署。
+> **核心原则**：深度模型通过 HuggingFace 镜像下载，本地推理。
 
 ---
 
@@ -13,7 +13,7 @@ cd /root/.openclaw/workspace/last-signal
 bash setup.sh
 ```
 
-自动完成 4 步：阿里云源 → pip 依赖 → HF Token 配置 → 环境检查。
+自动完成 5 步：阿里云源 → PyTorch (R2) → pip 依赖 → HF 镜像配置 → 环境检查。
 
 ---
 
@@ -21,10 +21,10 @@ bash setup.sh
 
 | 组件 | 方式 | 说明 |
 |------|------|------|
-| 深度估计 | HuggingFace Serverless Inference API | Depth-Anything-V2-Large，远端计算 |
+| 深度估计 | Depth-Anything-V2-Large (本地推理) | 通过 hf-mirror.com 下载，transformers pipeline |
 | 图片生成 | Pollinations.AI | 免费文生图/图生图 |
 | 帧渲染 | 本地 Python (NumPy + OpenCV) | 光照计算、光流插值 |
-| 依赖 | `requests`, `numpy`, `opencv-python-headless` | 无需 torch/torchvision |
+| 依赖 | `torch`, `transformers`, `timm`, `numpy`, `opencv-python-headless` | |
 
 ---
 
@@ -38,8 +38,6 @@ trusted-host = mirrors.aliyun.com
 EOF
 ```
 
-> 阿里云 ECS 出厂通常已预配。非阿里云机器需手动执行。
-
 ---
 
 ## 2. Clone 仓库
@@ -52,41 +50,57 @@ git clone https://github.com/ampresent/last-signal.git
 
 ## 3. 安装 Python 依赖
 
+### 3a. PyTorch (从 R2 桶下载，~182MB)
+
 ```bash
+s3cmd --region=auto get \
+  s3://mystore/deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl \
+  /tmp/
+
 pip3 install --break-system-packages \
-  requests numpy opencv-python-headless pillow
+  /tmp/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl
+
+# torchvision stub (5KB, 解决 ABI 不兼容)
+s3cmd --region=auto get \
+  s3://mystore/deps/torchvision-0.22.0+cpu.stub-py3-none-any.whl \
+  /tmp/
+
+pip3 install --break-system-packages --no-deps \
+  /tmp/torchvision-0.22.0+cpu.stub-py3-none-any.whl
 ```
 
-**无需安装：**
-- ~~torch~~ (182MB，已不需要)
-- ~~torchvision~~ (ABI 不兼容问题已不存在)
-- ~~timm~~ (已不需要)
-- ~~transformers~~ (已不需要)
-- ~~s3cmd~~ (已不需要)
+### 3b. 其余依赖
+
+```bash
+pip3 install --break-system-packages \
+  transformers timm numpy opencv-python-headless requests pillow
+```
 
 ---
 
-## 4. HuggingFace API Token（可选）
+## 4. HuggingFace 镜像配置
 
-Serverless Inference API 可无 Token 使用，但有速率限制。如需更高配额：
-
-1. 注册 [huggingface.co](https://huggingface.co)（免费）
-2. 在 [Settings → Access Tokens](https://huggingface.co/settings/tokens) 创建 Token
-3. 存入项目：
+国内无法直接访问 huggingface.co，使用镜像下载模型：
 
 ```bash
-echo 'hf_your_token_here' > .hf-token
-chmod 600 .hf-token
+# 设置环境变量（hf-mirror.com 是国内公益镜像）
+export HF_ENDPOINT=https://hf-mirror.com
+
+# 或写入 shell profile 持久化
+echo 'export HF_ENDPOINT=https://hf-mirror.com' >> ~/.bashrc
 ```
 
-`.hf-token` 已在 `.gitignore` 中，不会被提交。
+首次运行 `gen_apartment_lighting.py` 时会自动从镜像下载 Depth-Anything-V2-Large 模型（~1.3GB），
+下载后缓存到 `~/.cache/huggingface/`，后续运行跳过。
 
 ---
 
 ## 5. 环境检查
 
 ```bash
-python3 -c "import requests; print(requests.__version__)"
+python3 -c "import torch; print(torch.__version__)"
+python3 -c "import transformers; print(transformers.__version__)"
+python3 -c "import timm; print(timm.__version__)"
 python3 -c "import cv2; print(cv2.__version__)"
 python3 -c "import numpy; print(numpy.__version__)"
 ```
@@ -95,14 +109,13 @@ python3 -c "import numpy; print(numpy.__version__)"
 
 ## 6. 已知问题
 
-### Serverless Inference API 冷启动
+### torch 版本号 `2.11.0+cpu` 导致 transformers 元数据检查失败
 
-首次调用模型时，HuggingFace 可能需要加载模型（~20-60s）。后续调用会很快。
-如果遇到 503 错误（模型正在加载），脚本会自动重试。
+`importlib.metadata` 无法正确解析 `+cpu` 后缀。setup.sh 中已包含自动修复。
 
-### 速率限制
+### HF 镜像首次下载慢
 
-无 Token 使用时，API 有较严格的速率限制。建议配置 Token。
+模型 ~1.3GB，首次下载可能需要几分钟。后续运行使用本地缓存。
 
 ---
 
