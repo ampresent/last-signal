@@ -363,19 +363,579 @@ def generate_walk_cycle(bones, num_frames=8):
     return frames
 
 
+# ── Walk Cycle by Direction ────────────────────────────────────────
+
+def generate_walk_cycle_direction(bones, direction, num_frames=8):
+    """Generate walk cycle with direction-specific parameters.
+
+    Front (down): legs cross, arms swing, hip bobs vertically
+    Back (up): similar to front, slightly less arm swing
+    Left/Right (side): profile walk, more pronounced stride
+    """
+    frames = []
+
+    for f in range(num_frames):
+        t = f / num_frames
+        phase = t * 2 * math.pi
+        frame = {}
+
+        if direction in ("down", "up"):
+            # Front/back view: legs cross vertically, arms counter-swing
+            hip_bob = math.sin(phase * 2) * 2.0
+            spine_sway = math.sin(phase) * 1.5
+            arm_mult = 1.0 if direction == "down" else 0.7
+            leg_swing = 20
+            knee_bend = 18
+            arm_swing = 15 * arm_mult
+            elbow_bend = 12 * arm_mult
+
+            frame["hip"] = {"y": round(hip_bob, 2)}
+            frame["spine"] = {"skZ": round(spine_sway, 2), "y": round(hip_bob * 0.5, 2)}
+            frame["head"] = {"skZ": round(-spine_sway * 0.3, 2)}
+
+            l_leg = math.sin(phase) * leg_swing
+            frame["left_upper_leg"] = {"skZ": round(l_leg, 2)}
+            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
+            frame["right_upper_leg"] = {"skZ": round(-l_leg, 2)}
+            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+
+            l_arm = math.sin(phase + math.pi) * arm_swing
+            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
+            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
+            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
+            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
+
+        elif direction == "right":
+            # Side view (facing right): pronounced stride, body leans forward
+            hip_bob = math.sin(phase * 2) * 2.5
+            body_lean = math.sin(phase) * 2.0
+            leg_swing = 25
+            knee_bend = 22
+            arm_swing = 18
+            elbow_bend = 15
+
+            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.3, 2)}
+            frame["spine"] = {"skZ": round(body_lean, 2), "y": round(hip_bob * 0.5, 2)}
+            frame["head"] = {"skZ": round(-body_lean * 0.4, 2)}
+
+            # In side view, one leg is always "in front" (visible)
+            l_leg = math.sin(phase) * leg_swing
+            r_leg = -l_leg
+            frame["left_upper_leg"] = {"skZ": round(l_leg, 2)}
+            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
+            frame["right_upper_leg"] = {"skZ": round(r_leg, 2)}
+            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+
+            l_arm = math.sin(phase + math.pi) * arm_swing
+            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
+            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
+            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
+            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
+
+        elif direction == "left":
+            # Side view (facing left): mirror of right
+            hip_bob = math.sin(phase * 2) * 2.5
+            body_lean = -math.sin(phase) * 2.0
+            leg_swing = 25
+            knee_bend = 22
+            arm_swing = 18
+            elbow_bend = 15
+
+            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.3, 2)}
+            frame["spine"] = {"skZ": round(body_lean, 2), "y": round(hip_bob * 0.5, 2)}
+            frame["head"] = {"skZ": round(-body_lean * 0.4, 2)}
+
+            l_leg = math.sin(phase) * leg_swing
+            frame["left_upper_leg"] = {"skZ": round(l_leg, 2)}
+            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
+            frame["right_upper_leg"] = {"skZ": round(-l_leg, 2)}
+            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+
+            l_arm = math.sin(phase + math.pi) * arm_swing
+            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
+            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
+            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
+            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
+
+        frames.append(frame)
+
+    return frames
+
+
+# ── Sprite Sheet Generator (image-based skeletal animation) ────────
+
+def rotate_image(img, angle_deg, center):
+    """Rotate image around a center point, preserving alpha."""
+    h, w = img.shape[:2]
+    M = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    cos = abs(M[0, 0])
+    sin = abs(M[0, 1])
+    new_w = int(h * sin + w * cos)
+    new_h = int(h * cos + w * sin)
+    M[0, 2] += (new_w - w) / 2
+    M[1, 2] += (new_h - h) / 2
+    rotated = cv2.warpAffine(img, M, (new_w, new_h),
+                             flags=cv2.INTER_LINEAR,
+                             borderMode=cv2.BORDER_CONSTANT,
+                             borderValue=(0, 0, 0, 0))
+    # Calculate offset
+    dx = (new_w - w) / 2
+    dy = (new_h - h) / 2
+    return rotated, dx, dy
+
+
+def segment_body_parts(img_rgba, parts):
+    """Extract body part images from the character using bounding boxes.
+
+    Returns dict of {part_name: (part_image, x, y, w, h)}.
+    """
+    segments = {}
+    for part_name, (px, py, pw, ph) in parts.items():
+        # Clamp to image bounds
+        px = max(0, px)
+        py = max(0, py)
+        pw = min(pw, img_rgba.shape[1] - px)
+        ph = min(ph, img_rgba.shape[0] - py)
+        if pw <= 0 or ph <= 0:
+            continue
+        part_img = img_rgba[py:py+ph, px:px+pw].copy()
+        segments[part_name] = (part_img, px, py, pw, ph)
+    return segments
+
+
+def render_frame(segments, parts, bones, frame_data, canvas_w, canvas_h):
+    """Render a single animation frame by rotating body parts.
+
+    Draws body parts in back-to-front order, applying joint rotations.
+    """
+    canvas = np.zeros((canvas_h, canvas_w, 4), dtype=np.uint8)
+
+    # Build bone position lookup
+    bone_pos = {}
+    for b in bones:
+        tx = b["transform"]["x"] + canvas_w / 2
+        ty = -b["transform"]["y"] + canvas_h / 2
+        bone_pos[b["name"]] = (tx, ty)
+
+    # Hip offset (applies to everything)
+    hip_offset_y = frame_data.get("hip", {}).get("y", 0)
+    hip_offset_x = frame_data.get("hip", {}).get("x", 0)
+
+    # Spine transform
+    spine_rot = frame_data.get("spine", {}).get("skZ", 0)
+    spine_dy = frame_data.get("spine", {}).get("y", 0)
+
+    # Head transform
+    head_rot = frame_data.get("head", {}).get("skZ", 0)
+
+    # Draw order (back to front):
+    # 1. Back arm (left_arm for right-facing, right_arm for left-facing)
+    # 2. Back leg
+    # 3. Torso
+    # 4. Head
+    # 5. Front leg
+    # 6. Front arm
+
+    def paste_part(part_name, rotation=0, offset_x=0, offset_y=0):
+        """Paste a body part onto canvas with optional rotation."""
+        if part_name not in segments:
+            return
+        part_img, orig_x, orig_y, pw, ph = segments[part_name]
+
+        # Apply hip offset + part-specific offset
+        dest_x = int(orig_x + offset_x + hip_offset_x)
+        dest_y = int(orig_y + offset_y + hip_offset_y + spine_dy)
+
+        if abs(rotation) > 0.5:
+            # Rotate around the top-center of the part (joint anchor)
+            center = (pw / 2, 0)
+            rotated, rdx, rdy = rotate_image(part_img, rotation, center)
+            rh, rw = rotated.shape[:2]
+
+            # Adjust position for rotation expansion
+            dest_x = int(dest_x - (rw - pw) / 2)
+            dest_y = int(dest_y)
+
+            # Paste with alpha blending
+            paste_onto(canvas, rotated, dest_x, dest_y)
+        else:
+            paste_onto(canvas, part_img, dest_x, dest_y)
+
+    def paste_part_around_joint(part_name, joint_x, joint_y, rotation):
+        """Paste a body part, rotating it around a specific joint point."""
+        if part_name not in segments:
+            return
+        part_img, orig_x, orig_y, pw, ph = segments[part_name]
+
+        # Joint position relative to part's top-left
+        rel_jx = joint_x - orig_x
+        rel_jy = joint_y - orig_y
+
+        if abs(rotation) > 0.5:
+            center = (float(rel_jx), float(rel_jy))
+            rotated, rdx, rdy = rotate_image(part_img, rotation, center)
+            rh, rw = rotated.shape[:2]
+            dest_x = int(orig_x + hip_offset_x - rdx)
+            dest_y = int(orig_y + hip_offset_y + spine_dy - rdy)
+            paste_onto(canvas, rotated, dest_x, dest_y)
+        else:
+            dest_x = int(orig_x + hip_offset_x)
+            dest_y = int(orig_y + hip_offset_y + spine_dy)
+            paste_onto(canvas, part_img, dest_x, dest_y)
+
+    # Get joint positions (pixel coords)
+    torso = parts["torso"]
+    spine_joint = (torso[0] + torso[2] // 2, torso[1] + int(torso[3] * 0.15))  # shoulder area
+    hip_joint = (torso[0] + torso[2] // 2, torso[1] + torso[3])  # bottom of torso
+
+    # ── Draw back parts first ──
+    # Back arm
+    paste_part_around_joint("left_arm", spine_joint[0], spine_joint[1],
+                            frame_data.get("left_upper_arm", {}).get("skZ", 0) + spine_rot)
+
+    # Back leg
+    paste_part_around_joint("left_leg", hip_joint[0], hip_joint[1],
+                            frame_data.get("left_upper_leg", {}).get("skZ", 0))
+
+    # ── Torso (center) ──
+    paste_part("torso", rotation=spine_rot)
+
+    # ── Head ──
+    head_joint = (torso[0] + torso[2] // 2, torso[1])
+    paste_part_around_joint("head", head_joint[0], head_joint[1], head_rot + spine_rot)
+
+    # ── Draw front parts ──
+    # Front leg
+    paste_part_around_joint("right_leg", hip_joint[0], hip_joint[1],
+                            frame_data.get("right_upper_leg", {}).get("skZ", 0))
+
+    # Front arm
+    paste_part_around_joint("right_arm", spine_joint[0], spine_joint[1],
+                            frame_data.get("right_upper_arm", {}).get("skZ", 0) + spine_rot)
+
+    return canvas
+
+
+def paste_onto(canvas, part, x, y):
+    """Alpha-composite a part onto canvas at (x, y)."""
+    ch, cw = canvas.shape[:2]
+    ph, pw = part.shape[:2]
+
+    # Clip to canvas bounds
+    src_x1 = max(0, -x)
+    src_y1 = max(0, -y)
+    src_x2 = min(pw, cw - x)
+    src_y2 = min(ph, ch - y)
+    dst_x1 = max(0, x)
+    dst_y1 = max(0, y)
+    dst_x2 = dst_x1 + (src_x2 - src_x1)
+    dst_y2 = dst_y1 + (src_y2 - src_y1)
+
+    if src_x2 <= src_x1 or src_y2 <= src_y1:
+        return
+
+    src_region = part[src_y1:src_y2, src_x1:src_x2]
+    dst_region = canvas[dst_y1:dst_y2, dst_x1:dst_x2]
+
+    if src_region.shape[2] == 4:
+        src_alpha = src_region[:, :, 3:4].astype(np.float32) / 255
+        dst_alpha = dst_region[:, :, 3:4].astype(np.float32) / 255
+
+        # Composite: out = src * src_a + dst * (1 - src_a)
+        out_rgb = (src_region[:, :, :3].astype(np.float32) * src_alpha +
+                   dst_region[:, :, :3].astype(np.float32) * (1 - src_alpha))
+        out_alpha = np.maximum(src_alpha, dst_alpha) * 255
+
+        canvas[dst_y1:dst_y2, dst_x1:dst_x2, :3] = out_rgb.astype(np.uint8)
+        canvas[dst_y1:dst_y2, dst_x1:dst_x2, 3] = out_alpha.astype(np.uint8).squeeze()
+    elif src_region.shape[2] == 3:
+        # Source has no alpha, just overwrite RGB
+        canvas[dst_y1:dst_y2, dst_x1:dst_x2, :3] = src_region
+        canvas[dst_y1:dst_y2, dst_x1:dst_x2, 3] = 255
+
+
+def generate_sprite_sheet(img_path, parts, bones, walk_frames, direction, out_path, frame_w=64, frame_h=128):
+    """Generate a walk cycle sprite sheet PNG from skeleton animation.
+
+    Renders each frame by rotating body parts around joints, then
+    assembles into a horizontal sprite sheet.
+    """
+    img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return False
+    h, w = img.shape[:2]
+
+    # Segment body parts
+    segments = segment_body_parts(img, parts)
+
+    num_frames = len(walk_frames)
+    sheet = np.zeros((frame_h, frame_w * num_frames, 4), dtype=np.uint8)
+
+    for fi, frame_data in enumerate(walk_frames):
+        frame = render_frame(segments, parts, bones, frame_data, w, h)
+
+        # Crop to frame size (center the character)
+        cx, cy = w // 2, h // 2
+        x1 = cx - frame_w // 2
+        y1 = cy - frame_h // 2
+        x2 = x1 + frame_w
+        y2 = y1 + frame_h
+
+        # Clamp
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(w, x2)
+        y2 = min(h, y2)
+
+        cropped = frame[y1:y2, x1:x2]
+        ch, cw = cropped.shape[:2]
+
+        # Center in frame
+        fx = (frame_w - cw) // 2
+        fy = (frame_h - ch) // 2
+        sheet[fy:fy+ch, fx:fx+cw] = cropped
+
+    cv2.imwrite(str(out_path), sheet)
+    return True
+
+
 # ── DragonBones JSON Export ────────────────────────────────────────
 
 def export_dragonbones(skeleton_bones, walk_frames, img_path, out_dir):
-    """Export DragonBones-compatible JSON + texture atlas.
-
-    Output files:
-        {out_dir}_ske.json  — skeleton + animation data
-        {out_dir}_tex.json  — texture atlas
-        {out_dir}.png       — sprite sheet (if source is single image)
-    """
+    """Export DragonBones-compatible JSON + texture atlas."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     name = out_dir.name
+
+    img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        print(f"  ⚠️ Cannot load {img_path}")
+        return False
+    h, w = img.shape[:2]
+
+    db_bones = []
+    for b in skeleton_bones:
+        db_bones.append({
+            "name": b["name"],
+            "parent": b["parent"],
+            "length": b["length"],
+            "transform": b["transform"]
+        })
+
+    num_frames = len(walk_frames)
+    bone_timelines = []
+    for bone in skeleton_bones:
+        bname = bone["name"]
+        timeline = {"bone": bname, "scale": 1, "offset": 0, "keyframes": []}
+        for fi, frame_data in enumerate(walk_frames):
+            if bname in frame_data:
+                fd = frame_data[bname]
+                kf = {
+                    "duration": 1,
+                    "tweenEasing": 0,
+                    "transform": {
+                        "x": fd.get("x", 0),
+                        "y": fd.get("y", 0),
+                        "skX": fd.get("skX", fd.get("skZ", 0)),
+                        "skY": fd.get("skY", fd.get("skZ", 0)),
+                        "scX": fd.get("scX", 1),
+                        "scY": fd.get("scY", 1)
+                    }
+                }
+                timeline["keyframes"].append(kf)
+        if timeline["keyframes"]:
+            bone_timelines.append(timeline)
+
+    skeleton_json = {
+        "version": "5.7.0",
+        "name": name,
+        "frameRate": 8,
+        "type": "Armature",
+        "armature": [{
+            "name": name,
+            "type": "Armature",
+            "bone": db_bones,
+            "slot": [{"name": "body", "parent": "spine", "displayIndex": 0,
+                      "display": [{"name": name, "type": "image", "path": name}]}],
+            "skin": [{"name": "default", "slot": [{"name": "body",
+                      "display": [{"name": name, "type": "image", "path": name,
+                                   "transform": {"x": 0, "y": 0, "scX": 1, "scY": 1}}]}]}],
+            "animation": [{"name": "walk", "duration": num_frames, "playTimes": 0,
+                           "scale": 1, "fadeInTime": 0,
+                           "bone": bone_timelines, "slot": [], "timeline": []}]
+        }]
+    }
+
+    ske_path = out_dir / f"{name}_ske.json"
+    with open(ske_path, "w") as f:
+        json.dump(skeleton_json, f, indent=2, ensure_ascii=False)
+
+    atlas_json = {"name": name, "imagePath": f"{name}.png",
+                  "width": w, "height": h,
+                  "SubTexture": [{"name": name, "x": 0, "y": 0, "width": w, "height": h}]}
+    tex_path = out_dir / f"{name}_tex.json"
+    with open(tex_path, "w") as f:
+        json.dump(atlas_json, f, indent=2, ensure_ascii=False)
+
+    img_out = out_dir / f"{name}.png"
+    cv2.imwrite(str(img_out), img)
+    print(f"  ✓ DragonBones: {out_dir}/")
+    return True
+
+
+# ── Batch Processor ────────────────────────────────────────────────
+
+def process_character(char_name, sprites_dir="assets/sprites", output_dir="assets/sprites"):
+    """Process all 4 directions for a character, generating rigs + sprite sheets."""
+    directions = ["down", "left", "right", "up"]
+    results = {}
+
+    for direction in directions:
+        cutout_path = os.path.join(sprites_dir, f"cutout_{char_name}_{direction}.png")
+        if not os.path.exists(cutout_path):
+            print(f"  ⚠️  Skipping {char_name}/{direction}: no cutout image")
+            continue
+
+        print(f"\n{'─'*40}")
+        print(f"  {char_name} / {direction}")
+        print(f"{'─'*40}")
+
+        img = cv2.imread(cutout_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            print(f"  ✗ Cannot load {cutout_path}")
+            continue
+        h, w = img.shape[:2]
+
+        # Detect body parts
+        parts = detect_body_parts(img)
+        if parts is None:
+            print(f"  ✗ No character found")
+            continue
+
+        # Build skeleton
+        bones = build_skeleton(parts, w, h)
+
+        # Generate direction-specific walk cycle
+        walk_frames = generate_walk_cycle_direction(bones, direction)
+
+        # Generate sprite sheet
+        sheet_path = os.path.join(output_dir, f"sheet_{char_name}_{direction}.png")
+        ok = generate_sprite_sheet(cutout_path, parts, bones, walk_frames, direction, sheet_path)
+        if ok:
+            print(f"  ✓ Sheet: {sheet_path}")
+        else:
+            print(f"  ✗ Failed to generate sheet")
+
+        # Also generate DragonBones rig
+        rig_dir = os.path.join(output_dir, f"rig_{char_name}_{direction}")
+        export_dragonbones(bones, walk_frames, cutout_path, rig_dir)
+        print(f"  ✓ Rig: {rig_dir}/")
+
+        # Generate individual frames from the sheet
+        sheet_img = cv2.imread(sheet_path, cv2.IMREAD_UNCHANGED)
+        if sheet_img is not None:
+            fw = sheet_img.shape[1] // 8
+            fh = sheet_img.shape[0]
+            for fi in range(8):
+                frame_img = sheet_img[:, fi*fw:(fi+1)*fw]
+                frame_path = os.path.join(output_dir, f"{char_name}_{direction}_f{fi}.png")
+                cv2.imwrite(frame_path, frame_img)
+            print(f"  ✓ Frames: {char_name}_{direction}_f0..7.png")
+
+        results[direction] = True
+
+    return results
+
+
+# ── Main ───────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="DragonBones auto-rig + sprite sheet generator")
+    parser.add_argument("image", nargs="?", help="Single character image (or use --batch)")
+    parser.add_argument("-o", "--output", default="dragonbones_rig", help="Output directory/name")
+    parser.add_argument("--preview", action="store_true", help="Generate skeleton preview")
+    parser.add_argument("--html", action="store_true", help="Generate HTML animated preview")
+    parser.add_argument("--frames", type=int, default=8, help="Walk cycle frames (default: 8)")
+    parser.add_argument("--detect-only", action="store_true", help="Only detect body parts")
+    parser.add_argument("--batch", action="store_true", help="Process all characters (joker, kai, oracle)")
+    parser.add_argument("--sprites-dir", default="assets/sprites", help="Sprites directory")
+    args = parser.parse_args()
+
+    print(f"🦴 DragonBones Auto-Rig + Sprite Sheet Generator")
+    print(f"{'='*50}")
+
+    if args.batch:
+        # Batch mode: process all characters
+        chars = ["joker", "kai", "oracle"]
+        for char_name in chars:
+            print(f"\n{'='*50}")
+            print(f"🎬 {char_name.upper()}")
+            print(f"{'='*50}")
+            process_character(char_name, args.sprites_dir, args.sprites_dir)
+        print(f"\n✅ All done!")
+        return
+
+    # Single image mode
+    if not args.image:
+        parser.error("Either provide an image path or use --batch")
+
+    img = cv2.imread(args.image, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        print(f"✗ Cannot load {args.image}")
+        sys.exit(1)
+    h, w = img.shape[:2]
+    print(f"  ✓ Source: {args.image} ({w}×{h})")
+
+    print(f"\n📐 Detecting body parts...")
+    parts = detect_body_parts(img)
+    if parts is None:
+        print("  ✗ No character found in image")
+        sys.exit(1)
+
+    for name, (px, py, pw, ph) in parts.items():
+        print(f"  {name:15s}: ({px:3d},{py:3d}) {pw}×{ph}px")
+
+    if args.detect_only:
+        return
+
+    print(f"\n🦴 Building skeleton...")
+    bones = build_skeleton(parts, w, h)
+    for b in bones:
+        parent_info = f" → {b['parent']}" if b['parent'] else ""
+        print(f"  {b['name']:20s} len={b['length']:5.1f}{parent_info}")
+
+    # Guess direction from filename
+    direction = "down"
+    for d in ["down", "left", "right", "up"]:
+        if d in args.image.lower():
+            direction = d
+            break
+
+    print(f"\n🚶 Generating {args.frames}-frame walk cycle (direction: {direction})...")
+    walk_frames = generate_walk_cycle_direction(bones, direction)
+
+    print(f"\n📦 Exporting...")
+    out_dir = Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # DragonBones JSON
+    ok = export_dragonbones(bones, walk_frames, args.image, out_dir)
+    if ok:
+        print(f"  ✓ DragonBones rig exported")
+
+    # Sprite sheet
+    sheet_path = out_dir / f"sheet_{direction}.png"
+    ok = generate_sprite_sheet(args.image, parts, bones, walk_frames, direction, sheet_path)
+    if ok:
+        print(f"  ✓ Sprite sheet: {sheet_path}")
+
+    if args.preview:
+        generate_preview(args.image, parts, bones, out_dir / "preview_skeleton.png")
+
+    if args.html:
+        generate_html_preview(args.image, parts, bones, walk_frames, out_dir / "preview.html")
+
+    print(f"\n✅ Done!")
 
     # Load source image
     img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
@@ -730,75 +1290,6 @@ img.onload = () => animate();
     print(f"  ✓ HTML Preview: {out_path}")
 
 
-# ── Main ───────────────────────────────────────────────────────────
-
-def main():
-    parser = argparse.ArgumentParser(description="Auto-rig front-facing character for DragonBones")
-    parser.add_argument("image", help="Source character image (front-facing, RGBA preferred)")
-    parser.add_argument("-o", "--output", default="dragonbones_rig", help="Output directory name")
-    parser.add_argument("--preview", action="store_true", help="Generate visual preview images")
-    parser.add_argument("--html", action="store_true", help="Generate HTML animated preview")
-    parser.add_argument("--frames", type=int, default=8, help="Walk cycle frames (default: 8)")
-    parser.add_argument("--detect-only", action="store_true", help="Only detect body parts, no export")
-    args = parser.parse_args()
-
-    print(f"🦴 DragonBones Auto-Rig")
-    print(f"{'='*40}")
-
-    # Load image
-    img = cv2.imread(args.image, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        print(f"✗ Cannot load {args.image}")
-        sys.exit(1)
-    h, w = img.shape[:2]
-    print(f"  ✓ Source: {args.image} ({w}×{h})")
-
-    # Detect body parts
-    print(f"\n📐 Detecting body parts...")
-    parts = detect_body_parts(img)
-    if parts is None:
-        print("  ✗ No character found in image")
-        sys.exit(1)
-
-    for name, (px, py, pw, ph) in parts.items():
-        print(f"  {name:15s}: ({px:3d},{py:3d}) {pw}×{ph}px")
-
-    if args.detect_only:
-        return
-
-    # Build skeleton
-    print(f"\n🦴 Building skeleton...")
-    bones = build_skeleton(parts, w, h)
-    for b in bones:
-        parent_info = f" → {b['parent']}" if b['parent'] else ""
-        print(f"  {b['name']:20s} len={b['length']:5.1f}{parent_info}")
-
-    # Generate walk cycle
-    print(f"\n🚶 Generating {args.frames}-frame walk cycle...")
-    walk_frames = generate_walk_cycle(bones, args.frames)
-    print(f"  ✓ {len(walk_frames)} frames generated")
-
-    # Export DragonBones
-    print(f"\n📦 Exporting DragonBones...")
-    out_dir = Path(args.output)
-    ok = export_dragonbones(bones, walk_frames, args.image, out_dir)
-    if not ok:
-        sys.exit(1)
-
-    # Generate previews
-    if args.preview:
-        print(f"\n🎨 Generating previews...")
-        generate_preview(args.image, parts, bones, out_dir / "preview_skeleton.png")
-
-    if args.html:
-        print(f"\n🌐 Generating HTML preview...")
-        generate_html_preview(args.image, parts, bones, walk_frames, out_dir / "preview.html")
-
-    print(f"\n{'='*40}")
-    print(f"✅ Done! Output: {out_dir}/")
-    print(f"   Files: {out_dir.name}_ske.json, {out_dir.name}_tex.json, {out_dir.name}.png")
-    print(f"   Import into DragonBones Pro or load with DragonBones runtime.")
-
-
 if __name__ == "__main__":
     main()
+
