@@ -1,0 +1,15 @@
+{
+  "name": "rig_joker_left",
+  "imagePath": "rig_joker_left.png",
+  "width": 256,
+  "height": 256,
+  "SubTexture": [
+    {
+      "name": "rig_joker_left",
+      "x": 0,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    }
+  ]
+}
