@@ -210,6 +210,22 @@ python3 gen_apartment_lighting.py --lighting-only
 - Frame rendering: ~10-15s per frame (48-step shadow ray march)
 - Total: ~2-3 minutes for 12 frames
 
+**CPU 占用率限制**：所有计算过程（深度估计、帧渲染）必须限制 CPU 占用率不超过 **95%**，以确保 agent 可以正常在后台工作。实现方式：
+
+1. 使用 `nice -n 10` 降低进程优先级
+2. 在渲染循环中每帧结束后 `time.sleep(0.05)` 让出 CPU 时间片
+3. 监控 CPU 使用率，若超过 95% 则动态增加 sleep 时间
+
+**RT 调度优先级**：渲染进程应获得 RT（实时）调度优先级，确保在系统负载较高时仍能稳定运行。通过 `chrt -r 50` 设置 SCHED_RR 策略（优先级 50）。
+
+```bash
+# 以 RT 优先级运行渲染（需要 root 权限）
+chrt -r 50 python3 gen_apartment_lighting.py
+
+# 或使用 nice 降级（不需要 root）
+nice -n 10 python3 gen_apartment_lighting.py
+```
+
 ## Files NOT Changed
 
 - `index.html` — no engine changes needed
