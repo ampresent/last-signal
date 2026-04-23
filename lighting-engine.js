@@ -14,8 +14,8 @@
 class LightingEngine {
   constructor(canvas) {
     this.canvas = canvas;
-    this.gl = canvas.getContext('webgl2', { premultipliedAlpha: false }) ||
-              canvas.getContext('webgl', { premultipliedAlpha: false });
+    this.gl = canvas.getContext('webgl2', { premultipliedAlpha: false, preserveDrawingBuffer: true }) ||
+              canvas.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
     if (!this.gl) throw new Error('WebGL not supported');
 
     this.width = canvas.width;
@@ -29,6 +29,7 @@ class LightingEngine {
     this.running = false;
     this.animFrame = null;
     this.sceneId = null;
+    this.ambient = 0.02; // default, overridden by config
     this.onUpdate = null; // callback for editor
 
     this._initShaders();
@@ -246,6 +247,9 @@ class LightingEngine {
     const scene = config.scenes[sceneId];
     if (!scene) throw new Error(`Scene "${sceneId}" not found in config`);
 
+    // Read ambient from scene or global config
+    this.ambient = scene.ambient || config.ambient || 0.02;
+
     // Load base image and depth map
     this.baseTexture = await this._loadTexture(`assets/${scene.base}`);
     this.depthTexture = await this._loadTexture(`assets/${scene.depth}`);
@@ -386,7 +390,7 @@ class LightingEngine {
 
     // Set global uniforms
     gl.uniform1f(this.uniforms.uTime, this.time);
-    gl.uniform1f(this.uniforms.uAmbient, 0.02);
+    gl.uniform1f(this.uniforms.uAmbient, this.ambient);
     gl.uniform2f(this.uniforms.uResolution, this.width, this.height);
 
     // Compute phase values and set light uniforms

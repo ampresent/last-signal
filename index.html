@@ -1593,11 +1593,16 @@ const Game = {
       const sceneConfig = this.lightingConfig.scenes[sceneId];
       if (sceneConfig) {
         try {
+          this.lightingEngine.stop();
           await this.lightingEngine.loadScene(sceneId, this.lightingConfig);
           this.lightingEngine.start();
         } catch (err) {
           console.warn(`Lighting load failed for ${sceneId}:`, err);
         }
+      } else {
+        // No lighting config for this scene — stop engine, fall back to frames
+        this.lightingEngine.stop();
+        this.lightingEngine.baseTexture = null;
       }
     }
 
@@ -1651,8 +1656,8 @@ const Game = {
 
     // ── Render base scene ──
     if (this.useLighting && this.lightingEngine && this.lightingEngine.baseTexture) {
-      // Real-time WebGL lighting: draw the lighting canvas output
-      this.lightingEngine._render();
+      // Real-time WebGL lighting: engine renders in its own rAF loop,
+      // we just copy the result to the game canvas
       this.ctx.drawImage(this.lightingCanvas, 0, 0, 960, 640);
     } else {
       // Fallback: pre-generated frame sequence
