@@ -9,7 +9,6 @@
 ### 计划
 1. **Phase 0**: 运行 setup.sh 安装依赖（torch, transformers, timm, opencv, 模型权重）
 2. **Phase 1**: 公寓场景 — Depth Lighting (gen_apartment_lighting.py)
-3. **Phase 2**: 其他 7 场景 — img2img + 光流插值 (gen_ai_frames.py)
 
 ### 关键发现
 - 公寓场景用策略 B（确定性 depth-based lighting），因为 img2img 帧间一致性差
