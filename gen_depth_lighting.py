@@ -2,7 +2,7 @@
 """
 gen_depth_lighting.py — Depth-based lighting renderer for ALL scenes
 
-Replaces img2img strategy entirely. Uses Depth-Anything-V2-Large for depth
+Unified depth-based lighting renderer for all scenes. Uses Depth-Anything-V2-Large for depth
 estimation + programmatic 2D depth-based lighting per scene.
 
 Usage:

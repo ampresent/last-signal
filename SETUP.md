@@ -217,7 +217,7 @@ source ~/.bashrc
 curl -s https://hf-mirror.com/api/models/depth-anything/Depth-Anything-V2-Large-hf | head -1
 ```
 
-首次运行 `gen_apartment_lighting.py` 时会自动从镜像下载 Depth-Anything-V2-Large 模型（~1.3GB），
+首次运行 `gen_depth_lighting.py` 时会自动从镜像下载 Depth-Anything-V2-Large 模型（~1.3GB），
 下载后缓存到 `~/.cache/huggingface/`，后续运行跳过（~3s 加载）。
 
 > **hf-mirror.com 只提供模型下载，不提供 Serverless Inference API。**
@@ -264,10 +264,9 @@ Ubuntu 24.04 的 Python 被系统管理，所有 pip 命令需加 `--break-syste
 
 R2 必须 `--region=auto`，否则默认 US 区域名会报错。
 
-### gen_ai_frames.py 覆盖公寓帧
+### ~~gen_ai_frames.py 覆盖公寓帧~~
 
-`gen_ai_frames.py` 会处理所有 8 个场景（包括公寓），用 img2img 帧覆盖 depth lighting 帧。
-**解决方案：始终最后运行 `gen_apartment_lighting.py`。**
+> **已解决**：img2img 策略已完全移除，所有场景统一使用 `gen_depth_lighting.py`。
 
 ---
 
