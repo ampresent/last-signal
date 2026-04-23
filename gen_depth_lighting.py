@@ -117,21 +117,29 @@ SCENE_LIGHTS = {
         "base": "bg_apartment.png",
         "ambient": 0.02,
         "lights": [
+            # 月光从窗户进来，在窗附近最强，向室内衰减
             {"name": "moonlight", "pos": (120, 280),
              "color": [0.55, 0.65, 0.85], "intensity": (0.08, 0.22),
-             "radius": 600, "phase": _moonlight_clouds},
+             "radius": 600, "phase": _moonlight_clouds,
+             "mask": {"type": "cone", "dir": (1, 0.3), "angle_deg": 120, "feather": 30}},
+            # 车灯：只照亮窗户区域，几乎不进室内
             {"name": "car1", "pos": (60, 220),
              "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.08),
-             "radius": 500, "phase": _irregular_car},
+             "radius": 500, "phase": _irregular_car,
+             "mask": {"type": "rect", "region": (0, 80, 300, 400), "feather": 60}},
             {"name": "car2", "pos": (200, 180),
              "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.04),
-             "radius": 450, "phase": _phase_shift(_irregular_car, 3)},
+             "radius": 450, "phase": _phase_shift(_irregular_car, 3),
+             "mask": {"type": "rect", "region": (0, 60, 320, 420), "feather": 80}},
+            # 屏幕光：照亮桌面和面对屏幕的墙壁，不照天花板
             {"name": "screen", "pos": (770, 320),
              "color": [0.15, 0.7, 0.25], "intensity": (0.03, 0.18),
-             "radius": 280, "phase": _irregular_screen},
+             "radius": 280, "phase": _irregular_screen,
+             "mask": {"type": "cone", "dir": (-0.5, 1), "angle_deg": 100, "feather": 25}},
             {"name": "screen_flash", "pos": (750, 280),
              "color": [0.3, 0.85, 0.4], "intensity": (0.0, 0.08),
-             "radius": 200, "phase": _phase_shift(_irregular_screen, 5)},
+             "radius": 200, "phase": _phase_shift(_irregular_screen, 5),
+             "mask": {"type": "cone", "dir": (-0.3, 1), "angle_deg": 80, "feather": 20}},
         ],
     },
 
@@ -289,6 +297,91 @@ SCENE_LIGHTS = {
 }
 
 
+# ── Light Mask System ─────────────────────────────────────────────
+# 每个光源可以有一个 mask，限制光的影响区域。
+# mask 定义格式：
+#   {"type": "rect",    "region": (x1,y1,x2,y2), "feather": px}  — 矩形区域内生效
+#   {"type": "outside", "region": (x1,y1,x2,y2), "feather": px}  — 矩形区域外生效（阻挡光进入该区域）
+#   {"type": "cone",    "dir": (dx,dy), "angle_deg": N, "feather": deg}  — 锥形方向光
+# feather = 边缘渐变宽度（像素或度数）
+
+def generate_light_mask(mask_def, img_h, img_w, light_pos):
+    """根据 mask 定义生成 (H,W) 的软遮罩，值 0~1。"""
+    yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
+
+    if mask_def["type"] == "rect":
+        x1, y1, x2, y2 = mask_def["region"]
+        feather = mask_def.get("feather", 40)
+        # 硬边界
+        inside = np.ones((img_h, img_w), dtype=np.float32)
+        # X 方向渐变
+        if x1 > 0:
+            inside *= np.clip((xx - x1) / feather, 0, 1)
+        if x2 < img_w:
+            inside *= np.clip((x2 - xx) / feather, 0, 1)
+        # Y 方向渐变
+        if y1 > 0:
+            inside *= np.clip((yy - y1) / feather, 0, 1)
+        if y2 < img_h:
+            inside *= np.clip((y2 - yy) / feather, 0, 1)
+        return inside
+
+    elif mask_def["type"] == "outside":
+        # 矩形区域外生效（用于车灯：只照亮窗外，不照亮室内）
+        x1, y1, x2, y2 = mask_def["region"]
+        feather = mask_def.get("feather", 50)
+        outside = np.ones((img_h, img_w), dtype=np.float32)
+        # 矩形内部衰减
+        dx = np.clip((xx - x1) / feather, 0, 1) * np.clip((x2 - xx) / feather, 0, 1)
+        dy = np.clip((yy - y1) / feather, 0, 1) * np.clip((y2 - yy) / feather, 0, 1)
+        interior = dx * dy  # 矩形内部接近 1
+        outside = 1.0 - interior * mask_def.get("block_strength", 0.9)
+        return np.clip(outside, 0, 1)
+
+    elif mask_def["type"] == "cone":
+        # 锥形方向光：从光源位置出发，沿指定方向的锥形范围
+        dx_dir, dy_dir = mask_def["dir"]
+        angle_deg = mask_def.get("angle_deg", 60)
+        feather_deg = mask_def.get("feather", 15)
+        lx, ly = light_pos
+
+        # 每个像素相对光源的方向
+        pix_dx = xx - lx
+        pix_dy = yy - ly
+        pix_dist = np.sqrt(pix_dx**2 + pix_dy**2) + 1e-8
+
+        # 光源方向向量归一化
+        dir_len = np.sqrt(dx_dir**2 + dy_dir**2) + 1e-8
+        dx_dir /= dir_len
+        dy_dir /= dir_len
+
+        # 夹角（度）
+        cos_angle = (pix_dx * dx_dir + pix_dy * dy_dir) / pix_dist
+        cos_angle = np.clip(cos_angle, -1, 1)
+        angle = np.degrees(np.arccos(cos_angle))
+
+        # 锥形内 + feather 渐变
+        half = angle_deg / 2
+        mask = np.clip((half - angle) / feather_deg, 0, 1)
+        return mask
+
+    elif mask_def["type"] == "radial":
+        # 径向衰减：从指定中心向外衰减
+        cx, cy = mask_def["center"]
+        inner_r = mask_def.get("inner_radius", 0)
+        outer_r = mask_def["radius"]
+        dist = np.sqrt((xx - cx)**2 + (yy - cy)**2)
+        mask = np.clip((outer_r - dist) / (outer_r - inner_r + 1e-8), 0, 1)
+        return mask
+
+    return np.ones((img_h, img_w), dtype=np.float32)
+
+
+def get_mask_cache_key(mask_def):
+    """生成 mask 缓存 key。"""
+    return str(sorted(mask_def.items()))
+
+
 # ── Depth Model ───────────────────────────────────────────────────
 
 def load_depth_model():
@@ -326,7 +419,7 @@ def postprocess_depth(depth, target_h, target_w):
 # ── Lighting Engine ───────────────────────────────────────────────
 
 def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
-    """Compute per-pixel lighting for a single frame."""
+    """Compute per-pixel lighting for a single frame with light masks."""
     depth_float = depth_map.astype(np.float32) / 255.0
     yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
 
@@ -346,11 +439,19 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
         depth_factor = 1.0 - depth_float
         shadow = ray_march_shadows(depth_float, (lx, ly), img_h, img_w)
 
+        # Light mask: 限制光源影响区域
+        mask_def = src.get("mask")
+        if mask_def:
+            light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
+        else:
+            light_mask = np.ones((img_h, img_w), dtype=np.float32)
+
         contrib = (color[np.newaxis, np.newaxis, :] *
                    intensity *
                    attenuation[:, :, np.newaxis] *
                    depth_factor[:, :, np.newaxis] *
-                   shadow[:, :, np.newaxis])
+                   shadow[:, :, np.newaxis] *
+                   light_mask[:, :, np.newaxis])
         total_light += contrib
 
     return np.clip(total_light, 0.0, 1.5)
