@@ -465,6 +465,7 @@
   </div>
 </div>
 
+<script src="lighting-engine.js"></script>
 <script>
 // ============================================================
 // PARTICLE / VFX ENGINE — 实时环境动效系统
@@ -1363,6 +1364,12 @@ const Game = {
   mouseY: 0,
   audioCtx: null,
 
+  // ── Real-time Lighting System ──
+  lightingEngine: null,
+  lightingCanvas: null,
+  lightingConfig: null,
+  useLighting: true, // toggle: true = real-time lighting, false = pre-generated frames
+
   async init() {
     this.canvas = document.getElementById('scene-canvas');
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
@@ -1371,10 +1378,33 @@ const Game = {
     this.canvas.addEventListener('click', (e) => this.handleClick(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
 
+    // ── Initialize real-time lighting engine ──
+    await this._initLighting();
+
     await this.loadImages();
     await this.loadMasks();
     this.buildInventoryUI();
     JokerFace.init();
+  },
+
+  async _initLighting() {
+    try {
+      // Create offscreen WebGL canvas for lighting
+      this.lightingCanvas = document.createElement('canvas');
+      this.lightingCanvas.width = 960;
+      this.lightingCanvas.height = 640;
+
+      this.lightingEngine = new LightingEngine(this.lightingCanvas);
+
+      // Load lighting config
+      const resp = await fetch('lighting-config.json');
+      this.lightingConfig = await resp.json();
+
+      console.log('💡 Real-time lighting engine initialized');
+    } catch (err) {
+      console.warn('⚠️ Lighting engine init failed, falling back to pre-generated frames:', err);
+      this.useLighting = false;
+    }
   },
 
   async loadImages() {
@@ -1549,6 +1579,19 @@ const Game = {
     const FILTER_MAP = { underground: 'filter-underground', core: 'filter-core' };
     this.canvas.className = FILTER_MAP[sceneId] || '';
 
+    // ── Load real-time lighting for this scene ──
+    if (this.useLighting && this.lightingEngine && this.lightingConfig) {
+      const sceneConfig = this.lightingConfig.scenes[sceneId];
+      if (sceneConfig) {
+        try {
+          await this.lightingEngine.loadScene(sceneId, this.lightingConfig);
+          this.lightingEngine.start();
+        } catch (err) {
+          console.warn(`Lighting load failed for ${sceneId}:`, err);
+        }
+      }
+    }
+
     // 初始化 VFX 引擎
     VFX.init(sceneId);
 
@@ -1596,16 +1639,24 @@ const Game = {
     if (!scene) return;
 
     const bgName = scene.background;
-    const frames = this.bgFrames[bgName];
-    let img;
-    if (frames && frames.length > 0) img = frames[this.currentFrame % frames.length];
-    if (!img) img = this.images[bgName];
 
-    if (img) {
-      this.ctx.drawImage(img, 0, 0, 960, 640);
+    // ── Render base scene ──
+    if (this.useLighting && this.lightingEngine && this.lightingEngine.baseTexture) {
+      // Real-time WebGL lighting: draw the lighting canvas output
+      this.lightingEngine._render();
+      this.ctx.drawImage(this.lightingCanvas, 0, 0, 960, 640);
     } else {
-      this.ctx.fillStyle = '#111';
-      this.ctx.fillRect(0, 0, 960, 640);
+      // Fallback: pre-generated frame sequence
+      const frames = this.bgFrames[bgName];
+      let img;
+      if (frames && frames.length > 0) img = frames[this.currentFrame % frames.length];
+      if (!img) img = this.images[bgName];
+      if (img) {
+        this.ctx.drawImage(img, 0, 0, 960, 640);
+      } else {
+        this.ctx.fillStyle = '#111';
+        this.ctx.fillRect(0, 0, 960, 640);
+      }
     }
 
     // ★ VFX 实时粒子动效叠加 ★
@@ -2987,6 +3038,28 @@ const SCENES = {
 // 启动
 // ============================================================
 Game.init();
+
+// ── Lighting Controls ──
+document.addEventListener('keydown', (e) => {
+  // L key: toggle real-time lighting vs pre-generated frames
+  if (e.key === 'l' || e.key === 'L') {
+    Game.useLighting = !Game.useLighting;
+    const mode = Game.useLighting ? '💡 实时照明' : '🎬 预生成帧';
+    console.log(`Lighting mode: ${mode}`);
+    // Show brief notification
+    const hint = document.getElementById('hint-text');
+    if (hint) {
+      hint.textContent = `光照模式: ${mode}`;
+      hint.style.display = 'block';
+      setTimeout(() => { hint.style.display = 'none'; }, 1500);
+    }
+  }
+  // E key: open lighting editor in new tab
+  if (e.key === 'e' || e.key === 'E') {
+    if (e.ctrlKey || e.metaKey) return; // don't interfere with Ctrl+E
+    window.open('lighting-editor.html', '_blank');
+  }
+});
 </script>
 </body>
 </html>
