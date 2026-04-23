@@ -901,7 +901,7 @@ const Game = {
     const promises = [];
 
     for (const bgName of sceneBgs) {
-      // 尝试加载全部 5 帧 (AI img2img 生成)
+      // 尝试加载全部 12 帧 (Depth Lighting 生成)
       const framePromises = [];
       for (let fi = 0; fi < NUM_FRAMES; fi++) {
         framePromises.push(loadImg(`assets/${bgName}_f${fi}.png`));

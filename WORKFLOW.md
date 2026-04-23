@@ -24,7 +24,7 @@
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
 | 图片生成 | Pollinations.AI（完全免费，无需 API Key，国内可用） |
 | 深度估计 | Depth-Anything-V2-Large（hf-mirror.com 下载 + 本地推理） |
-| 动画系统 | img2img 关键帧 + 光流插值 + Depth Lighting + VFX 粒子引擎 |
+| 动画系统 | Depth Lighting (深度光照) + VFX 粒子引擎 |
 | 部署 | GitHub Pages（静态托管） |
 
 ---
@@ -301,13 +301,10 @@ python3 gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 
-python3 gen_assets.py          # 1. 生成基础场景图 + 角色肖像
-python3 gen_ai_frames.py       # 2. 策略 A: img2img 关键帧 + 光流插值 (所有场景)
-python3 gen_apartment_lighting.py  # 3. 策略 B: Depth Lighting (公寓，最后运行!)
-python3 gen_masks.py           # 4. 生成 mask（可选，已有则跳过）
+python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
+python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
+python3 gen_masks.py               # 3. 生成 mask（可选，已有则跳过）
 ```
-
-> **⚠️ 公寓帧必须最后生成！** `gen_ai_frames.py` 会覆盖所有场景帧。
 
 ### 添加新场景
 1. `gen_assets.py` 添加 prompt
@@ -346,7 +343,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 **原因**：torchvision stub 只实现了 timm 需要的接口，transformers 5.x 额外依赖更多模块。
 **解决**：手动补充 `io`、`v2` 模块 stub + `pil_to_tensor` + `NEAREST_EXACT` + `resize(antialias=)`（见 SETUP.md §3c）
 
-### 4. gen_ai_frames.py 覆盖公寓帧
+### 4. ~~gen_ai_frames.py 覆盖公寓帧~~
 
 > **已解决**：img2img 策略已完全移除，所有场景统一使用 Depth Lighting。
 > 旧版 `gen_ai_frames.py` 已删除，不再需要担心帧覆盖问题。

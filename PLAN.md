@@ -6,16 +6,16 @@ Remake all 96 animation frames (8 scenes × 12 frames) following the docs specs.
 ## Approach
 
 ### Phase 1: Apartment (Depth Lighting)
-- Script: `gen_apartment_lighting.py`
+- Script: `gen_depth_lighting.py`
 - Method: HuggingFace Serverless Inference API (Depth-Anything-V2-Large) → deterministic per-pixel lighting
 - 3 light sources with 120° phase offset sine curves
 - Output: `assets/bg_apartment_f0~f11.png`
 
-### Phase 2: Other 7 Scenes (img2img + Optical Flow)
-- Script: `gen_ai_frames.py`
-- Method: Pollinations.AI img2img keyframes → OpenCV Farneback optical flow interpolation
-- Scenes: street, bar, alley, tower_exterior, server_room, rooftop, office
-- Each: 4 keyframes × 3 interpolated = 12 frames + loop closure
+### Phase 2: All 8 Scenes (Depth Lighting, unified)
+- Script: `gen_depth_lighting.py`
+- Method: Depth-Anything-V2-Large → deterministic per-pixel lighting per scene
+- All 8 scenes with unique light source configurations
+- Each: 12 frames with perfect loop closure (integer-multiple phase frequencies)
 
 ### Commit Strategy
 - Commit after each phase
