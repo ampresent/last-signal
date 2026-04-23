@@ -1353,38 +1353,55 @@ const Game = {
       box.style.display = 'block';
 
       let i = 0;
+      let typing = true;
       this._buzzApplied = false;
+
+      const finishTyping = () => {
+        if (!typing) return;
+        typing = false;
+        clearInterval(typeTimer);
+        box.removeEventListener('click', skipHandler);
+        textEl.textContent = text;
+
+        // 打字结束后：对关键词施加微震效果
+        Game._applyKeywordBuzz(textEl);
+
+        if (choices && choices.length > 0) {
+          choices.forEach((c, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = `▸ ${c.text}`;
+            btn.onclick = () => {
+              this.hideDialogue();
+              resolve(idx);
+            };
+            choicesEl.appendChild(btn);
+          });
+        } else {
+          const btn = document.createElement('button');
+          btn.className = 'choice-btn';
+          btn.textContent = '▸ 继续...';
+          btn.onclick = () => {
+            this.hideDialogue();
+            resolve(0);
+          };
+          choicesEl.appendChild(btn);
+        }
+      };
+
+      // 点击对话框区域 → 跳过打字动画
+      const skipHandler = (e) => {
+        e.stopPropagation();
+        finishTyping();
+      };
+      box.addEventListener('click', skipHandler);
+
       const typeTimer = setInterval(() => {
         if (i < text.length) {
           textEl.textContent += text[i];
           i++;
         } else {
-          clearInterval(typeTimer);
-
-          // 打字结束后：对关键词施加微震效果
-          Game._applyKeywordBuzz(textEl);
-
-          if (choices && choices.length > 0) {
-            choices.forEach((c, idx) => {
-              const btn = document.createElement('button');
-              btn.className = 'choice-btn';
-              btn.textContent = `▸ ${c.text}`;
-              btn.onclick = () => {
-                this.hideDialogue();
-                resolve(idx);
-              };
-              choicesEl.appendChild(btn);
-            });
-          } else {
-            const btn = document.createElement('button');
-            btn.className = 'choice-btn';
-            btn.textContent = '▸ 继续...';
-            btn.onclick = () => {
-              this.hideDialogue();
-              resolve(0);
-            };
-            choicesEl.appendChild(btn);
-          }
+          finishTyping();
         }
       }, 25);
     });
