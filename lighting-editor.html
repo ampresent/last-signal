@@ -512,46 +512,6 @@ input[type="range"]::-moz-range-thumb {
   z-index: 1;
 }
 
-/* ── ADSR Envelope ──────────────────────────────────────────────── */
-#adsr-canvas {
-  width: 100%;
-  height: 80px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-deep);
-  cursor: pointer;
-}
-
-.adsr-row {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.adsr-param {
-  flex: 1;
-  text-align: center;
-}
-
-.adsr-param label {
-  display: block;
-  font-size: 8px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
-}
-
-.adsr-param input[type="range"] {
-  width: 100%;
-  height: 3px;
-}
-
-.adsr-param .val {
-  font-size: 9px;
-  color: var(--text-dim);
-}
-
 /* ── Props Empty State ──────────────────────────────────────────── */
 #props-empty {
   color: var(--text-muted);
@@ -865,7 +825,7 @@ input[type="range"]::-moz-range-thumb {
               <div class="prop-row">
                 <span class="prop-label">Z 深度</span>
                 <div class="slider-wrap">
-                  <input type="range" id="p-depth" min="-1" max="1" step="0.01">
+                  <input type="range" id="p-depth" min="0" max="1" step="0.01">
                   <span class="slider-val" id="p-depth-val">0.30</span>
                   <button class="tb-btn" id="btn-snap-depth" title="根据深度图自动设置 Z" style="padding:2px 6px;font-size:9px;">📍自动</button>
                 </div>
@@ -1013,42 +973,31 @@ input[type="range"]::-moz-range-thumb {
             </div>
           </div>
 
-          <!-- ADSR Envelope Group -->
-          <div class="prop-group" id="g-adsr">
-            <div class="prop-group-header" data-group="adsr">
-              <span class="chevron">▼</span> ADSR 包络
+          <!-- Noise Amount -->
+          <div class="prop-group" id="g-noise">
+            <div class="prop-group-header" data-group="noise">
+              <span class="chevron">▼</span> 随机扰动
             </div>
-            <div class="prop-group-body" id="group-adsr">
-              <canvas id="adsr-canvas" width="340" height="80"></canvas>
-              <div class="adsr-row">
-                <div class="adsr-param">
-                  <label>Attack</label>
-                  <input type="range" id="p-adsr-a" min="0" max="5" step="0.05" value="0">
-                  <div class="val" id="p-adsr-a-val">0.00s</div>
-                </div>
-                <div class="adsr-param">
-                  <label>Decay</label>
-                  <input type="range" id="p-adsr-d" min="0" max="5" step="0.05" value="0">
-                  <div class="val" id="p-adsr-d-val">0.00s</div>
-                </div>
-                <div class="adsr-param">
-                  <label>Sustain</label>
-                  <div class="log-slider">
-                    <input type="range" id="p-adsr-s" min="0" max="1" step="0.01" value="1">
-                  </div>
-                  <div class="val" id="p-adsr-s-val">1.00</div>
-                </div>
-                <div class="adsr-param">
-                  <label>Release</label>
-                  <input type="range" id="p-adsr-r" min="0" max="5" step="0.05" value="0">
-                  <div class="val" id="p-adsr-r-val">0.00s</div>
+            <div class="prop-group-body" id="group-noise">
+              <div class="prop-row">
+                <span class="prop-label">强度噪声</span>
+                <div class="slider-wrap">
+                  <input type="range" id="p-noise-intensity" min="0" max="1" step="0.01" value="0">
+                  <span class="slider-val" id="p-noise-intensity-val">0.00</span>
                 </div>
               </div>
-              <div class="prop-row" style="margin-top:6px">
-                <span class="prop-label">周期</span>
+              <div class="prop-row">
+                <span class="prop-label">速度噪声</span>
                 <div class="slider-wrap">
-                  <input type="range" id="p-adsr-period" min="1" max="20" step="0.5" value="4">
-                  <span class="slider-val" id="p-adsr-period-val">4.0s</span>
+                  <input type="range" id="p-noise-speed" min="0" max="1" step="0.01" value="0">
+                  <span class="slider-val" id="p-noise-speed-val">0.00</span>
+                </div>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">相位噪声</span>
+                <div class="slider-wrap">
+                  <input type="range" id="p-noise-phase" min="0" max="1" step="0.01" value="0">
+                  <span class="slider-val" id="p-noise-phase-val">0.00</span>
                 </div>
               </div>
             </div>
@@ -1215,13 +1164,12 @@ const Editor = {
   gizmoHoverAxis: null, // null, 'x', 'y', 'z'
   eyedropperMode: false,
   _suppressUpdate: false,
-  _adsrAnimFrame: null,
+
 
   async init() {
     const canvas = document.getElementById('lighting-canvas');
     this.engine = new LightingEngine(canvas);
     this.engine.onUpdate = (t) => {
-      this._applyAdsToLights(t);
       this._onFrame(t);
     };
 
@@ -1325,7 +1273,7 @@ const Editor = {
       'p-cr', 'p-cg', 'p-cb',
       'p-intensity', 'p-radius',
       'p-phase-speed', 'p-phase-min', 'p-phase-max', 'p-phase-offset',
-      'p-adsr-a', 'p-adsr-d', 'p-adsr-s', 'p-adsr-r', 'p-adsr-period'
+      'p-noise-intensity', 'p-noise-speed', 'p-noise-phase'
     ];
 
     for (const id of sliderInputs) {
@@ -1335,9 +1283,6 @@ const Editor = {
         this._updateSliderDisplay(id);
         if (id.startsWith('p-cr') || id.startsWith('p-cg') || id.startsWith('p-cb')) {
           this._syncColorFromSliders();
-        }
-        if (id.startsWith('p-adsr')) {
-          this._drawAdsCurve();
         }
         this._onPropChange();
       });
@@ -1402,22 +1347,15 @@ const Editor = {
     const rawV = parseFloat(el.value);
 
     // Log-scale sliders: display the log-mapped actual value
-    const logSliders = ['p-phase-min', 'p-phase-max', 'p-adsr-s'];
+    const logSliders = ['p-phase-min', 'p-phase-max'];
     const isLog = logSliders.includes(id);
 
     if (id === 'p-radius') {
       valEl.textContent = Math.round(rawV);
     } else if (id === 'p-phase-speed' || id === 'p-phase-offset' || id.startsWith('p-d')) {
       valEl.textContent = fmt(rawV, 2);
-    } else if (id.startsWith('p-adsr-')) {
-      if (id === 'p-adsr-s') {
-        const displayV = isLog ? logSliderToVal(rawV) : rawV;
-        valEl.textContent = fmt(displayV, 2);
-      } else if (id === 'p-adsr-period') {
-        valEl.textContent = fmt(rawV, 1) + 's';
-      } else {
-        valEl.textContent = fmt(rawV, 2) + 's';
-      }
+    } else if (id.startsWith('p-noise-')) {
+      valEl.textContent = fmt(rawV, 2);
     } else if (id.startsWith('p-cr') || id.startsWith('p-cg') || id.startsWith('p-cb')) {
       valEl.textContent = Math.round(rawV);
     } else if (isLog) {
@@ -1607,10 +1545,6 @@ const Editor = {
     light.intensity = parseFloat(document.getElementById('p-intensity').value) || 0;
     light.radius = parseFloat(document.getElementById('p-radius').value) || 150;
 
-    // Reset cached base intensity for ADSR
-    const engineLight = this.engine.getLight(this.selectedLightId);
-    if (engineLight) engineLight._baseIntensity = light.intensity;
-
     // Phase: log-scale for min/max
     light.phase = {
       type: document.getElementById('p-phase-type').value,
@@ -1620,13 +1554,11 @@ const Editor = {
       offset: parseFloat(document.getElementById('p-phase-offset').value) || 0
     };
 
-    // ADSR: sustain uses log scale
-    light.adsr = {
-      attack: parseFloat(document.getElementById('p-adsr-a').value) || 0,
-      decay: parseFloat(document.getElementById('p-adsr-d').value) || 0,
-      sustain: logSliderToVal(parseFloat(document.getElementById('p-adsr-s').value) || 0),
-      release: parseFloat(document.getElementById('p-adsr-r').value) || 0,
-      period: parseFloat(document.getElementById('p-adsr-period').value) || 4
+    // Noise: random perturbation for organic feel
+    light.noise = {
+      intensity: parseFloat(document.getElementById('p-noise-intensity').value) || 0,
+      speed: parseFloat(document.getElementById('p-noise-speed').value) || 0,
+      phase: parseFloat(document.getElementById('p-noise-phase').value) || 0
     };
 
     // Sync to engine
@@ -1703,19 +1635,14 @@ const Editor = {
     this._updateSliderDisplay('p-phase-max');
     this._updateSliderDisplay('p-phase-offset');
 
-    // ADSR — log-scale for sustain
-    const adsr = light.adsr || { attack: 0, decay: 0, sustain: 1, release: 0, period: 4 };
-    document.getElementById('p-adsr-a').value = adsr.attack ?? 0;
-    document.getElementById('p-adsr-d').value = adsr.decay ?? 0;
-    document.getElementById('p-adsr-s').value = valToLogSlider(adsr.sustain ?? 1);
-    document.getElementById('p-adsr-r').value = adsr.release ?? 0;
-    document.getElementById('p-adsr-period').value = adsr.period ?? 4;
-    this._updateSliderDisplay('p-adsr-a');
-    this._updateSliderDisplay('p-adsr-d');
-    this._updateSliderDisplay('p-adsr-s');
-    this._updateSliderDisplay('p-adsr-r');
-    this._updateSliderDisplay('p-adsr-period');
-    this._drawAdsCurve();
+    // Noise
+    const noise = light.noise || { intensity: 0, speed: 0, phase: 0 };
+    document.getElementById('p-noise-intensity').value = noise.intensity ?? 0;
+    document.getElementById('p-noise-speed').value = noise.speed ?? 0;
+    document.getElementById('p-noise-phase').value = noise.phase ?? 0;
+    this._updateSliderDisplay('p-noise-intensity');
+    this._updateSliderDisplay('p-noise-speed');
+    this._updateSliderDisplay('p-noise-phase');
 
     this._updateVisibility();
     this._suppressUpdate = false;
@@ -1726,99 +1653,6 @@ const Editor = {
     document.getElementById('g-position').style.display = type === 'point' ? 'block' : 'none';
     document.getElementById('g-direction').style.display = type === 'directional' ? 'block' : 'none';
     document.getElementById('p-radius-row').style.display = type === 'global' ? 'none' : 'flex';
-  },
-
-  // ── ADSR Curve Drawing ──────────────────────────────────────────
-
-  _drawAdsCurve() {
-    const canvas = document.getElementById('adsr-canvas');
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width;
-    const H = canvas.height;
-
-    const a = parseFloat(document.getElementById('p-adsr-a').value) || 0;
-    const d = parseFloat(document.getElementById('p-adsr-d').value) || 0;
-    const s = logSliderToVal(parseFloat(document.getElementById('p-adsr-s').value) || 0);
-    const r = parseFloat(document.getElementById('p-adsr-r').value) || 0;
-    const period = parseFloat(document.getElementById('p-adsr-period').value) || 4;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Background
-    ctx.fillStyle = '#0a0a14';
-    ctx.fillRect(0, 0, W, H);
-
-    // Grid
-    ctx.strokeStyle = '#1a1a2e';
-    ctx.lineWidth = 0.5;
-    for (let i = 1; i < 4; i++) {
-      const y = (i / 4) * H;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
-
-    const pad = 4;
-    const drawW = W - pad * 2;
-    const drawH = H - pad * 2;
-
-    // Draw ADSR envelope for two cycles
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-
-    for (let cycle = 0; cycle < 2; cycle++) {
-      const cycleOffset = cycle * period;
-
-      // Compute ADSR segments in time
-      const totalCycleTime = a + d + r;
-      const sustainTime = Math.max(0, period - totalCycleTime);
-      const sustainEnd = a + d + sustainTime;
-
-      const segments = [
-        { t0: 0, t1: a, v0: 0, v1: 1 },           // Attack
-        { t0: a, t1: a + d, v0: 1, v1: s },         // Decay
-        { t0: a + d, t1: sustainEnd, v0: s, v1: s }, // Sustain
-        { t0: sustainEnd, t1: period, v0: s, v1: 0 }  // Release
-      ];
-
-      for (const seg of segments) {
-        const t0 = (seg.t0 + cycleOffset) / (period * 2);
-        const t1 = (seg.t1 + cycleOffset) / (period * 2);
-        const v0 = seg.v0;
-        const v1 = seg.v1;
-
-        const x0 = pad + t0 * drawW;
-        const y0 = pad + (1 - v0) * drawH;
-        const x1 = pad + t1 * drawW;
-        const y1 = pad + (1 - v1) * drawH;
-
-        if (cycle === 0 && seg === segments[0]) {
-          ctx.moveTo(x0, y0);
-        }
-        ctx.lineTo(x1, y1);
-      }
-    }
-
-    ctx.stroke();
-
-    // Labels
-    ctx.font = '8px JetBrains Mono, monospace';
-    ctx.fillStyle = '#444460';
-    ctx.fillText('A', pad + 2, H - 2);
-    ctx.fillText('D', pad + (a / (period * 2)) * drawW + 2, H - 2);
-    ctx.fillText('S', pad + ((a + d) / (period * 2)) * drawW + 2, H - 2);
-    ctx.fillText('R', pad + ((a + d + Math.max(0, period - a - d - r)) / (period * 2)) * drawW + 2, H - 2);
-
-    // Current time indicator
-    if (this.engine && this.engine.time) {
-      const t = this.engine.time % (period * 2);
-      const tx = pad + (t / (period * 2)) * drawW;
-      ctx.strokeStyle = '#ff4466';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(tx, 0);
-      ctx.lineTo(tx, H);
-      ctx.stroke();
-    }
   },
 
   // ── Light List UI ───────────────────────────────────────────────
@@ -2636,63 +2470,11 @@ gh pr create --title "Lighting config update" --body "自动创建的光照配�
     step.querySelector('.icon').textContent = icons[state] || '○';
   },
 
-  // ── ADSR Integration ─────────────────────────────────────────────
-
-  _computeAdsValue(adsr, t) {
-    if (!adsr) return 1;
-    const a = adsr.attack || 0;
-    const d = adsr.decay || 0;
-    const s = adsr.sustain != null ? adsr.sustain : 1;
-    const r = adsr.release || 0;
-    const p = adsr.period || 4;
-
-    const totalADSR = a + d + r;
-    const sustainTime = Math.max(0, p - totalADSR);
-    const sustainEnd = a + d + sustainTime;
-
-    const phase = t % p;
-
-    if (a > 0 && phase < a) {
-      return phase / a;
-    } else if (d > 0 && phase < a + d) {
-      const dt = (phase - a) / d;
-      return 1 - (1 - s) * dt;
-    } else if (phase < sustainEnd) {
-      return s;
-    } else if (r > 0) {
-      const rt = (phase - sustainEnd) / r;
-      return s * (1 - rt);
-    }
-    return 0;
-  },
-
-  _applyAdsToLights(t) {
-    if (!this.currentScene) return;
-    const scene = this.config.scenes[this.currentScene];
-    for (const light of scene.lights) {
-      if (!light.adsr) continue;
-      const { attack, decay, release } = light.adsr;
-      if ((attack || 0) <= 0 && (decay || 0) <= 0 && (release || 0) <= 0) continue;
-
-      const adsrVal = this._computeAdsValue(light.adsr, t);
-      const engineLight = this.engine.getLight(light.id);
-      if (engineLight) {
-        if (engineLight._baseIntensity == null) engineLight._baseIntensity = light.intensity;
-        engineLight.intensity = engineLight._baseIntensity * adsrVal;
-      }
-    }
-  },
-
   // ── Frame Callback ──────────────────────────────────────────────
 
   _onFrame(t) {
     document.getElementById('time-display').textContent = `t = ${t.toFixed(2)}s`;
     this._drawMarkers();
-
-    // Update ADSR curve time indicator periodically
-    if (this.selectedLightId && Math.floor(t * 4) !== Math.floor((t - 0.016) * 4)) {
-      this._drawAdsCurve();
-    }
   },
 
   _updateStatus() {
