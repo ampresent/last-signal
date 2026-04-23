@@ -365,6 +365,122 @@ SCENE_LIGHTS = {
              "radius": 400, "phase": _moonlight_clouds},
         ],
     },
+
+    # ── ECHO 大厅：冷白灯光 + 全息投影 + 安检扫描 ──
+    "echo_lobby": {
+        "base": "bg_echo_lobby.png",
+        "ambient": 0.03,
+        "lights": [
+            # 大厅顶灯（冷白）
+            {"name": "ceiling", "pos": (480, 80),
+             "color": [0.85, 0.9, 1.0], "intensity": (0.06, 0.2),
+             "radius": 600, "phase": _steady},
+            # 全息公司标志（蓝色脉冲）
+            {"name": "holo_logo", "pos": (480, 250),
+             "color": [0.1, 0.4, 0.9], "intensity": (0.04, 0.18),
+             "radius": 300, "phase": _pulse_slow},
+            # 安检门扫描（红色闪烁）
+            {"name": "scanner", "pos": (480, 450),
+             "color": [0.9, 0.15, 0.1], "intensity": (0.02, 0.1),
+             "radius": 250, "phase": _flicker},
+            # 电梯指示灯（琥珀色）
+            {"name": "elevator", "pos": (820, 350),
+             "color": [1.0, 0.7, 0.2], "intensity": (0.03, 0.1),
+             "radius": 200, "phase": _pulse_medium},
+        ],
+    },
+
+    # ── 地下维护通道：红色应急灯 + 蒸汽 + 管道 ──
+    "maintenance": {
+        "base": "bg_maintenance.png",
+        "ambient": 0.015,
+        "lights": [
+            # 红色应急灯（左侧）
+            {"name": "emergency_l", "pos": (150, 100),
+             "color": [0.9, 0.1, 0.05], "intensity": (0.04, 0.15),
+             "radius": 350, "phase": _pulse_medium},
+            # 红色应急灯（右侧）
+            {"name": "emergency_r", "pos": (800, 120),
+             "color": [0.85, 0.08, 0.05], "intensity": (0.03, 0.12),
+             "radius": 300, "phase": _phase_shift(_pulse_medium, 4)},
+            # 管道接缝漏光（暖黄）
+            {"name": "pipe_leak", "pos": (400, 350),
+             "color": [0.9, 0.8, 0.5], "intensity": (0.02, 0.08),
+             "radius": 200, "phase": _steady},
+            # 远处防爆门缝隙（冷蓝）
+            {"name": "blast_door", "pos": (480, 400),
+             "color": [0.3, 0.4, 0.7], "intensity": (0.02, 0.06),
+             "radius": 300, "phase": _steady},
+        ],
+    },
+
+    # ── 数据避难所：多屏幕 + 霓虹 + 车站灯 ──
+    "data_haven": {
+        "base": "bg_data_haven.png",
+        "ambient": 0.02,
+        "lights": [
+            # 主屏幕组（青色）
+            {"name": "screen_cyan", "pos": (300, 280),
+             "color": [0.1, 0.8, 0.9], "intensity": (0.05, 0.22),
+             "radius": 350, "phase": _irregular_screen},
+            # 副屏幕（绿色）
+            {"name": "screen_green", "pos": (650, 300),
+             "color": [0.15, 0.7, 0.2], "intensity": (0.04, 0.18),
+             "radius": 300, "phase": _phase_shift(_irregular_screen, 3)},
+            # 霓虹装饰（品红）
+            {"name": "neon_pink", "pos": (480, 100),
+             "color": [0.9, 0.15, 0.5], "intensity": (0.03, 0.12),
+             "radius": 400, "phase": _flicker},
+            # 旧列车内部灯（暖色）
+            {"name": "train_light", "pos": (850, 450),
+             "color": [1.0, 0.85, 0.6], "intensity": (0.02, 0.08),
+             "radius": 250, "phase": _steady},
+        ],
+    },
+
+    # ── 闪回实验室：冷白临床灯 + 警报 + 舱体光 ──
+    "flashback": {
+        "base": "bg_flashback.png",
+        "ambient": 0.05,
+        "lights": [
+            # 临床顶灯（冷白，高压）
+            {"name": "clinical", "pos": (480, 60),
+             "color": [0.9, 0.95, 1.0], "intensity": (0.08, 0.3),
+             "radius": 600, "phase": _steady},
+            # 警报灯（红色脉冲，渐强）
+            {"name": "alarm", "pos": (480, 300),
+             "color": [0.9, 0.1, 0.05], "intensity": (0.02, 0.25),
+             "radius": 500, "phase": _pulse_medium},
+            # 3号舱体（异常闪烁）
+            {"name": "pod_3", "pos": (350, 350),
+             "color": [0.3, 0.6, 0.9], "intensity": (0.04, 0.2),
+             "radius": 250, "phase": _flicker},
+            # 全息监控屏（蓝色）
+            {"name": "monitor", "pos": (650, 250),
+             "color": [0.15, 0.4, 0.85], "intensity": (0.03, 0.12),
+             "radius": 200, "phase": _irregular_screen},
+        ],
+    },
+
+    # ── 医院走廊：自然阳光 + 走廊灯 + 窗光 ──
+    "hospital": {
+        "base": "bg_hospital.png",
+        "ambient": 0.04,
+        "lights": [
+            # 窗户阳光（暖色，主光源）
+            {"name": "sunlight", "pos": (800, 300),
+             "color": [1.0, 0.95, 0.8], "intensity": (0.08, 0.3),
+             "radius": 500, "phase": _steady},
+            # 走廊灯（冷白）
+            {"name": "corridor", "pos": (480, 50),
+             "color": [0.85, 0.9, 0.95], "intensity": (0.04, 0.12),
+             "radius": 400, "phase": _steady},
+            # 病房门缝光（暖黄）
+            {"name": "room_light", "pos": (200, 400),
+             "color": [1.0, 0.9, 0.7], "intensity": (0.02, 0.08),
+             "radius": 200, "phase": _pulse_slow},
+        ],
+    },
 }
 
 
