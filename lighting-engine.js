@@ -359,6 +359,33 @@ class LightingEngine {
         break;
       }
 
+      case 'drift': {
+        // Non-periodic smooth random using noise-like function
+        const t_scaled = t * speed + offset;
+        // Multi-octave pseudo-Perlin noise via sine sums
+        let v = 0;
+        v += Math.sin(t_scaled * 0.7 + 1.3) * 0.4;
+        v += Math.sin(t_scaled * 1.3 + 2.7) * 0.3;
+        v += Math.sin(t_scaled * 2.1 + 0.5) * 0.2;
+        v += Math.sin(t_scaled * 3.7 + 4.1) * 0.1;
+        v = 0.5 + v * 0.5; // normalize to ~0-1
+        val = min + range * Math.max(0, Math.min(1, v));
+        break;
+      }
+
+      case 'burst': {
+        const t_scaled = t * speed + offset;
+        // Slow baseline drift
+        let base = 0.5 + 0.3 * Math.sin(t_scaled * 0.3 + 1.0);
+        // Random burst trigger (using deterministic noise)
+        const burstPhase = (t_scaled * 2.3) % 7.0;
+        const burstStrength = Math.max(0, 1.0 - burstPhase * burstPhase);
+        const burst = burstStrength * Math.max(0, Math.sin(t_scaled * 13.7));
+        let v = base * 0.3 + burst * 0.7;
+        val = min + range * Math.max(0, Math.min(1, v));
+        break;
+      }
+
       default:
         val = (min + max) / 2;
     }
