@@ -51,20 +51,23 @@ def _pulse_medium(frame_idx, num_frames):
     return max(0.0, min(1.0, 0.5 + 0.5 * math.sin(t * 2.0)))
 
 def _irregular_car(frame_idx, num_frames):
-    """车灯：不规则扫过 + soft threshold 渐入渐出。"""
+    """车灯：不规则扫过 + soft threshold，明暗对比强烈。"""
     t = 2 * math.pi * frame_idx / num_frames
     v = (0.5 + 0.5 * math.sin(t * 1.0 + 0.0)
          + 0.3 * math.sin(t * 3.0 + 1.2)
          + 0.2 * math.sin(t * 5.0 + 2.8))
     v = v / 1.0
     v = max(0.0, min(1.0, v))
-    if v < 0.35:
-        v *= 0.2
-    elif v < 0.55:
-        alpha = (v - 0.35) / 0.20
-        alpha = alpha * alpha * (3 - 2 * alpha)
-        v = 0.35 * 0.2 * (1 - alpha) + v * alpha
-    return v
+    # 提高对比度：暗区更暗，亮区更亮
+    if v < 0.4:
+        v *= 0.1   # 没车时几乎全暗
+    elif v < 0.6:
+        alpha = (v - 0.4) / 0.2
+        alpha = alpha * alpha * (3 - 2 * alpha)  # smoothstep
+        v = 0.4 * 0.1 * (1 - alpha) + v * alpha
+    else:
+        v = 0.6 + (v - 0.6) * 1.5  # 拉高亮区
+    return max(0.0, min(1.0, v))
 
 def _irregular_screen(frame_idx, num_frames):
     """屏幕/LED：不规则亮度闪烁。"""
@@ -122,15 +125,15 @@ SCENE_LIGHTS = {
              "color": [0.55, 0.65, 0.85], "intensity": (0.08, 0.22),
              "radius": 600, "phase": _moonlight_clouds,
              "mask": {"type": "cone", "dir": (1, 0.3), "angle_deg": 120, "feather": 30}},
-            # 车灯：只照亮窗户区域，几乎不进室内
+            # 车灯：照亮窗户区域，微弱进室内
             {"name": "car1", "pos": (60, 220),
-             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.08),
+             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.35),
              "radius": 500, "phase": _irregular_car,
-             "mask": {"type": "rect", "region": (0, 80, 300, 400), "feather": 60}},
+             "mask": {"type": "rect", "region": (0, 80, 300, 400), "feather": 80}},
             {"name": "car2", "pos": (200, 180),
-             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.04),
+             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.2),
              "radius": 450, "phase": _phase_shift(_irregular_car, 3),
-             "mask": {"type": "rect", "region": (0, 60, 320, 420), "feather": 80}},
+             "mask": {"type": "rect", "region": (0, 60, 320, 420), "feather": 100}},
             # 屏幕光：照亮桌面和面对屏幕的墙壁，不照天花板
             {"name": "screen", "pos": (770, 320),
              "color": [0.15, 0.7, 0.25], "intensity": (0.03, 0.18),
