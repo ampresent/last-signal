@@ -428,6 +428,44 @@ class LightingEngine {
         val = (min + max) / 2;
     }
 
+    // ── Noise perturbation ──
+    // Adds organic randomness so lights don't feel mechanical
+    const noise = light.noise;
+    if (noise) {
+      const ni = noise.intensity || 0;
+      const ns = noise.speed || 0;
+      const np = noise.phase || 0;
+
+      if (ni > 0 || ns > 0 || np > 0) {
+        // Use a deterministic noise seed based on light id hash
+        const seed = (light.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+        const t_noise = t * 1.7 + seed;
+
+        // Intensity noise: random brightness wobble
+        if (ni > 0) {
+          const n1 = Math.sin(t_noise * 3.1 + seed * 0.1) * 0.5
+                   + Math.sin(t_noise * 7.3 + seed * 0.3) * 0.3
+                   + Math.sin(t_noise * 13.7 + seed * 0.7) * 0.2;
+          val += n1 * ni * range * 0.5;
+        }
+
+        // Speed noise: random speed variation
+        if (ns > 0) {
+          const n2 = Math.sin(t_noise * 2.3 + seed * 0.2);
+          val += n2 * ns * range * 0.15;
+        }
+
+        // Phase noise: random phase offset
+        if (np > 0) {
+          const n3 = Math.sin(t_noise * 5.1 + seed * 0.5) * 0.5
+                   + Math.sin(t_noise * 11.3 + seed * 0.9) * 0.5;
+          val += n3 * np * range * 0.2;
+        }
+
+        val = Math.max(min, Math.min(max, val));
+      }
+    }
+
     return val;
   }
 
