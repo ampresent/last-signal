@@ -672,6 +672,24 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* ── Eyedropper button ──────────────────────────────────────────── */
+#btn-depth-overlay.active {
+  background: rgba(0, 200, 255, 0.2);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+#depth-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 960px; height: 640px;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: screen;
+  display: none;
+}
+
+#depth-overlay.visible { display: block; }
+
 #btn-eyedropper.active {
   background: rgba(255,170,34,0.2);
   border-color: var(--warn);
@@ -752,6 +770,7 @@ input[type="range"]::-moz-range-thumb {
       <div class="tb-sep"></div>
       <button class="tb-btn" id="btn-save" title="保存并创建 PR">💾 保存 PR</button>
       <button class="tb-btn purple" id="btn-export" title="导出当前帧">📷 导出帧</button>
+      <button class="tb-btn" id="btn-depth-overlay" title="显示/隐藏深度图叠加 (D)">🗺️ 深度图</button>
       <div class="tb-sep"></div>
       <button class="tb-btn danger" id="btn-reset-scene" title="重置场景到默认值">⚠ 重置场景</button>
       <div id="time-display">t = 0.00s</div>
@@ -759,6 +778,7 @@ input[type="range"]::-moz-range-thumb {
 
     <div id="canvas-wrap">
       <canvas id="lighting-canvas" width="960" height="640"></canvas>
+      <canvas id="depth-overlay" width="960" height="640"></canvas>
       <canvas id="marker-overlay" width="960" height="640"></canvas>
       <div id="coord-overlay"></div>
     </div>
@@ -767,7 +787,7 @@ input[type="range"]::-moz-range-thumb {
       <span class="ok">●</span>
       <span id="status-text">光照引擎就绪</span>
       <span id="shortcut-hints">
-        <kbd>Space</kbd> 播放  <kbd>Del</kbd> 删除  <kbd>R</kbd> 随机  <kbd>Shift+拖拽</kbd> Z轴  <kbd>I</kbd> 吸色
+        <kbd>Space</kbd> 播放  <kbd>Del</kbd> 删除  <kbd>R</kbd> 随机  <kbd>Shift+拖拽</kbd> Z轴  <kbd>I</kbd> 吸色  <kbd>D</kbd> 深度图
       </span>
       <span id="save-status"></span>
     </div>
@@ -847,6 +867,7 @@ input[type="range"]::-moz-range-thumb {
                 <div class="slider-wrap">
                   <input type="range" id="p-depth" min="0" max="1" step="0.01">
                   <span class="slider-val" id="p-depth-val">0.30</span>
+                  <button class="tb-btn" id="btn-snap-depth" title="根据深度图自动设置 Z" style="padding:2px 6px;font-size:9px;">📍自动</button>
                 </div>
               </div>
             </div>
@@ -1263,9 +1284,11 @@ const Editor = {
     document.getElementById('btn-export').addEventListener('click', () => this.exportFrame());
     document.getElementById('btn-reset-scene').addEventListener('click', () => this.resetScene());
     document.getElementById('btn-randomize').addEventListener('click', () => this.randomizeSelected());
+    document.getElementById('btn-snap-depth').addEventListener('click', () => this.snapSelectedDepth());
 
     // Eyedropper
     document.getElementById('btn-eyedropper').addEventListener('click', () => this.toggleEyedropper());
+    document.getElementById('btn-depth-overlay').addEventListener('click', () => this.toggleDepthOverlay());
 
     // Save modal close
     document.getElementById('save-modal-close').addEventListener('click', () => {
@@ -1422,9 +1445,12 @@ const Editor = {
     if (!sceneId || !this.config.scenes[sceneId]) return;
     this.currentScene = sceneId;
     this.selectedLightId = null;
+    this._depthImageData = null; // reset depth cache
 
     try {
       await this.engine.loadScene(sceneId, this.config);
+      // Load depth map for auto-depth sampling
+      await this._loadDepthMap(sceneId);
       this.engine.start();
       this.playing = true;
       document.getElementById('btn-play').textContent = '⏸ 暂停';
@@ -1434,6 +1460,53 @@ const Editor = {
     } catch (err) {
       this._toast(`加载失败: ${err.message}`, true);
       console.error(err);
+    }
+  },
+
+  // ── Depth Map Sampling ──────────────────────────────────────────
+
+  async _loadDepthMap(sceneId) {
+    this._depthImageData = null;
+    const scene = this.config.scenes[sceneId];
+    if (!scene || !scene.depth) return;
+
+    try {
+      const img = new Image();
+      const loaded = await new Promise(resolve => {
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = `assets/${scene.depth}`;
+      });
+      if (!loaded) return;
+
+      const c = document.createElement('canvas');
+      c.width = 960; c.height = 640;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0, 960, 640);
+      this._depthImageData = cx.getImageData(0, 0, 960, 640);
+      console.log(`🗺️ Depth map loaded for auto-depth: ${scene.depth}`);
+    } catch (e) {
+      console.warn('Depth map load failed:', e);
+    }
+  },
+
+  sampleDepth(nx, ny) {
+    if (!this._depthImageData) return null;
+    const px = Math.floor(nx * 960);
+    const py = Math.floor(ny * 640);
+    if (px < 0 || px >= 960 || py < 0 || py >= 640) return null;
+    const idx = (py * 960 + px) * 4;
+    // Depth map: grayscale, 0=near, 255=far → normalize to 0~1
+    const raw = this._depthImageData.data[idx];
+    return raw / 255;
+  },
+
+  autoDepthForLight(light) {
+    if (light.type !== 'point') return;
+    if (!this._depthImageData) return;
+    const d = this.sampleDepth(light.x, light.y);
+    if (d !== null) {
+      light.depth = Math.round(d * 100) / 100;
     }
   },
 
@@ -1470,12 +1543,16 @@ const Editor = {
     };
 
     const light = defaults[type] || defaults.point;
+    // Auto-depth for point lights
+    if (light.type === 'point') {
+      this.autoDepthForLight(light);
+    }
     scene.lights.push(light);
     this.engine.addLight(light);
     this.selectedLightId = id;
     this._updateLightList();
     this._updatePropsPanel();
-    this._toast(`已添加: ${light.name}`);
+    this._toast(`已添加: ${light.name}` + (light.type === 'point' ? ` (深度: ${light.depth})` : ''));
   },
 
   async removeLight(id) {
@@ -1802,6 +1879,44 @@ const Editor = {
     }
   },
 
+  // ── Depth Map Overlay ─────────────────────────────────────────
+
+  toggleDepthOverlay() {
+    this._depthOverlayVisible = !this._depthOverlayVisible;
+    const btn = document.getElementById('btn-depth-overlay');
+    const overlay = document.getElementById('depth-overlay');
+    if (this._depthOverlayVisible) {
+      btn.classList.add('active');
+      overlay.classList.add('visible');
+      this._renderDepthOverlay();
+      this._toast('深度图叠加：白色=近，黑色=远');
+    } else {
+      btn.classList.remove('active');
+      overlay.classList.remove('visible');
+    }
+  },
+
+  _renderDepthOverlay() {
+    if (!this._depthImageData) return;
+    const canvas = document.getElementById('depth-overlay');
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(960, 640);
+    const src = this._depthImageData.data;
+    const dst = imgData.data;
+
+    for (let i = 0; i < src.length; i += 4) {
+      const depth = src[i]; // grayscale, 0=far, 255=near
+      // Colorize: near=white, far=dark blue
+      const v = depth;
+      dst[i]     = Math.floor(v * 0.4);     // R
+      dst[i + 1] = Math.floor(v * 0.6);     // G
+      dst[i + 2] = Math.floor(v * 1.0);     // B
+      dst[i + 3] = 180;                      // A
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  },
+
   _sampleColorAtPixel(clientX, clientY) {
     const canvas = document.getElementById('lighting-canvas');
     const rect = canvas.getBoundingClientRect();
@@ -1952,7 +2067,9 @@ const Editor = {
     // Coordinate overlay
     const overlay = document.getElementById('coord-overlay');
     overlay.style.display = 'block';
-    overlay.textContent = `x: ${uv.x.toFixed(3)}  y: ${uv.y.toFixed(3)}`;
+    const depthSample = this.sampleDepth(uv.x, uv.y);
+    const depthStr = depthSample !== null ? `  z: ${depthSample.toFixed(3)} (depth map)` : '';
+    overlay.textContent = `x: ${uv.x.toFixed(3)}  y: ${uv.y.toFixed(3)}${depthStr}`;
 
     const canvas = document.getElementById('lighting-canvas');
 
@@ -1995,6 +2112,8 @@ const Editor = {
           // Free X+Y drag
           light.x = uv.x;
           light.y = uv.y;
+          // Auto-depth from depth map
+          this.autoDepthForLight(light);
         }
 
         this.engine.updateLight(light.id, light);
@@ -2195,6 +2314,20 @@ const Editor = {
     }
   },
 
+  snapSelectedDepth() {
+    if (!this.selectedLightId || !this.currentScene) return;
+    const scene = this.config.scenes[this.currentScene];
+    const light = scene.lights.find(l => l.id === this.selectedLightId);
+    if (!light || light.type !== 'point') {
+      this._toast('仅支持点光源', true);
+      return;
+    }
+    this.autoDepthForLight(light);
+    this.engine.updateLight(light.id, light);
+    this._updatePropsPanel();
+    this._toast(`📍 深度已从深度图采样: ${light.depth.toFixed(3)}`);
+  },
+
   randomizeAll() {
     if (!this.currentScene) return;
     const scene = this.config.scenes[this.currentScene];
@@ -2247,6 +2380,11 @@ const Editor = {
       case 'I':
         e.preventDefault();
         this.toggleEyedropper();
+        break;
+      case 'd':
+      case 'D':
+        e.preventDefault();
+        this.toggleDepthOverlay();
         break;
       case 'Escape':
         if (this.eyedropperMode) {
