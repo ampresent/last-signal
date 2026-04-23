@@ -93,31 +93,31 @@ def postprocess_depth(depth, target_h, target_w):
 
 # ── Light Source Definitions ───────────────────────────────────────
 LIGHT_SOURCES = [
-    # Terminal (green glow) — center of desk ~ (700, 500)
-    {
-        "name": "terminal",
-        "pos": (700, 500),
-        "color": np.array([0.2, 0.9, 0.3]),
-        "intensity_range": (0.6, 1.0),
-        "radius": 350.0,
-        "phase_deg": 0,
-    },
-    # Ceiling light (warm amber) — center-top ~ (480, 80)
+    # Ceiling light — warm white, main illumination source
     {
         "name": "ceiling",
-        "pos": (480, 80),
-        "color": np.array([1.0, 0.85, 0.6]),
-        "intensity_range": (0.5, 0.9),
+        "pos": (480, 120),
+        "color": np.array([1.0, 0.97, 0.92]),   # warm white, very subtle warmth
+        "intensity_range": (0.4, 0.8),
+        "radius": 550.0,
+        "phase_deg": 0,
+    },
+    # Window — cool moonlight / street light leaking in
+    {
+        "name": "window",
+        "pos": (80, 320),
+        "color": np.array([0.92, 0.95, 1.0]),   # cool white, subtle blue tint
+        "intensity_range": (0.2, 0.6),
         "radius": 500.0,
         "phase_deg": 120,
     },
-    # Window ambient (cool blue) — left side ~ (50, 350)
+    # Desk lamp — neutral warm, localized
     {
-        "name": "window",
-        "pos": (50, 350),
-        "color": np.array([0.3, 0.5, 0.8]),
+        "name": "desk_lamp",
+        "pos": (650, 380),
+        "color": np.array([1.0, 0.95, 0.88]),   # neutral warm white
         "intensity_range": (0.3, 0.7),
-        "radius": 600.0,
+        "radius": 300.0,
         "phase_deg": 240,
     },
 ]
