@@ -138,21 +138,23 @@ SCENE_LIGHTS = {
              "color": [0.55, 0.65, 0.85], "intensity": (0.15, 0.45),
              "phase": _moonlight_clouds,
              "mask": {"type": "rect", "region": (0, 80, 400, 450), "feather": 120}},
-            # 车灯：方向光（平行光），从窗户射入，不会穿墙
-            # mask 平移模拟车辆驶过，强度已降低
+            # 车灯：方向光（平行光），从窗户射入，物理光锥扩散
+            # 光从窗户（光圈）进入后呈梯形扩散，不穿墙
             {"name": "car1",
              "distant": True,
              "dir": (1, 0.4),
              "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.22),
              "phase": _irregular_car,
-             "mask": {"type": "rect", "region": (0, 60, 300, 430), "feather": 60},
+             "mask": {"type": "frustum", "mask_file": "assets/masks/apartment_window_mask.png",
+                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500},
              "mask_phase": {"func": _car_sweep, "range": (-300, 640), "axis": "x"}},
             {"name": "car2",
              "distant": True,
              "dir": (1, 0.35),
              "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.15),
              "phase": _phase_shift(_irregular_car, 3),
-             "mask": {"type": "rect", "region": (0, 60, 300, 430), "feather": 80},
+             "mask": {"type": "frustum", "mask_file": "assets/masks/apartment_window_mask.png",
+                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500},
              "mask_phase": {"func": _phase_shift(_car_sweep, 6), "range": (-300, 640), "axis": "x"}},
             # 屏幕光：照亮桌面和面对屏幕的墙壁
             {"name": "screen", "pos": (770, 320),
@@ -361,6 +363,108 @@ def generate_light_mask(mask_def, img_h, img_w, light_pos):
         outside = 1.0 - interior * mask_def.get("block_strength", 0.9)
         return np.clip(outside, 0, 1)
 
+    elif mask_def["type"] == "frustum":
+        # 光锥：光从窗户玻璃射入室内，符合物理规律
+        # 支持两种模式：
+        #   1. mask_file: 用精确的窗户 mask PNG 作为透光口（推荐）
+        #   2. aperture: 用矩形 + frame_width 内缩近似
+        spread = mask_def.get("spread", 0.4)
+        direction = mask_def.get("direction", "right")
+        feather = float(mask_def.get("feather", 20))
+        max_depth = float(mask_def.get("max_depth", 400))
+        frame_w = float(mask_def.get("frame_width", 15))
+
+        yy, xx = np.mgrid[0:img_h, 0:img_w].astype(np.float32)
+        mask = np.zeros((img_h, img_w), dtype=np.float32)
+
+        # ── 确定透光口（mask 或矩形） ──
+        mask_file = mask_def.get("mask_file")
+        if mask_file:
+            # 从 PNG 加载精确窗户 mask
+            raw = cv2.imread(mask_file, cv2.IMREAD_GRAYSCALE)
+            if raw is None:
+                print(f"  ⚠️ Cannot load mask: {mask_file}")
+                return mask
+            # resize 到目标尺寸
+            if raw.shape[:2] != (img_h, img_w):
+                raw = cv2.resize(raw, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
+            glass_mask = (raw > 128).astype(np.float32)
+            # 找 bounding box
+            ys, xs = np.where(glass_mask > 0.5)
+            if len(ys) == 0:
+                return mask
+            gx1, gx2 = float(xs.min()), float(xs.max())
+            gy1, gy2 = float(ys.min()), float(ys.max())
+        else:
+            # 矩形 aperture 内缩 frame_w
+            ax1, ay1, ax2, ay2 = [float(v) for v in mask_def["aperture"]]
+            gx1, gy1 = ax1 + frame_w, ay1 + frame_w
+            gx2, gy2 = ax2 - frame_w, ay2 - frame_w
+            if gx2 <= gx1 or gy2 <= gy1:
+                return mask
+            glass_mask = np.zeros((img_h, img_w), dtype=np.float32)
+            glass_mask[int(gy1):int(gy2), int(gx1):int(gx2)] = 1.0
+
+        glass_cy = (gy1 + gy2) * 0.5
+        glass_half_h = (gy2 - gy1) * 0.5
+        glass_cx = (gx1 + gx2) * 0.5
+        glass_half_w = (gx2 - gx1) * 0.5
+
+        # ── 玻璃区域内的 feather（边缘渐变） ──
+        glass_feather = float(mask_def.get("glass_feather", 8))
+        dist_to_glass_edge = np.minimum(
+            np.minimum(xx - gx1, gx2 - xx),
+            np.minimum(yy - gy1, gy2 - yy)
+        )
+        glass_transmittance = np.clip(dist_to_glass_edge / glass_feather, 0, 1)
+        glass_transmittance *= glass_mask  # 只在 mask 白区透光
+
+        # ── 光锥扩散方向 ──
+        if direction == "right":
+            in_room = xx > gx2
+            dist_from_glass = np.maximum(0, xx - gx2)
+            dist_ratio = np.clip(dist_from_glass / max_depth, 0, 1)
+            cone_half_h = glass_half_h * (1.0 + dist_ratio * spread * 2.5)
+            cy_dist = np.abs(yy - glass_cy)
+            vert_inside = np.clip((cone_half_h - cy_dist) / feather, 0, 1)
+            horiz_strength = np.clip(1.0 - dist_ratio * 1.4, 0, 1)
+            room_mask = vert_inside * horiz_strength
+        elif direction == "left":
+            in_room = xx < gx1
+            dist_from_glass = np.maximum(0, gx1 - xx)
+            dist_ratio = np.clip(dist_from_glass / max_depth, 0, 1)
+            cone_half_h = glass_half_h * (1.0 + dist_ratio * spread * 2.5)
+            cy_dist = np.abs(yy - glass_cy)
+            vert_inside = np.clip((cone_half_h - cy_dist) / feather, 0, 1)
+            horiz_strength = np.clip(1.0 - dist_ratio * 1.4, 0, 1)
+            room_mask = vert_inside * horiz_strength
+        elif direction == "down":
+            in_room = yy > gy2
+            dist_from_glass = np.maximum(0, yy - gy2)
+            dist_ratio = np.clip(dist_from_glass / max_depth, 0, 1)
+            cone_half_w = glass_half_w * (1.0 + dist_ratio * spread * 2.5)
+            cx_dist = np.abs(xx - glass_cx)
+            horiz_inside = np.clip((cone_half_w - cx_dist) / feather, 0, 1)
+            vert_strength = np.clip(1.0 - dist_ratio * 1.4, 0, 1)
+            room_mask = horiz_inside * vert_strength
+        elif direction == "up":
+            in_room = yy < gy1
+            dist_from_glass = np.maximum(0, gy1 - yy)
+            dist_ratio = np.clip(dist_from_glass / max_depth, 0, 1)
+            cone_half_w = glass_half_w * (1.0 + dist_ratio * spread * 2.5)
+            cx_dist = np.abs(xx - glass_cx)
+            horiz_inside = np.clip((cone_half_w - cx_dist) / feather, 0, 1)
+            vert_strength = np.clip(1.0 - dist_ratio * 1.4, 0, 1)
+            room_mask = horiz_inside * vert_strength
+        else:
+            room_mask = np.zeros((img_h, img_w), dtype=np.float32)
+
+        # 合成：玻璃区域 + 室内光锥
+        mask = np.where(in_room, room_mask, 0.0)
+        mask = np.where(glass_mask > 0.5, glass_transmittance, mask)
+
+        return np.clip(mask, 0, 1)
+
     elif mask_def["type"] == "cone":
         # 锥形方向光：从光源位置出发，沿指定方向的锥形范围
         dx_dir, dy_dir = mask_def["dir"]
@@ -460,25 +564,29 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
         if mask_def:
             lx = src["pos"][0] if "pos" in src else img_w // 2
             ly = src["pos"][1] if "pos" in src else img_h // 2
-            # Apply mask_phase to shift mask region dynamically
+            # Apply mask_phase to shift the generated mask dynamically
             mp = src.get("mask_phase")
             if mp:
                 t = mp["func"](frame_idx, NUM_FRAMES)
                 lo, hi = mp["range"]
                 offset = lo + (hi - lo) * t
-                # Shift mask region along the specified axis
-                mask_def_shifted = dict(mask_def)
-                region = list(mask_def["region"])
+                # Generate mask at original position, then shift the mask itself
+                light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
+                # Roll the mask array along the specified axis
+                shift_px = int(round(offset))
                 if mp.get("axis", "x") == "x":
-                    w = region[2] - region[0]
-                    region[0] = int(offset)
-                    region[2] = int(offset + w)
+                    light_mask = np.roll(light_mask, shift_px, axis=1)
+                    # Zero out wrapped-around region
+                    if shift_px > 0:
+                        light_mask[:, :shift_px] = 0
+                    elif shift_px < 0:
+                        light_mask[:, shift_px:] = 0
                 else:
-                    h = region[3] - region[1]
-                    region[1] = int(offset)
-                    region[3] = int(offset + h)
-                mask_def_shifted["region"] = tuple(region)
-                light_mask = generate_light_mask(mask_def_shifted, img_h, img_w, (lx, ly))
+                    light_mask = np.roll(light_mask, shift_px, axis=0)
+                    if shift_px > 0:
+                        light_mask[:shift_px, :] = 0
+                    elif shift_px < 0:
+                        light_mask[shift_px:, :] = 0
             else:
                 light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
         else:
