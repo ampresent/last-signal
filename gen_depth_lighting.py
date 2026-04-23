@@ -120,27 +120,29 @@ SCENE_LIGHTS = {
         "base": "bg_apartment.png",
         "ambient": 0.02,
         "lights": [
-            # 月光从窗户进来，在窗附近最强，向室内衰减
-            {"name": "moonlight", "pos": (120, 280),
-             "color": [0.55, 0.65, 0.85], "intensity": (0.08, 0.22),
-             "radius": 600, "phase": _moonlight_clouds,
-             "mask": {"type": "cone", "dir": (1, 0.3), "angle_deg": 120, "feather": 30}},
-            # 车灯：照亮窗户区域，微弱进室内
-            {"name": "car1", "pos": (60, 220),
-             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.35),
-             "radius": 500, "phase": _irregular_car,
-             "mask": {"type": "rect", "region": (0, 80, 300, 400), "feather": 80}},
-            {"name": "car2", "pos": (200, 180),
-             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.2),
-             "radius": 450, "phase": _phase_shift(_irregular_car, 3),
-             "mask": {"type": "rect", "region": (0, 60, 320, 420), "feather": 100}},
-            # 屏幕光：照亮桌面和面对屏幕的墙壁，不照天花板
+            # 月光：方向光，从窗外平行射入，无距离衰减
+            {"name": "moonlight",
+             "distant": True,
+             "dir": (1, 0.3),              # 光线方向：从左上往右下
+             "color": [0.55, 0.65, 0.85], "intensity": (0.15, 0.45),
+             "phase": _moonlight_clouds,
+             "mask": {"type": "rect", "region": (0, 80, 400, 450), "feather": 120}},
+            # 车灯：点光源，位置在街上（窗户左下方远处）
+            {"name": "car1", "pos": (-200, 500),
+             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.6),
+             "radius": 800, "phase": _irregular_car,
+             "mask": {"type": "rect", "region": (0, 60, 350, 430), "feather": 80}},
+            {"name": "car2", "pos": (400, 600),
+             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.35),
+             "radius": 900, "phase": _phase_shift(_irregular_car, 3),
+             "mask": {"type": "rect", "region": (0, 60, 350, 430), "feather": 100}},
+            # 屏幕光：照亮桌面和面对屏幕的墙壁
             {"name": "screen", "pos": (770, 320),
-             "color": [0.15, 0.7, 0.25], "intensity": (0.03, 0.18),
+             "color": [0.15, 0.7, 0.25], "intensity": (0.06, 0.35),
              "radius": 280, "phase": _irregular_screen,
              "mask": {"type": "cone", "dir": (-0.5, 1), "angle_deg": 100, "feather": 25}},
             {"name": "screen_flash", "pos": (750, 280),
-             "color": [0.3, 0.85, 0.4], "intensity": (0.0, 0.08),
+             "color": [0.3, 0.85, 0.4], "intensity": (0.0, 0.15),
              "radius": 200, "phase": _phase_shift(_irregular_screen, 5),
              "mask": {"type": "cone", "dir": (-0.3, 1), "angle_deg": 80, "feather": 20}},
         ],
@@ -430,31 +432,42 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
     total_light += scene_config.get("ambient", AMBIENT)
 
     for src in scene_config["lights"]:
-        lx, ly = src["pos"]
         color = np.array(src["color"])
         r_min, r_max = src["intensity"]
-        radius = src["radius"]
-
         intensity = r_min + (r_max - r_min) * src["phase"](frame_idx, NUM_FRAMES)
 
-        dist = np.sqrt((xx - lx) ** 2 + (yy - ly) ** 2)
-        attenuation = 1.0 / (1.0 + (dist / radius) ** 2)
-        depth_factor = 1.0 - depth_float
-        shadow = ray_march_shadows(depth_float, (lx, ly), img_h, img_w)
-
-        # Light mask: 限制光源影响区域
+        # Light mask
         mask_def = src.get("mask")
         if mask_def:
+            lx = src["pos"][0] if "pos" in src else img_w // 2
+            ly = src["pos"][1] if "pos" in src else img_h // 2
             light_mask = generate_light_mask(mask_def, img_h, img_w, (lx, ly))
         else:
             light_mask = np.ones((img_h, img_w), dtype=np.float32)
 
-        contrib = (color[np.newaxis, np.newaxis, :] *
-                   intensity *
-                   attenuation[:, :, np.newaxis] *
-                   depth_factor[:, :, np.newaxis] *
-                   shadow[:, :, np.newaxis] *
-                   light_mask[:, :, np.newaxis])
+        if src.get("distant"):
+            # 方向光：平行光线，无距离衰减，无阴影，纯 mask 驱动
+            # depth_factor 仍然生效（近处表面更亮）
+            depth_factor = 1.0 - depth_float
+            contrib = (color[np.newaxis, np.newaxis, :] *
+                       intensity *
+                       depth_factor[:, :, np.newaxis] *
+                       light_mask[:, :, np.newaxis])
+        else:
+            # 点光源：距离衰减 + 阴影 + mask
+            lx, ly = src["pos"]
+            radius = src["radius"]
+            dist = np.sqrt((xx - lx) ** 2 + (yy - ly) ** 2)
+            attenuation = 1.0 / (1.0 + (dist / radius) ** 2)
+            depth_factor = 1.0 - depth_float
+            shadow = ray_march_shadows(depth_float, (lx, ly), img_h, img_w)
+            contrib = (color[np.newaxis, np.newaxis, :] *
+                       intensity *
+                       attenuation[:, :, np.newaxis] *
+                       depth_factor[:, :, np.newaxis] *
+                       shadow[:, :, np.newaxis] *
+                       light_mask[:, :, np.newaxis])
+
         total_light += contrib
 
     return np.clip(total_light, 0.0, 1.5)
