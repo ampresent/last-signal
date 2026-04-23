@@ -94,6 +94,23 @@
     line-height: 1.6;
   }
 
+  /* 关键词微震效果 */
+  @keyframes kw-buzz {
+    0%, 100% { transform: translate(0, 0); }
+    20%      { transform: translate(-0.5px, 0.3px); }
+    40%      { transform: translate(0.5px, -0.3px); }
+    60%      { transform: translate(-0.3px, -0.5px); }
+    80%      { transform: translate(0.3px, 0.5px); }
+  }
+
+  .kw-buzz {
+    display: inline-block;
+    animation: kw-buzz 0.35s ease-in-out 2;
+    color: #00ff88;
+    text-shadow: 0 0 6px rgba(0, 255, 136, 0.35);
+    font-weight: bold;
+  }
+
   #dialogue-choices {
     margin-top: 10px;
   }
@@ -1216,6 +1233,61 @@ const Game = {
     return null;
   },
 
+  // ---- 关键词微震系统 ----
+  KEYWORDS: [
+    // 核心人名
+    '凯', 'Oracle', '影子', '酒保',
+    // 组织 / 公司
+    'ECHO', 'ECHO 公司',
+    // 项目 / 事件
+    'LASTLIGHT', 'LAST LIGHT', 'PROJECT LASTLIGHT',
+    '事故', '实验事故', '实验',
+    // 地点
+    '旧工业带', '废弃区', '服务器室', '塔楼', '楼顶',
+    '公寓', '霓虹街', 'The Rust', '小巷',
+    // 关键物品
+    '安全卡', '数据芯片', '芯片', '加密芯片', '终端',
+    '解密信息', '电击枪',
+    // 关键概念
+    '信号', '真相', '搭档', '加密', '解密', '数据',
+    '幽灵黑客', '神经网络', '分布式计算', '脑死亡',
+    '活人做实验', '证据', '公开',
+    // 重要数字
+    '2087', '77.3 MHz', '三年前', '三年', '地下三层',
+    '3号测试对象',
+  ],
+
+  _buzzApplied: false,
+
+  _applyKeywordBuzz(el) {
+    if (this._buzzApplied) return;
+    this._buzzApplied = true;
+
+    const raw = el.textContent;
+    // 按长度降序排列，优先匹配长词
+    const sorted = [...this.KEYWORDS].sort((a, b) => b.length - a.length);
+    // 构建正则，转义特殊字符
+    const escaped = sorted.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const re = new RegExp(`(${escaped.join('|')})`, 'g');
+
+    const parts = raw.split(re);
+    if (parts.length <= 1) return; // 没有命中
+
+    el.innerHTML = '';
+    for (const part of parts) {
+      if (part && re.test(part)) {
+        re.lastIndex = 0;
+        const span = document.createElement('span');
+        span.className = 'kw-buzz';
+        span.textContent = part;
+        el.appendChild(span);
+      } else if (part) {
+        el.appendChild(document.createTextNode(part));
+      }
+    }
+    re.lastIndex = 0;
+  },
+
   // ---- 对话系统 ----
   showDialogue(speaker, text, choices, portrait) {
     return new Promise((resolve) => {
@@ -1249,12 +1321,16 @@ const Game = {
       box.style.display = 'block';
 
       let i = 0;
+      this._buzzApplied = false;
       const typeTimer = setInterval(() => {
         if (i < text.length) {
           textEl.textContent += text[i];
           i++;
         } else {
           clearInterval(typeTimer);
+
+          // 打字结束后：对关键词施加微震效果
+          Game._applyKeywordBuzz(textEl);
 
           if (choices && choices.length > 0) {
             choices.forEach((c, idx) => {
