@@ -171,13 +171,15 @@ SCENE_LIGHTS = {
         "base": "bg_apartment.png",
         "ambient": 0.02,
         "lights": [
-            # 月光：方向光，从窗外平行射入，无距离衰减
+            # 月光：方向光，从窗户射入，物理光锥扩散
             {"name": "moonlight",
              "distant": True,
-             "dir": (1, 0.3),              # 光线方向：从左上往右下
+             "dir": (1, 0.3),
              "color": [0.55, 0.65, 0.85], "intensity": (0.15, 0.45),
              "phase": _moonlight_clouds,
-             "mask": {"type": "rect", "region": (0, 80, 400, 450), "feather": 120}},
+             "mask": {"type": "frustum", "mask_file": "assets/masks/apartment_window_mask.png",
+                      "spread": 0.5, "direction": "right", "feather": 30, "max_depth": 500,
+                      "glass_feather": 12}},
             # 车灯：方向光（平行光），从窗户射入，物理光锥扩散
             # 光从窗户（光圈）进入后呈梯形扩散，不穿墙
             {"name": "car1",
