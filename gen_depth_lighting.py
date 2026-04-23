@@ -80,6 +80,46 @@ def _car_sweep(frame_idx, num_frames):
     else:
         return 2.0 - t * 2.0
 
+
+def _make_car_dir_phase(car_x_range, window_center):
+    """生成车灯光源方向相位函数。
+    car_x_range: (x_start, x_end) 车的水平移动范围
+    window_center: (wx, wy) 窗户中心坐标
+    返回 lambda frame_idx, num_frames → (dx, dy) 归一化方向向量
+    同时附加 .visibility 属性用于强度调制
+    """
+    wx, wy = window_center
+    def _dir_phase(frame_idx, num_frames):
+        t = _car_sweep(frame_idx, num_frames)
+        x0, x1 = car_x_range
+        car_x = x0 + (x1 - x0) * t
+        car_y = 580  # 车在画面底部（街道高度）
+        dx = wx - car_x
+        dy = wy - car_y
+        length = math.sqrt(dx * dx + dy * dy)
+        if length < 1e-6:
+            return (1.0, 0.0)
+        return (dx / length, dy / length)
+    return _dir_phase
+
+
+def _make_car_visibility(car_x_range, window_x_range=(-100, 600)):
+    """生成车灯可见性相位：车在窗户可视角度内时返回 1，否则平滑淡出。
+    window_x_range: 车的 x 坐标在此范围内时灯光能照到窗户
+    """
+    wx1, wx2 = window_x_range
+    fade = 80.0  # 淡出像素宽度
+    def _vis(frame_idx, num_frames):
+        t = _car_sweep(frame_idx, num_frames)
+        x0, x1 = car_x_range
+        car_x = x0 + (x1 - x0) * t
+        if car_x < wx1:
+            return max(0.0, (car_x - (wx1 - fade)) / fade)
+        elif car_x > wx2:
+            return max(0.0, ((wx2 + fade) - car_x) / fade)
+        return 1.0
+    return _vis
+
 def _irregular_screen(frame_idx, num_frames):
     """屏幕/LED：不规则亮度闪烁。"""
     t = 2 * math.pi * frame_idx / num_frames
@@ -146,16 +186,18 @@ SCENE_LIGHTS = {
              "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.22),
              "phase": _irregular_car,
              "mask": {"type": "frustum", "mask_file": "assets/masks/apartment_window_mask.png",
-                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500},
-             "mask_phase": {"func": _car_sweep, "range": (-300, 640), "axis": "x"}},
+                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500, "dir_key": "auto"},
+             "dir_phase": _make_car_dir_phase((-400, 1200), (231, 298)),
+             "vis_phase": _make_car_visibility((-400, 1200), (-100, 600))},
             {"name": "car2",
              "distant": True,
              "dir": (1, 0.35),
              "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.15),
              "phase": _phase_shift(_irregular_car, 3),
              "mask": {"type": "frustum", "mask_file": "assets/masks/apartment_window_mask.png",
-                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500},
-             "mask_phase": {"func": _phase_shift(_car_sweep, 6), "range": (-300, 640), "axis": "x"}},
+                      "spread": 0.45, "direction": "right", "feather": 25, "max_depth": 500, "dir_key": "auto"},
+             "dir_phase": _make_car_dir_phase((-600, 1000), (231, 298)),
+             "vis_phase": _make_car_visibility((-600, 1000), (-200, 500))},
             # 屏幕光：照亮桌面和面对屏幕的墙壁
             {"name": "screen", "pos": (770, 320),
              "color": [0.15, 0.7, 0.25], "intensity": (0.06, 0.35),
@@ -558,6 +600,10 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
         color = np.array(src["color"])
         r_min, r_max = src["intensity"]
         intensity = r_min + (r_max - r_min) * src["phase"](frame_idx, NUM_FRAMES)
+        # vis_phase: 额外的可见性调制（如车灯只能在特定角度照到窗户）
+        vp = src.get("vis_phase")
+        if vp:
+            intensity *= vp(frame_idx, NUM_FRAMES)
 
         # Light mask (support dynamic mask_phase for sweeping)
         mask_def = src.get("mask")
@@ -595,6 +641,22 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
         if src.get("distant"):
             # 方向光：平行光线，无距离衰减，无阴影，纯 mask 驱动
             # depth_factor 仍然生效（近处表面更亮）
+            # dir_phase: 动态更新方向（车灯光源移动）
+            dp = src.get("dir_phase")
+            if dp:
+                src["dir"] = dp(frame_idx, NUM_FRAMES)
+                # 如果 frustum mask 用了 dir_key="auto"，同步更新扩散方向
+                mask_def = src.get("mask", {})
+                if mask_def.get("type") == "frustum" and mask_def.get("dir_key") == "auto":
+                    d = src["dir"]
+                    if abs(d[0]) > abs(d[1]):
+                        mask_def["direction"] = "right" if d[0] > 0 else "left"
+                    else:
+                        mask_def["direction"] = "down" if d[1] > 0 else "up"
+                    # 重新生成 mask（方向变了）
+                    lx2 = src["pos"][0] if "pos" in src else img_w // 2
+                    ly2 = src["pos"][1] if "pos" in src else img_h // 2
+                    light_mask = generate_light_mask(mask_def, img_h, img_w, (lx2, ly2))
             depth_factor = 1.0 - depth_float
             contrib = (color[np.newaxis, np.newaxis, :] *
                        intensity *
