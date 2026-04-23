@@ -173,5 +173,139 @@
       }
     ],
     "edge_transitions": []
+  },
+  "echo_lobby": {
+    "objects": [
+      {
+        "id": "reception",
+        "label": "前台接待",
+        "mask": "masks/echo_lobby_reception_mask.png"
+      },
+      {
+        "id": "scanner",
+        "label": "安检门",
+        "mask": "masks/echo_lobby_scanner_mask.png"
+      },
+      {
+        "id": "elevator",
+        "label": "电梯",
+        "mask": "masks/echo_lobby_elevator_mask.png"
+      },
+      {
+        "id": "guard_post",
+        "label": "警卫亭",
+        "mask": "masks/echo_lobby_guard_post_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "出口",
+        "mask": "masks/echo_lobby_exit_mask.png"
+      }
+    ],
+    "edge_transitions": [
+      {
+        "id": "to_maintenance",
+        "label": "地下通道",
+        "zone": "bottom",
+        "target": "maintenance"
+      }
+    ]
+  },
+  "maintenance": {
+    "objects": [
+      {
+        "id": "blast_door",
+        "label": "防爆门",
+        "mask": "masks/maintenance_blast_door_mask.png"
+      },
+      {
+        "id": "pipe_valve",
+        "label": "管道阀门",
+        "mask": "masks/maintenance_pipe_valve_mask.png"
+      },
+      {
+        "id": "warning_sign",
+        "label": "警告标志",
+        "mask": "masks/maintenance_warning_sign_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "返回大厅",
+        "mask": "masks/maintenance_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "data_haven": {
+    "objects": [
+      {
+        "id": "workstation",
+        "label": "工作站",
+        "mask": "masks/data_haven_workstation_mask.png"
+      },
+      {
+        "id": "train_car",
+        "label": "旧列车",
+        "mask": "masks/data_haven_train_car_mask.png"
+      },
+      {
+        "id": "antenna",
+        "label": "天线阵列",
+        "mask": "masks/data_haven_antenna_mask.png"
+      },
+      {
+        "id": "exit",
+        "label": "出口",
+        "mask": "masks/data_haven_exit_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "flashback": {
+    "objects": [
+      {
+        "id": "pod_3",
+        "label": "3号实验舱",
+        "mask": "masks/flashback_pod_3_mask.png"
+      },
+      {
+        "id": "monitor",
+        "label": "监控屏",
+        "mask": "masks/flashback_monitor_mask.png"
+      },
+      {
+        "id": "terminal",
+        "label": "控制台",
+        "mask": "masks/flashback_terminal_mask.png"
+      }
+    ],
+    "edge_transitions": []
+  },
+  "hospital": {
+    "objects": [
+      {
+        "id": "room_door",
+        "label": "病房门",
+        "mask": "masks/hospital_room_door_mask.png"
+      },
+      {
+        "id": "window",
+        "label": "窗户",
+        "mask": "masks/hospital_window_mask.png"
+      },
+      {
+        "id": "nurse_station",
+        "label": "护士站",
+        "mask": "masks/hospital_nurse_station_mask.png"
+      }
+    ],
+    "edge_transitions": [
+      {
+        "id": "to_street",
+        "label": "出院",
+        "zone": "bottom",
+        "target": "street"
+      }
+    ]
   }
 }

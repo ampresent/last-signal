@@ -141,6 +141,87 @@ SCENES = {
         ],
         "edge_transitions": []
     },
+
+    # ── 新增场景 ──
+
+    "echo_lobby": {
+        "image": "bg_echo_lobby.png",
+        "objects": [
+            {"id": "reception", "label": "前台接待",
+             "bbox": [300, 280, 660, 500]},
+            {"id": "scanner", "label": "安检门",
+             "bbox": [350, 400, 610, 627]},
+            {"id": "elevator", "label": "电梯",
+             "bbox": [740, 200, 938, 520]},
+            {"id": "guard_post", "label": "警卫亭",
+             "bbox": [50, 350, 280, 560]},
+            {"id": "exit", "label": "出口",
+             "bbox": [0, 500, 200, 627]},
+        ],
+        "edge_transitions": [
+            {"id": "to_maintenance", "label": "地下通道", "zone": "bottom",
+             "size": 40, "target": "maintenance"},
+        ]
+    },
+
+    "maintenance": {
+        "image": "bg_maintenance.png",
+        "objects": [
+            {"id": "blast_door", "label": "防爆门",
+             "bbox": [350, 150, 610, 500]},
+            {"id": "pipe_valve", "label": "管道阀门",
+             "bbox": [80, 250, 280, 480]},
+            {"id": "warning_sign", "label": "警告标志",
+             "bbox": [650, 100, 850, 320]},
+            {"id": "exit", "label": "返回大厅",
+             "bbox": [0, 500, 200, 627]},
+        ],
+        "edge_transitions": []
+    },
+
+    "data_haven": {
+        "image": "bg_data_haven.png",
+        "objects": [
+            {"id": "workstation", "label": "工作站",
+             "bbox": [200, 200, 550, 480]},
+            {"id": "train_car", "label": "旧列车",
+             "bbox": [700, 280, 938, 580]},
+            {"id": "antenna", "label": "天线阵列",
+             "bbox": [350, 20, 600, 180]},
+            {"id": "exit", "label": "出口",
+             "bbox": [0, 500, 200, 627]},
+        ],
+        "edge_transitions": []
+    },
+
+    "flashback": {
+        "image": "bg_flashback.png",
+        "objects": [
+            {"id": "pod_3", "label": "3号实验舱",
+             "bbox": [250, 250, 480, 520]},
+            {"id": "monitor", "label": "监控屏",
+             "bbox": [550, 150, 780, 400]},
+            {"id": "terminal", "label": "控制台",
+             "bbox": [100, 380, 350, 580]},
+        ],
+        "edge_transitions": []
+    },
+
+    "hospital": {
+        "image": "bg_hospital.png",
+        "objects": [
+            {"id": "room_door", "label": "病房门",
+             "bbox": [100, 200, 350, 520]},
+            {"id": "window", "label": "窗户",
+             "bbox": [650, 100, 938, 480]},
+            {"id": "nurse_station", "label": "护士站",
+             "bbox": [400, 300, 600, 500]},
+        ],
+        "edge_transitions": [
+            {"id": "to_street", "label": "出院", "zone": "bottom",
+             "size": 50, "target": "street"},
+        ]
+    },
 }
 
 
