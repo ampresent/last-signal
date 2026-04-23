@@ -143,3 +143,91 @@
 7. 更新 docs（移除 CPU 限制说明）
 8. 运行生成帧
 9. 验证 + push
+
+---
+
+## 2026-04-23 17:00 — 网络问题：HuggingFace 国内不可达
+
+### 发现
+- `api-inference.huggingface.co` 从阿里云 ECS 完全不可达
+- DNS 解析到 Facebook IP（31.13.69.169），ping 100% 丢包
+- `hf-mirror.com` 可达，但只提供模型下载，不提供 Serverless Inference API
+- Pollinations.AI 和百度均正常
+
+### 决策
+放弃 HF Serverless Inference API 方案，改为：
+**hf-mirror.com 下载模型 + 本地 transformers pipeline 推理**
+
+---
+
+## 2026-04-23 17:10 — 依赖安装踩坑记录
+
+### torch 从 R2 下载
+- R2 可用，~182MB 用时 92s（~2MB/s）
+- s3cmd 需要 `--region=auto`
+
+### torch 版本号 `+cpu` 导致 transformers 崩溃
+- `importlib.metadata.version('torch')` 返回 `None`
+- 原因：dist-info 目录名 `torch-2.11.0+cpu.dist-info` 含 `+`
+- 修复：重命名为 `torch-2.11.0.dist-info` + 修改 METADATA
+
+### torchvision stub 不完整
+- transformers 5.6.0 额外依赖：
+  - `torchvision.io`（ImageReadMode, decode_image）
+  - `torchvision.transforms.v2`（functional）
+  - `pil_to_tensor` 函数
+  - `InterpolationMode.NEAREST_EXACT` 属性
+  - `resize(antialias=)` 参数
+- 全部手动补充 stub
+
+---
+
+## 2026-04-23 17:20 — 公寓帧生成成功 ✅
+
+### 结果
+- 模型从 hf-mirror.com 下载（首次 ~1.3GB，后续缓存 3s 加载）
+- 深度推理 13s
+- 12 帧渲染每帧 1s，总计 37s
+- 帧间差异 avg 5.63（✓ 良好），循环闭合 4.48（✓ 平滑）
+
+### 踩坑
+- `gen_ai_frames.py` 覆盖了公寓帧（img2img 替换 depth lighting）
+- 修复：重新运行 `gen_apartment_lighting.py --lighting-only`
+
+---
+
+## 2026-04-23 17:30 — 全部 96 帧生成完成 ✅
+
+### 结果
+- 8 场景 × 12 帧 = 96 帧
+- 公寓：depth lighting（avg diff 5.63）
+- 其他 7 场景：img2img + 光流插值
+- 全部 push 到 origin/main
+
+### Commit 历史
+```
+0290def feat: regenerate all 96 animation frames
+3809a7f feat: apartment depth lighting via HF mirror + local inference
+7cd0950 refactor: switch from local model to HuggingFace Serverless Inference API
+4ad4412 docs: log architecture change - local model → HF Serverless Inference API
+```
+
+---
+
+## 经验总结
+
+### 架构决策
+1. **HF Serverless Inference API 国内不可行** — 阿里云 ECS 无法访问
+2. **hf-mirror.com 是最佳替代** — 下载模型 + 本地推理
+3. **torchvision stub 需要持续维护** — transformers 版本升级可能需要新 stub
+
+### 执行顺序
+1. `gen_assets.py` → 基础图
+2. `gen_ai_frames.py` → img2img + 光流（所有场景）
+3. `gen_apartment_lighting.py` → depth lighting（**必须最后**）
+
+### 代码质量
+- 文件名拼写要一致（`lighting` 不是 `lightning`）
+- 合成方式要与设计文档一致（additive vs multiplicative）
+- 循环数学要验证首尾帧一致性
+- shadow ray march 步数要与设计文档一致（64 步）

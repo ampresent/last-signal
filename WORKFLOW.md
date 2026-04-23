@@ -8,6 +8,7 @@
 - [游戏引擎架构](#游戏引擎架构)
 - [Mask 交互系统](#mask-交互系统)
 - [素材生成流程](#素材生成流程)
+- [踩坑经验](#踩坑经验)
 - [部署到 GitHub Pages](#部署到-github-pages)
 - [复用指南](#复用指南)
 
@@ -21,8 +22,9 @@
 | 类型 | 2D Point & Click 冒险游戏 |
 | 风格 | 赛博朋克 / 冷峻 noir |
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
-| 图片生成 | Pollinations.AI（完全免费，无需 API Key） |
-| 动画系统 | img2img 关键帧 + 光流插值 + Depth Lighting (HF API) + VFX 粒子引擎 |
+| 图片生成 | Pollinations.AI（完全免费，无需 API Key，国内可用） |
+| 深度估计 | Depth-Anything-V2-Large（hf-mirror.com 下载 + 本地推理） |
+| 动画系统 | img2img 关键帧 + 光流插值 + Depth Lighting + VFX 粒子引擎 |
 | 部署 | GitHub Pages（静态托管） |
 
 ---
@@ -87,7 +89,7 @@ img2img 帧间一致性差（物体变形、色偏、光流鬼影），公寓场
 bg_apartment.png (基础图)
        │
        ▼
-  Depth-Anything-V2-Large → depth_map.png (灰度深度图)
+  hf-mirror.com 下载 Depth-Anything-V2-Large → 本地推理 → depth_map.png
        │
        ▼
   每帧 (f0–f11):
@@ -95,8 +97,8 @@ bg_apartment.png (基础图)
     ├─ 逐像素计算光照
     │   ├─ 距离衰减 (inverse-square)
     │   ├─ 深度调制 (近面更亮)
-    │   └─ 阴影光线步进 (depth occlusion)
-    ├─ 合成: base × (ambient + 灯光叠加)
+    │   └─ 阴影光线步进 (64 steps, depth occlusion)
+    ├─ 合成: base + lighting (additive blending)
     └─ 保存帧 PNG
 ```
 
@@ -104,7 +106,7 @@ bg_apartment.png (基础图)
 
 | 光源 | 颜色 | 位置 | 相位 | 效果 |
 |------|------|------|------|------|
-| 终端屏幕 | 绿 `(0.2, 0.9, 0.3)` | (680, 480) | 0° | CRT 绿光脉冲 |
+| 终端屏幕 | 绿 `(0.2, 0.9, 0.3)` | (700, 500) | 0° | CRT 绿光脉冲 |
 | 天花板灯 | 暖黄 `(1.0, 0.85, 0.6)` | (480, 80) | 120° | 暖色点光源 |
 | 窗户 | 冷蓝 `(0.3, 0.5, 0.8)` | (50, 350) | 240° | 冷色方向光 |
 
@@ -122,11 +124,15 @@ Window: ▪     ▪     █     ██    ███   ████  ████
 |---|---|---|
 | 稳定性 | 完美（确定性数学） | 不稳定（AI 随机性） |
 | 视觉效果 | 程序化、干净 | 有机但不可控 |
-| 速度 | ~30s (CPU) | ~3min (API) |
+| 速度 | ~12s (本地 CPU) | ~3min (API) |
 | 伪影风险 | 无 | 鬼影、变形、色偏 |
+| 深度模型 | hf-mirror.com 下载 + 本地 transformers | N/A |
 
 **运行：**
 ```bash
+# 设置 HF 镜像（首次运行前必须设置）
+export HF_ENDPOINT=https://hf-mirror.com
+
 # 完整流程（深度估计 + 渲染）
 python3 gen_apartment_lighting.py
 
@@ -137,20 +143,25 @@ python3 gen_apartment_lighting.py --depth-only
 python3 gen_apartment_lighting.py --lighting-only
 ```
 
-**依赖：** `requests`, `opencv-python-headless`, `numpy`
-**深度模型：** Depth-Anything-V2-Large（通过 HuggingFace Serverless Inference API 调用，无需本地部署）
+**依赖：** `torch`, `transformers`, `timm`, `opencv-python-headless`, `numpy`
+**深度模型：** Depth-Anything-V2-Large（从 hf-mirror.com 下载，本地 transformers pipeline 推理）
 **输出：** `assets/apartment_depth.png` + `assets/bg_apartment_f0~f11.png`（覆盖原有帧）
 
 **扩展到其他场景：** 修改 `LIGHT_SOURCES` 中的坐标/颜色/半径，复用相同管线。
 
-### 运行
+### 运行顺序（重要！）
 
 ```bash
 cd last-signal
-python3 gen_ai_frames.py                    # 策略 A: 通用场景 (img2img + 光流)
-python3 gen_apartment_lighting.py           # 策略 B: 公寓场景 (depth lighting)
-# 其他场景 7 × 12 帧 + 公寓 12 帧 = 96 帧
+
+# ⚠️ 必须按此顺序执行，否则 gen_ai_frames.py 会覆盖公寓帧
+python3 gen_assets.py          # 1. 基础场景图 + 角色肖像
+python3 gen_ai_frames.py       # 2. 策略 A: img2img 关键帧 + 光流 (7 场景)
+python3 gen_apartment_lighting.py  # 3. 策略 B: Depth Lighting (公寓，必须最后!)
 ```
+
+> **⚠️ 顺序陷阱**：`gen_ai_frames.py` 会处理所有 8 个场景（包括公寓），用 img2img 帧
+> 覆盖 depth lighting 帧。**必须最后运行 `gen_apartment_lighting.py` 来恢复公寓帧。**
 
 ### 场景动画剧本
 
@@ -205,12 +216,15 @@ last-signal/
 ├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_ai_frames.py        # AI 动画帧生成（img2img 关键帧 + 光流插值，通用场景）
-├── gen_apartment_lighting.py # Depth Lighting 渲染器（HF API，公寓场景）
+├── gen_apartment_lighting.py # Depth Lighting 渲染器（HF 镜像 + 本地推理，公寓场景）
 ├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
 ├── WORKFLOW.md             # 本文档
+├── SETUP.md                # 环境搭建指南
+├── DEVLOG.md               # 开发日志
 └── assets/
     ├── bg_*_f0~f11.png     # 每场景 12 帧动画（AI 光流 / Depth Lighting）
+    ├── bg_*_k0~k3.png      # 关键帧（img2img 生成）
     ├── apartment_depth.png # 公寓深度图缓存 (DA2-Large)
     ├── portrait_*.png      # 角色肖像
     └── masks/
@@ -314,13 +328,17 @@ python3 gen_assets.py          # 基础图 + AI 帧
 python3 gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
 ```
 
-### 分步生成
+### 分步生成（推荐顺序）
 ```bash
+export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
+
 python3 gen_assets.py          # 1. 生成基础场景图 + 角色肖像
-python3 gen_ai_frames.py       # 2. 策略 A: img2img 关键帧 + 光流插值 (其他场景)
-python3 gen_apartment_lighting.py  # 3. 策略 B: Depth Lighting (公寓场景)
+python3 gen_ai_frames.py       # 2. 策略 A: img2img 关键帧 + 光流插值 (所有场景)
+python3 gen_apartment_lighting.py  # 3. 策略 B: Depth Lighting (公寓，最后运行!)
 python3 gen_masks.py           # 4. 生成 mask（可选，已有则跳过）
 ```
+
+> **⚠️ 公寓帧必须最后生成！** `gen_ai_frames.py` 会覆盖所有场景帧。
 
 ### 添加新场景
 1. `gen_assets.py` 添加 prompt
@@ -332,6 +350,52 @@ python3 gen_masks.py           # 4. 生成 mask（可选，已有则跳过）
 5. `VFX.SCENE_CONFIG` 添加动效配置
 6. 运行生成脚本
 7. `git add -A && git commit && git push`
+
+---
+
+## 踩坑经验
+
+> 这些是从实战中总结的经验，避免重复踩坑。
+
+### 1. HuggingFace 国内不可达
+
+**现象**：`requests.ConnectionError: Failed to establish a new connection`
+**原因**：阿里云 ECS 等国内服务器 DNS 解析 huggingface.co 到 Facebook IP，连接超时。
+**解决**：使用 `hf-mirror.com` 下载模型，本地推理。
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+```
+> ⚠️ hf-mirror.com 只提供模型下载，不提供 Serverless Inference API。
+
+### 2. torch `+cpu` 版本号导致 transformers 崩溃
+
+**现象**：`TypeError: expected string or bytes-like object, got 'NoneType'`
+**原因**：`importlib.metadata.version('torch')` 返回 `None`（dist-info 目录名含 `+cpu`）
+**解决**：重命名 dist-info 目录 + 修复 METADATA 中的版本号（见 SETUP.md §3d）
+
+### 3. torchvision stub 不完整
+
+**现象**：`ModuleNotFoundError: No module named 'torchvision.io'` / `'torchvision.transforms.v2'`
+**原因**：torchvision stub 只实现了 timm 需要的接口，transformers 5.x 额外依赖更多模块。
+**解决**：手动补充 `io`、`v2` 模块 stub + `pil_to_tensor` + `NEAREST_EXACT` + `resize(antialias=)`（见 SETUP.md §3c）
+
+### 4. gen_ai_frames.py 覆盖公寓帧
+
+**现象**：运行完 `gen_ai_frames.py` 后公寓帧变回 img2img 版本
+**原因**：`gen_ai_frames.py` 处理所有 8 个场景，包括公寓
+**解决**：**始终最后运行 `gen_apartment_lighting.py`**
+
+### 5. s3cmd 必须 `--region=auto`
+
+**现象**：`InvalidRegionName` 错误
+**原因**：R2 默认区域名不是 AWS 标准区域名
+**解决**：所有 s3cmd 命令加 `--region=auto`
+
+### 6. pip 需要 `--break-system-packages`
+
+**现象**：`externally-managed-environment` 错误
+**原因**：Ubuntu 24.04 的 Python 被系统管理
+**解决**：所有 pip 命令加 `--break-system-packages`
 
 ---
 
@@ -355,13 +419,12 @@ git add . && git commit -m "init" && git push -u origin main
    - `gen_ai_frames.py`（img2img + 光流，通用）
    - `gen_apartment_lighting.py`（Depth Lighting，更稳定）
 4. 复制引擎代码，在 `SCENES` 中定义场景
-5. 运行生成脚本
+5. 运行生成脚本（注意顺序：公寓帧最后！）
 6. 本地测试 `python3 -m http.server 8765`
 7. 推送部署
 
 ---
 
-*文档更新：2026-04-22*
+*文档更新：2026-04-23*
 *仓库：https://github.com/ampresent/last-signal*
 *在线：https://ampresent.github.io/last-signal/*
-*依赖缓存：R2 `mystore` 桶（见 SETUP.md）*
