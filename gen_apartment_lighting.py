@@ -2,13 +2,9 @@
 """
 gen_apartment_lighting.py — Pre-rendered depth lighting for apartment scene
 
-Uses Depth-Anything-V2-Large for depth estimation + programmatic 2D depth-based
-lighting with 3 simultaneous light sources (120° phase offset sinusoidal curves).
-
-Model loading 3-level fallback:
-  1. Official repo: depth_anything_v2_repo/ + local .pth checkpoint
-  2. transformers: HuggingFace DepthAnythingV2ForDepthEstimation
-  3. timm: ViT-Large backbone + custom DPT head
+Uses HuggingFace Serverless Inference API (Depth-Anything-V2-Large) for depth
+estimation + programmatic 2D depth-based lighting with 3 simultaneous light
+sources (120° phase offset sinusoidal curves).
 
 Usage:
     python3 gen_apartment_lighting.py              # full pipeline
@@ -21,23 +17,101 @@ import os
 import time
 import argparse
 import math
-import subprocess
 from pathlib import Path
 
 import numpy as np
 import cv2
-import torch
+import requests
 
 # ── Constants ──────────────────────────────────────────────────────
 BASE_IMAGE = "assets/bg_apartment.png"
 DEPTH_CACHE = "assets/apartment_depth.png"
 OUTPUT_FMT = "assets/bg_apartment_f{frame}.png"
-INPUT_SIZE = 518  # DA2 input size (must be multiple of 14)
 NUM_FRAMES = 12
 SHADOW_STEPS = 64  # design spec: 64 steps
 AMBIENT = 0.05
-CPU_LIMIT = 0.95  # max CPU usage fraction
-FRAME_SLEEP = 0.05  # seconds to sleep between frames for CPU breathing
+
+# ── HuggingFace API ───────────────────────────────────────────────
+HF_MODEL = "depth-anything/Depth-Anything-V2-Large-hf"
+HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+HF_TOKEN_FILE = Path(__file__).parent / ".hf-token"
+HF_TIMEOUT = 120  # seconds
+HF_MAX_RETRIES = 3
+
+
+def get_hf_token():
+    """Read HuggingFace API token from .hf-token file."""
+    if HF_TOKEN_FILE.exists():
+        token = HF_TOKEN_FILE.read_text().strip()
+        if token:
+            return token
+    # Fallback to environment variable
+    return os.environ.get("HF_TOKEN", "")
+
+
+def call_hf_depth_api(image_path, token=""):
+    """
+    Call HuggingFace Serverless Inference API for depth estimation.
+
+    Sends the image as binary, receives depth map as image.
+    Handles cold start (503) with retries.
+    """
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    with open(image_path, "rb") as f:
+        image_bytes = f.read()
+
+    for attempt in range(1, HF_MAX_RETRIES + 1):
+        try:
+            print(f"  → API call (attempt {attempt}/{HF_MAX_RETRIES})...")
+            resp = requests.post(
+                HF_API_URL,
+                headers=headers,
+                data=image_bytes,
+                timeout=HF_TIMEOUT,
+            )
+
+            if resp.status_code == 200:
+                # Response is the depth map as an image (PNG/JPEG bytes)
+                depth_img = cv2.imdecode(
+                    np.frombuffer(resp.content, np.uint8),
+                    cv2.IMREAD_GRAYSCALE,
+                )
+                if depth_img is not None:
+                    return depth_img
+                else:
+                    print(f"  ⚠️  Failed to decode depth image from API response")
+
+            elif resp.status_code == 503:
+                # Model is loading
+                try:
+                    wait_time = resp.json().get("estimated_time", 30)
+                except Exception:
+                    wait_time = 30
+                print(f"  ⏳ Model loading, waiting {wait_time:.0f}s...")
+                time.sleep(min(wait_time + 5, 60))
+                continue
+
+            elif resp.status_code == 429:
+                print(f"  ⏳ Rate limited, waiting 30s...")
+                time.sleep(30)
+                continue
+
+            else:
+                print(f"  ✗ API error {resp.status_code}: {resp.text[:200]}")
+
+        except requests.exceptions.Timeout:
+            print(f"  ⏳ Timeout on attempt {attempt}")
+        except requests.exceptions.ConnectionError as e:
+            print(f"  ✗ Connection error: {e}")
+
+        if attempt < HF_MAX_RETRIES:
+            time.sleep(5)
+
+    return None
+
 
 # ── Light Source Definitions ───────────────────────────────────────
 # Each: (x, y, color_rgb, intensity_base, intensity_amp, radius)
@@ -72,141 +146,27 @@ LIGHT_SOURCES = [
 ]
 
 
-def download_model_from_r2():
-    """Download depth model checkpoint from R2 if not present."""
-    ckpt_path = "models/depth_anything_v2_vitl.pth"
-    if os.path.exists(ckpt_path):
-        return ckpt_path
+def generate_depth_map(base_image_path):
+    """Generate depth map via HuggingFace Serverless Inference API."""
+    token = get_hf_token()
+    if not token:
+        print("  ⚠️  No HF token found. API may have rate limits.")
+        print("     Create .hf-token file or set HF_TOKEN env var.")
 
-    print("  ↓ Downloading model from R2...")
-    os.makedirs("models", exist_ok=True)
-    try:
-        subprocess.run(
-            ["s3cmd", "--region=auto", "get",
-             "s3://mystore/depth_anything_v2_vitl.pth", ckpt_path],
-            check=True, capture_output=True, text=True
-        )
-        print(f"  ✓ Model downloaded to {ckpt_path}")
-        return ckpt_path
-    except subprocess.CalledProcessError as e:
-        print(f"  ✗ R2 download failed: {e.stderr}")
-        return None
+    depth = call_hf_depth_api(base_image_path, token)
+    if depth is None:
+        print("  ✗ Depth estimation failed")
+        sys.exit(1)
 
-
-def load_depth_model_official():
-    """Fallback 1: Official repo + local checkpoint."""
-    repo_dir = Path(__file__).parent / "depth_anything_v2_repo"
-    if not repo_dir.exists():
-        raise FileNotFoundError(f"Repo not found: {repo_dir}")
-
-    sys.path.insert(0, str(repo_dir))
-    from depth_anything_v2.dpt import DepthAnythingV2
-
-    ckpt_path = download_model_from_r2()
-    if not ckpt_path:
-        raise FileNotFoundError("No checkpoint available")
-
-    model = DepthAnythingV2(encoder='vitl', features=256,
-                            out_channels=[256, 512, 1024, 1024])
-    state = torch.load(ckpt_path, map_location='cpu', weights_only=True)
-    model.load_state_dict(state)
-    model.eval()
-    return model, "official"
-
-
-def load_depth_model_transformers():
-    """Fallback 2: HuggingFace transformers pipeline."""
-    from transformers import pipeline
-
-    pipe = pipeline(
-        "depth-estimation",
-        model="depth-anything/Depth-Anything-V2-Large-hf",
-        device="cpu",
-        torch_dtype=torch.float32,
-    )
-    return pipe, "transformers"
-
-
-def load_depth_model_timm():
-    """Fallback 3: timm ViT-Large backbone."""
-    import timm
-
-    # Simple approach: use timm's depth estimation if available
-    # This is a simplified fallback — may not produce as good results
-    model = timm.create_model("vit_large_patch14_224", pretrained=False, num_classes=0)
-
-    ckpt_path = download_model_from_r2()
-    if ckpt_path:
-        state = torch.load(ckpt_path, map_location='cpu', weights_only=True)
-        # Try loading with strict=False (keys may not match exactly)
-        model.load_state_dict(state, strict=False)
-
-    model.eval()
-    return model, "timm"
-
-
-def load_depth_model():
-    """Load depth model with 3-level fallback."""
-    errors = []
-
-    # Try official repo first
-    try:
-        model, method = load_depth_model_official()
-        print(f"  ✓ Model loaded via {method}")
-        return model, method
-    except Exception as e:
-        errors.append(f"official: {e}")
-
-    # Try transformers
-    try:
-        model, method = load_depth_model_transformers()
-        print(f"  ✓ Model loaded via {method}")
-        return model, method
-    except Exception as e:
-        errors.append(f"transformers: {e}")
-
-    # Try timm
-    try:
-        model, method = load_depth_model_timm()
-        print(f"  ✓ Model loaded via {method}")
-        return model, method
-    except Exception as e:
-        errors.append(f"timm: {e}")
-
-    print("  ✗ All model loading methods failed:")
-    for err in errors:
-        print(f"    - {err}")
-    sys.exit(1)
-
-
-def generate_depth_map_official(model, base_image):
-    """Generate depth map using official repo's infer_image."""
-    bgr = cv2.cvtColor(base_image, cv2.COLOR_RGB2BGR)
-    depth = model.infer_image(bgr, input_size=INPUT_SIZE)
-    return depth
-
-
-def generate_depth_map_transformers(pipe, base_image):
-    """Generate depth map using transformers pipeline."""
-    from PIL import Image
-
-    pil_img = Image.fromarray(base_image)
-    result = pipe(pil_img)
-    depth = np.array(result["depth"])
-    return depth.astype(np.float32)
-
-
-def generate_depth_map(model, base_image, method="official"):
-    """Generate depth map from base image using DA2-Large."""
-    if method == "official":
-        depth = generate_depth_map_official(model, base_image)
-    elif method == "transformers":
-        depth = generate_depth_map_transformers(model, base_image)
-    else:
-        raise ValueError(f"Unknown method: {method}")
+    # Resize to match base image if needed
+    base = cv2.imread(base_image_path)
+    if base is not None:
+        h, w = base.shape[:2]
+        if depth.shape[:2] != (h, w):
+            depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_LINEAR)
 
     # Normalize to 0-255 (0=near, 255=far)
-    depth_norm = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
+    depth_norm = (depth.astype(np.float32) - depth.min()) / (depth.max() - depth.min() + 1e-8)
     depth_u8 = (depth_norm * 255).astype(np.uint8)
 
     # Bilateral filter for smooth gradients while preserving edges
@@ -388,13 +348,11 @@ def main():
             sys.exit(1)
         print(f"  ✓ Loaded {DEPTH_CACHE}")
     else:
-        print("Generating depth map (DA2-Large)...")
+        print("Generating depth map (HF Serverless Inference API)...")
         t0 = time.time()
-        model, method = load_depth_model()
-        depth_map = generate_depth_map(model, base_rgb, method)
+        depth_map = generate_depth_map(BASE_IMAGE)
         cv2.imwrite(DEPTH_CACHE, depth_map)
         print(f"  ✓ Depth map saved to {DEPTH_CACHE} ({time.time()-t0:.1f}s)")
-        del model  # free memory
 
     if args.depth_only:
         print("\n✓ Depth-only mode complete.")
@@ -415,9 +373,6 @@ def main():
 
         dt = time.time() - t0
         print(f"  ✓ f{i} → {out_path} ({dt:.1f}s)")
-
-        # CPU breathing: sleep between frames to stay under 95% CPU
-        time.sleep(FRAME_SLEEP)
 
     # ── Quality report ──
     quality_report(frames)

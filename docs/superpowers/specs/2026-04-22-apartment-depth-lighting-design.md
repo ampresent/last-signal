@@ -1,6 +1,7 @@
 # Design: Pre-rendered Depth Lighting for Apartment Scene
 
 **Date:** 2026-04-22
+**Updated:** 2026-04-23 — Switched from local model to HuggingFace Serverless Inference API
 **Scope:** Replace AI img2img animation with depth-based ray-traced lighting on `bg_apartment`
 **Goal:** Eliminate frame instability while upgrading to simultaneous multi-source light interactions
 
@@ -20,7 +21,7 @@ Single base image + **Depth-Anything-V2-Large** depth estimation + programmatic 
 bg_apartment.png (base)
        │
        ▼
-  Depth-Anything-V2-Large → depth_map.png (grayscale, 960×640)
+  HuggingFace API (Depth-Anything-V2-Large) → depth_map.png (grayscale, 960×640)
        │
        ▼
   For each frame (f0–f11):
@@ -38,14 +39,15 @@ bg_apartment.png (base)
 
 ## Components
 
-### 1. Depth Map Generation (`gen_depth.py`)
+### 1. Depth Map Generation (`gen_apartment_lighting.py`)
 
-- Use **Depth-Anything-V2-Large** (ViT-Large, 335M params) via the repo's `DepthAnythingV2` class
-- Checkpoint: `models/depth_anything_v2_vitl.pth` (also on R2: `s3://mystore/depth_anything_v2_vitl.pth`)
+- Use **Depth-Anything-V2-Large** via HuggingFace Serverless Inference API
+- API endpoint: `https://api-inference.huggingface.co/models/depth-anything/Depth-Anything-V2-Large-hf`
 - Input: `bg_apartment.png` (960×640)
 - Output: `assets/apartment_depth.png` (grayscale, 0=near, 255=far)
 - Post-process: bilateral filter for smooth gradients while preserving object boundaries
 - Cache: skip if depth map exists and is newer than base image
+- Auth: optional `.hf-token` file or `HF_TOKEN` env var (for higher rate limits)
 
 **Why Depth-Anything-V2 over MiDaS:**
 - Higher accuracy, especially on fine structures and edges
@@ -53,8 +55,8 @@ bg_apartment.png (base)
 - More robust depth ordering for lighting occlusion
 - Same inference speed on CPU (~3-5s per image)
 
-**Dependencies:** `torch` (CPU), `opencv-python`, `numpy`, `timm`
-**Model repo:** Clone `https://github.com/DepthAnything/Depth-Anything-V2` for `depth_anything_v2/dpt.py`
+**Dependencies:** `requests`, `opencv-python-headless`, `numpy`
+**API:** HuggingFace Serverless Inference (no local model deployment needed)
 
 ### 2. Rendering Masks
 
@@ -170,26 +172,29 @@ After generation:
 
 | File | Action |
 |------|--------|
-| `gen_apartment_lighting.py` | **New** ✅ — depth lighting renderer (DA2-Large) |
-| `depth_anything_v2/` | **New** ✅ — model package dir (clone from repo or use timm/transformers fallback) |
+| `gen_apartment_lighting.py` | **New** ✅ — depth lighting renderer (HF API) |
+| `.hf-token` | Optional — HuggingFace API token for higher rate limits |
 | `assets/apartment_depth.png` | Generated at runtime — cached depth map |
 | `assets/bg_apartment_f0–f11.png` | Overwritten at runtime — 12 new frames |
 | `WORKFLOW.md` | Update animation section with new pipeline description |
 
 ## Implementation Notes
 
-### Model Loading Strategy (3 fallback levels)
+### Model Loading Strategy
 
-1. **Official**: `depth_anything_v2/` package in project root + local `.pth` checkpoint
-2. **timm**: `timm` ViT-Large backbone + custom DPT head (simplified, loads `.pth` with `strict=False`)
-3. **transformers**: HuggingFace `DepthAnythingV2ForDepthEstimation` (may download extra files)
+使用 HuggingFace Serverless Inference API：
+- 端点：`https://api-inference.huggingface.co/models/depth-anything/Depth-Anything-V2-Large-hf`
+- 认证：可选（`.hf-token` 文件或 `HF_TOKEN` 环境变量）
+- 冷启动：首次调用可能需要 20-60s 加载模型，后续调用很快
+- 自动重试：503（模型加载中）和 429（速率限制）自动重试
 
 ### Dependencies
 
 ```bash
-pip install torch numpy opencv-python
-# Plus one of: [timm] or [transformers] or depth_anything_v2/ package
+pip install requests numpy opencv-python-headless
 ```
+
+深度模型通过 HuggingFace Serverless Inference API 调用，无需本地安装 torch/transformers。
 
 ### Running
 
@@ -204,31 +209,16 @@ python3 gen_apartment_lighting.py --depth-only
 python3 gen_apartment_lighting.py --lighting-only
 ```
 
-### Performance (CPU)
+### Performance
 
-- Depth estimation: ~3-5s (ViT-Large on CPU)
-- Frame rendering: ~10-15s per frame (48-step shadow ray march)
-- Total: ~2-3 minutes for 12 frames
-
-**CPU 占用率限制**：所有计算过程（深度估计、帧渲染）必须限制 CPU 占用率不超过 **95%**，以确保 agent 可以正常在后台工作。实现方式：
-
-1. 使用 `nice -n 10` 降低进程优先级
-2. 在渲染循环中每帧结束后 `time.sleep(0.05)` 让出 CPU 时间片
-3. 监控 CPU 使用率，若超过 95% 则动态增加 sleep 时间
-
-**RT 调度优先级**：渲染进程应获得 RT（实时）调度优先级，确保在系统负载较高时仍能稳定运行。通过 `chrt -r 50` 设置 SCHED_RR 策略（优先级 50）。
-
-```bash
-# 以 RT 优先级运行渲染（需要 root 权限）
-chrt -r 50 python3 gen_apartment_lighting.py
-
-# 或使用 nice 降级（不需要 root）
-nice -n 10 python3 gen_apartment_lighting.py
-```
+- Depth estimation: ~5-15s (via HuggingFace API, depends on cold start)
+- Frame rendering: ~15-25s per frame (64-step shadow ray march)
+- Total: ~3-5 minutes for 12 frames
 
 ## Files NOT Changed
 
 - `index.html` — no engine changes needed
 - `gen_ai_frames.py` — kept as-is for other scenes
+- `gen_anim_frames.py` — kept as-is (legacy fallback)
 - `assets/masks/*` — interaction masks untouched
 - `gen_masks.py` — untouched

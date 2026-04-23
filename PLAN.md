@@ -7,7 +7,7 @@ Remake all 96 animation frames (8 scenes × 12 frames) following the docs specs.
 
 ### Phase 1: Apartment (Depth Lighting)
 - Script: `gen_apartment_lighting.py`
-- Method: Depth-Anything-V2-Large → deterministic per-pixel lighting
+- Method: HuggingFace Serverless Inference API (Depth-Anything-V2-Large) → deterministic per-pixel lighting
 - 3 light sources with 120° phase offset sine curves
 - Output: `assets/bg_apartment_f0~f11.png`
 
@@ -23,3 +23,4 @@ Remake all 96 animation frames (8 scenes × 12 frames) following the docs specs.
 
 ---
 *Created: 2026-04-22*
+*Updated: 2026-04-23 — Switched to HuggingFace Serverless Inference API*

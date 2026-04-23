@@ -22,7 +22,7 @@
 | 风格 | 赛博朋克 / 冷峻 noir |
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
 | 图片生成 | Pollinations.AI（完全免费，无需 API Key） |
-| 动画系统 | img2img 关键帧 + 光流插值 + Depth Lighting + VFX 粒子引擎 |
+| 动画系统 | img2img 关键帧 + 光流插值 + Depth Lighting (HF API) + VFX 粒子引擎 |
 | 部署 | GitHub Pages（静态托管） |
 
 ---
@@ -137,8 +137,8 @@ python3 gen_apartment_lighting.py --depth-only
 python3 gen_apartment_lighting.py --lighting-only
 ```
 
-**依赖：** `torch`(CPU), `transformers`, `opencv-python-headless`, `numpy`, `timm`
-**深度模型：** Depth-Anything-V2-Large（335M 参数），从 R2 下载（见 SETUP.md）
+**依赖：** `requests`, `opencv-python-headless`, `numpy`
+**深度模型：** Depth-Anything-V2-Large（通过 HuggingFace Serverless Inference API 调用，无需本地部署）
 **输出：** `assets/apartment_depth.png` + `assets/bg_apartment_f0~f11.png`（覆盖原有帧）
 
 **扩展到其他场景：** 修改 `LIGHT_SOURCES` 中的坐标/颜色/半径，复用相同管线。
@@ -205,7 +205,7 @@ last-signal/
 ├── index.html              # 游戏主文件（HTML + CSS + JS 全内联）
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_ai_frames.py        # AI 动画帧生成（img2img 关键帧 + 光流插值，通用场景）
-├── gen_apartment_lighting.py # Depth Lighting 渲染器（DA2-Large，公寓场景）
+├── gen_apartment_lighting.py # Depth Lighting 渲染器（HF API，公寓场景）
 ├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器
 ├── WORKFLOW.md             # 本文档
