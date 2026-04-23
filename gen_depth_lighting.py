@@ -25,7 +25,7 @@ import torch
 
 # ── Constants ──────────────────────────────────────────────────────
 ASSETS_DIR = "assets"
-NUM_FRAMES = 12
+NUM_FRAMES = 24
 SHADOW_STEPS = 64
 AMBIENT = 0.02  # 深夜最低环境光
 

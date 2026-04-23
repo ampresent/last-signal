@@ -859,7 +859,7 @@ const Game = {
   bgFrames: {},
   currentFrame: 0,
   frameTimer: 0,
-  frameInterval: 800,
+  frameInterval: 83,
   masks: {},
   objMasks: {},
   selectedItem: null,
@@ -887,7 +887,7 @@ const Game = {
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
     const portraits = ['portrait_kai', 'portrait_oracle'];
-    const NUM_FRAMES = 12; // AI 关键帧 + 光流插值生成 12 帧/场景
+    const NUM_FRAMES = 24; // Depth Lighting 生成 24 帧/场景
 
     const loadImg = (src) => {
       return new Promise((resolve) => {
