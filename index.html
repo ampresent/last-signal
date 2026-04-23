@@ -70,6 +70,20 @@
     box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
   }
 
+  #dialogue-portrait-canvas {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #00ff88;
+    flex-shrink: 0;
+    display: none;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    image-rendering: pixelated;
+  }
+
+  #dialogue-portrait-canvas.visible {
+    display: block;
+  }
+
   #dialogue-portrait.visible {
     display: block;
   }
@@ -420,6 +434,7 @@
   <div id="dialogue-box">
     <div id="dialogue-inner">
       <img id="dialogue-portrait" />
+      <canvas id="dialogue-portrait-canvas" width="160" height="160"></canvas>
       <div id="dialogue-body">
         <div id="dialogue-speaker"></div>
         <div id="dialogue-text"></div>
@@ -973,6 +988,360 @@ const VFX = {
 
 
 // ============================================================
+// JOKER FACE ANIMATOR — 谐子的变幻笑脸
+// ============================================================
+const JokerFace = {
+  canvas: null,
+  ctx: null,
+  running: false,
+  time: 0,
+  currentFace: 0,
+  transitionProgress: 0,
+  transitionSpeed: 0.4, // 0-1 per second
+  glitchTimer: 0,
+  glitchActive: false,
+
+  // 笑脸关键帧 — 每一帧定义眉、眼、嘴的参数
+  faces: [
+    { // 0: 经典咧嘴笑
+      name: 'grin',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      mouth:    { type: 'arc', open: 0.6, width: 0.55, y: 0.68, teeth: true },
+      browL:    { angle: -0.1 },
+      browR:    { angle: 0.1 },
+      blush:    0.15,
+    },
+    { // 1: 眨眼 wink
+      name: 'wink',
+      leftEye:  { cx: 0.30, cy: 0.40, w: 0.14, h: 0.03, shape: 'line' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      mouth:    { type: 'arc', open: 0.4, width: 0.45, y: 0.68, teeth: false },
+      browL:    { angle: 0.15 },
+      browR:    { angle: -0.05 },
+      blush:    0.25,
+    },
+    { // 2: 邪恶笑
+      name: 'evil',
+      leftEye:  { cx: 0.30, cy: 0.36, w: 0.14, h: 0.10, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.36, w: 0.14, h: 0.10, shape: 'square' },
+      mouth:    { type: 'zigzag', open: 0.8, width: 0.60, y: 0.66, teeth: true },
+      browL:    { angle: -0.25 },
+      browR:    { angle: 0.25 },
+      blush:    0.10,
+    },
+    { // 3: 惊讶 O
+      name: 'surprised',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.16, h: 0.16, shape: 'circle' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.16, h: 0.16, shape: 'circle' },
+      mouth:    { type: 'circle', open: 1.0, width: 0.18, y: 0.70, teeth: false },
+      browL:    { angle: -0.3 },
+      browR:    { angle: 0.3 },
+      blush:    0.05,
+    },
+    { // 4: 哭笑脸
+      name: 'crylaugh',
+      leftEye:  { cx: 0.30, cy: 0.40, w: 0.10, h: 0.03, shape: 'line' },
+      rightEye: { cx: 0.70, cy: 0.40, w: 0.10, h: 0.03, shape: 'line' },
+      mouth:    { type: 'arc', open: 0.9, width: 0.55, y: 0.66, teeth: true },
+      browL:    { angle: 0.2 },
+      browR:    { angle: -0.2 },
+      blush:    0.30,
+      tears:    true,
+    },
+    { // 5: 无表情
+      name: 'blank',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.12, h: 0.12, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.12, h: 0.12, shape: 'square' },
+      mouth:    { type: 'line', open: 0, width: 0.35, y: 0.68, teeth: false },
+      browL:    { angle: 0 },
+      browR:    { angle: 0 },
+      blush:    0,
+    },
+  ],
+
+  // 面部参数序列（循环播放）
+  sequence: [0, 1, 0, 2, 3, 0, 4, 5, 0],
+  seqIndex: 0,
+
+  init() {
+    this.canvas = document.getElementById('dialogue-portrait-canvas');
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+  },
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.time = 0;
+    this.seqIndex = 0;
+    this.currentFace = this.sequence[0];
+    this.transitionProgress = 1;
+    this._lastTime = performance.now();
+    this._tick();
+  },
+
+  stop() {
+    this.running = false;
+  },
+
+  _tick() {
+    if (!this.running) return;
+    const now = performance.now();
+    const dt = (now - this._lastTime) / 1000;
+    this._lastTime = now;
+    this.time += dt;
+
+    // 面部切换过渡
+    this.transitionProgress += this.transitionSpeed * dt;
+    if (this.transitionProgress >= 1) {
+      this.transitionProgress = 0;
+      this.seqIndex = (this.seqIndex + 1) % this.sequence.length;
+      this.currentFace = this.sequence[this.seqIndex];
+    }
+
+    // 随机故障
+    this.glitchTimer += dt;
+    if (!this.glitchActive && this.glitchTimer > 2 + Math.random() * 4) {
+      this.glitchActive = true;
+      this.glitchTimer = 0;
+      setTimeout(() => { this.glitchActive = false; }, 60 + Math.random() * 100);
+    }
+
+    this._draw();
+    requestAnimationFrame(() => this._tick());
+  },
+
+  _lerp(a, b, t) { return a + (b - a) * t; },
+
+  _lerpFace(faceA, faceB, t) {
+    // 平滑插值 t: 用 smoothstep
+    const s = t * t * (3 - 2 * t);
+    return {
+      leftEye:  {
+        cx: this._lerp(faceA.leftEye.cx, faceB.leftEye.cx, s),
+        cy: this._lerp(faceA.leftEye.cy, faceB.leftEye.cy, s),
+        w:  this._lerp(faceA.leftEye.w,  faceB.leftEye.w,  s),
+        h:  this._lerp(faceA.leftEye.h,  faceB.leftEye.h,  s),
+        shape: s < 0.5 ? faceA.leftEye.shape : faceB.leftEye.shape,
+      },
+      rightEye: {
+        cx: this._lerp(faceA.rightEye.cx, faceB.rightEye.cx, s),
+        cy: this._lerp(faceA.rightEye.cy, faceB.rightEye.cy, s),
+        w:  this._lerp(faceA.rightEye.w,  faceB.rightEye.w,  s),
+        h:  this._lerp(faceA.rightEye.h,  faceB.rightEye.h,  s),
+        shape: s < 0.5 ? faceA.rightEye.shape : faceB.rightEye.shape,
+      },
+      mouth: {
+        type:  s < 0.5 ? faceA.mouth.type : faceB.mouth.type,
+        open:  this._lerp(faceA.mouth.open, faceB.mouth.open, s),
+        width: this._lerp(faceA.mouth.width, faceB.mouth.width, s),
+        y:     this._lerp(faceA.mouth.y, faceB.mouth.y, s),
+        teeth: s < 0.5 ? faceA.mouth.teeth : faceB.mouth.teeth,
+      },
+      browL: { angle: this._lerp(faceA.browL.angle, faceB.browL.angle, s) },
+      browR: { angle: this._lerp(faceA.browR.angle, faceB.browR.angle, s) },
+      blush: this._lerp(faceA.blush, faceB.blush, s),
+      tears: s < 0.5 ? (faceA.tears || false) : (faceB.tears || false),
+    };
+  },
+
+  _draw() {
+    const c = this.ctx;
+    const W = 160, H = 160;
+    c.clearRect(0, 0, W, H);
+
+    // 获取当前插值面部
+    const faceIdx = this.sequence[this.seqIndex];
+    const nextIdx = this.sequence[(this.seqIndex + 1) % this.sequence.length];
+    const face = this._lerpFace(this.faces[faceIdx], this.faces[nextIdx], this.transitionProgress);
+
+    // 背景
+    c.fillStyle = '#0a0a14';
+    c.fillRect(0, 0, W, H);
+
+    // 网格
+    c.strokeStyle = 'rgba(0,255,136,0.08)';
+    c.lineWidth = 0.5;
+    for (let x = 0; x < W; x += 16) { c.beginPath(); c.moveTo(x,0); c.lineTo(x,H); c.stroke(); }
+    for (let y = 0; y < H; y += 16) { c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); }
+
+    // 脸轮廓
+    c.beginPath();
+    c.arc(W/2, H/2, 62, 0, Math.PI*2);
+    c.strokeStyle = '#00ff88';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = 'rgba(0,255,136,0.03)';
+    c.fill();
+
+    // 腮红
+    if (face.blush > 0.01) {
+      c.fillStyle = `rgba(255,0,80,${face.blush})`;
+      c.beginPath(); c.arc(W*0.22, H*0.55, 12, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.arc(W*0.78, H*0.55, 12, 0, Math.PI*2); c.fill();
+    }
+
+    // 眉毛
+    this._drawBrow(c, face.leftEye.cx - 0.02, face.leftEye.cy - 0.10, face.browL.angle, W, H);
+    this._drawBrow(c, face.rightEye.cx + 0.02, face.rightEye.cy - 0.10, face.browR.angle, W, H);
+
+    // 眼睛
+    this._drawEye(c, face.leftEye, W, H);
+    this._drawEye(c, face.rightEye, W, H);
+
+    // 嘴巴
+    this._drawMouth(c, face.mouth, W, H);
+
+    // 泪水
+    if (face.tears) {
+      c.fillStyle = 'rgba(0,180,255,0.5)';
+      const tearY = (this.time * 40) % 30;
+      c.beginPath(); c.arc(W*0.28, H*0.44 + tearY, 3, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.arc(W*0.72, H*0.44 + tearY + 5, 2.5, 0, Math.PI*2); c.fill();
+    }
+
+    // 故障效果
+    if (this.glitchActive) {
+      // 横向错位
+      const sliceY = Math.floor(Math.random() * H);
+      const sliceH = 2 + Math.floor(Math.random() * 8);
+      const imgData = c.getImageData(0, sliceY, W, sliceH);
+      c.putImageData(imgData, (Math.random()-0.5)*8, sliceY);
+
+      // 色偏叠加
+      c.globalCompositeOperation = 'screen';
+      c.fillStyle = `rgba(255,0,60,${0.06+Math.random()*0.06})`;
+      c.fillRect(0,0,W,H);
+      c.globalCompositeOperation = 'source-over';
+    }
+
+    // 扫描线
+    c.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let y = (this.time * 60) % 8; y < H; y += 4) {
+      c.fillRect(0, y, W, 1);
+    }
+  },
+
+  _drawBrow(c, cx, cy, angle, W, H) {
+    const x = cx * W, y = cy * H;
+    c.save();
+    c.translate(x, y);
+    c.rotate(angle);
+    c.strokeStyle = '#00ff88';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(-10, 0); c.lineTo(10, 0);
+    c.stroke();
+    c.restore();
+  },
+
+  _drawEye(c, eye, W, H) {
+    const x = eye.cx * W, y = eye.cy * H;
+    const w = eye.w * W, h = eye.h * H;
+
+    c.fillStyle = '#00ff88';
+    c.strokeStyle = '#00ff88';
+
+    if (eye.shape === 'square') {
+      c.fillRect(x - w/2, y - h/2, w, h);
+      // 瞳孔
+      c.fillStyle = '#0a0a14';
+      c.fillRect(x - w/4, y - h/4, w/2, h/2);
+      // 高光
+      c.fillStyle = '#fff';
+      c.fillRect(x - w/4 + 2, y - h/4, 4, 4);
+    } else if (eye.shape === 'circle') {
+      c.beginPath();
+      c.arc(x, y, w/2, 0, Math.PI*2);
+      c.fill();
+      c.fillStyle = '#0a0a14';
+      c.beginPath();
+      c.arc(x, y, w/4, 0, Math.PI*2);
+      c.fill();
+      c.fillStyle = '#fff';
+      c.fillRect(x - 2, y - w/4, 3, 3);
+    } else if (eye.shape === 'line') {
+      c.lineWidth = 2.5;
+      c.beginPath();
+      c.moveTo(x - w/2, y); c.lineTo(x + w/2, y);
+      c.stroke();
+    }
+  },
+
+  _drawMouth(c, mouth, W, H) {
+    const x = W/2;
+    const y = mouth.y * H;
+    const hw = mouth.width * W / 2;
+
+    c.strokeStyle = '#00ff88';
+    c.fillStyle = '#00ff88';
+    c.lineWidth = 2;
+
+    if (mouth.type === 'arc') {
+      const openH = mouth.open * 25;
+      c.beginPath();
+      c.moveTo(x - hw, y);
+      // 锯齿弧线
+      const steps = 8;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = x - hw + t * hw * 2;
+        const py = y + Math.sin(t * Math.PI) * openH;
+        const zigzag = (i % 2 === 1) ? -4 : 0;
+        c.lineTo(px, py + zigzag);
+      }
+      c.stroke();
+      if (mouth.open > 0.3) {
+        c.fillStyle = 'rgba(0,255,136,0.08)';
+        c.fill();
+      }
+      // 牙齿
+      if (mouth.teeth && mouth.open > 0.3) {
+        c.strokeStyle = '#00ff88';
+        c.lineWidth = 1;
+        const teethCount = Math.floor(hw / 10);
+        for (let i = 1; i < teethCount; i++) {
+          const tx = x - hw + (i / teethCount) * hw * 2;
+          const tH = 4 + Math.sin(i * 1.7) * 3;
+          c.strokeRect(tx - 3, y, 6, tH);
+        }
+      }
+    } else if (mouth.type === 'zigzag') {
+      const openH = mouth.open * 22;
+      c.beginPath();
+      const segs = 10;
+      for (let i = 0; i <= segs; i++) {
+        const t = i / segs;
+        const px = x - hw + t * hw * 2;
+        const py = y + (i % 2 === 0 ? 0 : openH);
+        if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+      }
+      c.stroke();
+      if (mouth.teeth) {
+        c.lineWidth = 1;
+        for (let i = 1; i < segs; i += 2) {
+          const tx = x - hw + (i / segs) * hw * 2;
+          c.strokeRect(tx - 3, y, 6, 6);
+        }
+      }
+    } else if (mouth.type === 'circle') {
+      c.beginPath();
+      c.arc(x, y, mouth.width * W / 2, 0, Math.PI * 2);
+      c.stroke();
+      c.fillStyle = 'rgba(0,255,136,0.1)';
+      c.fill();
+    } else if (mouth.type === 'line') {
+      c.beginPath();
+      c.moveTo(x - hw, y); c.lineTo(x + hw, y);
+      c.stroke();
+    }
+  },
+};
+
+
+// ============================================================
 // LAST SIGNAL - Point & Click Adventure Engine
 // ============================================================
 const Game = {
@@ -1005,6 +1374,7 @@ const Game = {
     await this.loadImages();
     await this.loadMasks();
     this.buildInventoryUI();
+    JokerFace.init();
   },
 
   async loadImages() {
@@ -1382,6 +1752,7 @@ const Game = {
       const textEl = document.getElementById('dialogue-text');
       const choicesEl = document.getElementById('dialogue-choices');
       const portraitEl = document.getElementById('dialogue-portrait');
+      const portraitCanvas = document.getElementById('dialogue-portrait-canvas');
 
       // 头像映射：根据角色名自动匹配，也可手动传入 portrait 参数覆盖
       const PORTRAIT_MAP = {
@@ -1392,18 +1763,23 @@ const Game = {
       };
       const resolvedPortrait = portrait || PORTRAIT_MAP[speaker];
 
-      if (resolvedPortrait && this.images[resolvedPortrait]) {
+      // 谐子 → canvas 动画笑脸；其他角色 → 静态图片
+      if (resolvedPortrait === 'portrait_joker') {
+        portraitEl.classList.remove('visible');
+        portraitEl.classList.remove('joker-glitch');
+        portraitCanvas.classList.add('visible');
+        JokerFace.start();
+      } else if (resolvedPortrait && this.images[resolvedPortrait]) {
+        portraitCanvas.classList.remove('visible');
+        JokerFace.stop();
         portraitEl.src = this.images[resolvedPortrait].src;
         portraitEl.classList.add('visible');
-        // 谐子的头像持续故障变幻
-        if (resolvedPortrait === 'portrait_joker') {
-          portraitEl.classList.add('joker-glitch');
-        } else {
-          portraitEl.classList.remove('joker-glitch');
-        }
+        portraitEl.classList.remove('joker-glitch');
       } else {
         portraitEl.classList.remove('visible');
         portraitEl.classList.remove('joker-glitch');
+        portraitCanvas.classList.remove('visible');
+        JokerFace.stop();
       }
 
       let speakerDisplay = speaker || '';
