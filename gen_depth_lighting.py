@@ -811,8 +811,15 @@ def compute_lighting(depth_map, frame_idx, img_h, img_w, scene_config):
 def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
     """March shadow rays from each pixel toward the light source.
 
-    Detects occluders along the light path by comparing sampled depth
-    against the expected interpolated depth at each step.
+    Tracks the shallowest surface encountered along the ray. A surface
+    deeper than this minimum casts shadow on everything behind it.
+    Surfaces that continue getting shallower do NOT block — light
+    travels through progressively shallower regions freely.
+
+    Examples (depth 0=near, 1=far):
+      deep(0.7) → shallow(0.3) → shallower(0.1) : NOT blocked ✓
+      deep(0.7) → shallow(0.3) → deep(0.6)      : blocked (wall behind)
+      shallow(0.3) → deeper(0.5) → deeper(0.7)   : blocked (pixel blocks behind)
 
     Args:
         depth_map: (H,W) float32, 0=near, 1=far
@@ -834,24 +841,25 @@ def ray_march_shadows(depth_map, light_pos, light_depth, img_h, img_w):
     step_dist = dist / SHADOW_STEPS
     shadow = np.ones((img_h, img_w), dtype=np.float32)
 
-    # Interpolate depth from pixel to light at each step
-    pixel_depth = depth_map  # starting depth at each pixel
+    # Track the shallowest surface encountered along each ray.
+    # Once a shallow surface is found, everything deeper behind it is shadowed.
+    shallowest_so_far = depth_map.copy()
+
+    blocker_threshold = 0.04
 
     for step in range(1, SHADOW_STEPS + 1):
-        t = step / SHADOW_STEPS  # 0→1 along ray
         sx = np.clip(xx + dx_norm * step_dist * step, 0, img_w - 1).astype(np.int32)
         sy = np.clip(yy + dy_norm * step_dist * step, 0, img_h - 1).astype(np.int32)
         sampled_depth = depth_map[sy, sx]
 
-        # Expected depth at this point: linear interpolation from pixel to light
-        expected_depth = pixel_depth + (light_depth - pixel_depth) * t
+        # A surface is shadowed if it's deeper than the shallowest surface
+        # we've encountered so far along the ray — meaning something is
+        # blocking the light path behind that shallow surface.
+        diff = sampled_depth - shallowest_so_far
+        shadow *= np.where(diff > blocker_threshold, 0.0, 1.0)
 
-        # Occluder: sampled surface is significantly shallower than expected
-        # (something is blocking the light path)
-        blocker_threshold = 0.04
-        diff = expected_depth - sampled_depth
-        shadow_mask = (diff > blocker_threshold).astype(np.float32)
-        shadow *= (1.0 - shadow_mask)
+        # Update shallowest: only track shallower surfaces (lower depth)
+        shallowest_so_far = np.minimum(shallowest_so_far, sampled_depth)
 
     return shadow
 
