@@ -1357,9 +1357,10 @@ const CharSystem = {
 
   SPRITE_SIZE: 128,
   WALK_SPEED: 0.12,        // 归一化坐标/秒
-  ANIM_INTERVAL: 180,      // 帧切换间隔 ms
+  ANIM_INTERVAL: 120,      // 帧切换间隔 ms (8帧更快切换)
   CHAR_SCALE: 0.25,        // 角色缩放 (相对于画面)
   DEPTH_THRESHOLD: 0.05,   // 深度差阈值 (遮挡判断)
+  WALK_FRAMES: 8,          // 行走帧数 (v2: 8帧更流畅)
 
   // ── 初始化场景角色 ──
   async initScene(sceneId, images) {
@@ -1424,7 +1425,7 @@ const CharSystem = {
 
       this.sprites[id] = {};
       for (const dir of dirs) {
-        for (let fi = 0; fi < 4; fi++) {
+        for (let fi = 0; fi < this.WALK_FRAMES; fi++) {
           const key = `${dir}_f${fi}`;
           const path = `assets/sprites/${id}_${key}.png`;
           promises.push(
@@ -1590,7 +1591,7 @@ const CharSystem = {
         char.animTimer += dt;
         if (char.animTimer >= this.ANIM_INTERVAL) {
           char.animTimer -= this.ANIM_INTERVAL;
-          char.frame = (char.frame + 1) % 4;
+          char.frame = (char.frame + 1) % this.WALK_FRAMES;
         }
       } else {
         char.frame = 0;
@@ -1620,8 +1621,9 @@ const CharSystem = {
   // ── 绘制单个角色 ──
   _drawChar(ctx, char, depth) {
     const spriteKey = `${char.dir}_f${char.frame}`;
-    const sprite = this.sprites[char.id]?.[spriteKey];
-
+    let sprite = this.sprites[char.id]?.[spriteKey];
+    // 帧不存在时降级到 f0
+    if (!sprite) sprite = this.sprites[char.id]?.[`${char.dir}_f0`];
     if (!sprite) return; // 精灵图未加载
 
     // 角色尺寸 (根据深度缩放 — 远处小, 近处大)
@@ -1797,12 +1799,13 @@ const Game = {
       }
     }
 
-    // ── 加载角色行走精灵图 ──
+    // ── 加载角色行走精灵图 (v2: 8帧) ──
     const spriteChars = ['kai', 'oracle', 'joker'];
     const spriteDirs = ['down', 'left', 'right', 'up'];
+    const walkFrameCount = CharSystem.WALK_FRAMES || 8;
     for (const charId of spriteChars) {
       for (const dir of spriteDirs) {
-        for (let fi = 0; fi < 4; fi++) {
+        for (let fi = 0; fi < walkFrameCount; fi++) {
           const key = `${charId}_${dir}_f${fi}`;
           promises.push(loadImg(`assets/sprites/${key}.png`).then(img => {
             if (img) {
