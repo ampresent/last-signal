@@ -49,9 +49,34 @@
     border-top: 2px solid #00ff88;
     border-bottom: 2px solid #00ff88;
     padding: 15px 20px;
-    min-height: 100px;
+    min-height: 120px;
     display: none;
     z-index: 10;
+  }
+
+  #dialogue-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  #dialogue-portrait {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #00ff88;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+    display: none;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+  }
+
+  #dialogue-portrait.visible {
+    display: block;
+  }
+
+  #dialogue-body {
+    flex: 1;
+    min-width: 0;
   }
 
   #dialogue-speaker {
@@ -315,9 +340,14 @@
   <canvas id="scene-canvas" width="960" height="640"></canvas>
 
   <div id="dialogue-box">
-    <div id="dialogue-speaker"></div>
-    <div id="dialogue-text"></div>
-    <div id="dialogue-choices"></div>
+    <div id="dialogue-inner">
+      <img id="dialogue-portrait" />
+      <div id="dialogue-body">
+        <div id="dialogue-speaker"></div>
+        <div id="dialogue-text"></div>
+        <div id="dialogue-choices"></div>
+      </div>
+    </div>
   </div>
 
   <div id="hud">
@@ -1194,11 +1224,24 @@ const Game = {
       const speakerEl = document.getElementById('dialogue-speaker');
       const textEl = document.getElementById('dialogue-text');
       const choicesEl = document.getElementById('dialogue-choices');
+      const portraitEl = document.getElementById('dialogue-portrait');
+
+      // 头像映射：根据角色名自动匹配，也可手动传入 portrait 参数覆盖
+      const PORTRAIT_MAP = {
+        '凯': 'portrait_kai',
+        'Oracle': 'portrait_oracle',
+        '???': 'portrait_oracle',
+      };
+      const resolvedPortrait = portrait || PORTRAIT_MAP[speaker];
+
+      if (resolvedPortrait && this.images[resolvedPortrait]) {
+        portraitEl.src = this.images[resolvedPortrait].src;
+        portraitEl.classList.add('visible');
+      } else {
+        portraitEl.classList.remove('visible');
+      }
 
       let speakerDisplay = speaker || '';
-      if (portrait && this.images[portrait]) {
-        speakerDisplay = `◆ ${speaker}`;
-      }
 
       speakerEl.textContent = speakerDisplay;
       textEl.textContent = '';
