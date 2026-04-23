@@ -304,6 +304,14 @@
     opacity: 1;
   }
 
+  /* 场景滤镜 */
+  #scene-canvas.filter-underground {
+    filter: brightness(0.55) contrast(1.3) saturate(0.3) sepia(0.4) hue-rotate(-10deg);
+  }
+  #scene-canvas.filter-core {
+    filter: brightness(0.5) contrast(1.4) saturate(0.2) hue-rotate(200deg);
+  }
+
   /* 结局画面 */
   #ending-screen {
     position: absolute;
@@ -477,6 +485,24 @@ const VFX = {
       scanlines: { enabled: true, opacity: 0.02 },
       vignette: { inner: 200, outer: 540, opacity: 0.5 },
       particles: { type: 'dust', count: 12, speed: 0.15, opacity: 0.06 },
+    },
+    underground: {
+      rain: { count: 0 },
+      fog: { layers: 1, speed: 0.06, opacity: 0.10, color: [80, 30, 30] },
+      neon: { speed: 0.018, intensity: 0.20 },
+      flicker: { enabled: true, chance: 0.025, amount: 0.22 },
+      scanlines: { enabled: true, opacity: 0.05 },
+      vignette: { inner: 170, outer: 480, opacity: 0.65 },
+      particles: { type: 'data', count: 30, speed: 0.6, opacity: 0.12 },
+    },
+    core: {
+      rain: { count: 0 },
+      fog: { layers: 0 },
+      neon: { speed: 0.025, intensity: 0.30 },
+      flicker: { enabled: true, chance: 0.035, amount: 0.25 },
+      scanlines: { enabled: true, opacity: 0.06 },
+      vignette: { inner: 140, outer: 450, opacity: 0.7 },
+      particles: { type: 'data', count: 50, speed: 0.8, opacity: 0.15 },
     },
   },
 
@@ -989,7 +1015,7 @@ const Game = {
   },
 
   async loadMasks() {
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
+    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office', 'underground', 'core'];
 
     const loadMask = (url) => {
       return new Promise((resolve) => {
@@ -1095,6 +1121,10 @@ const Game = {
     this.currentScene = sceneId;
     this.selectedItem = null;
     this.hideDialogue();
+
+    // 场景滤镜
+    const FILTER_MAP = { underground: 'filter-underground', core: 'filter-core' };
+    this.canvas.className = FILTER_MAP[sceneId] || '';
 
     // 初始化 VFX 引擎
     VFX.init(sceneId);
@@ -1236,25 +1266,27 @@ const Game = {
   // ---- 关键词微震系统 ----
   KEYWORDS: [
     // 核心人名
-    '凯', 'Oracle', '影子', '酒保',
+    '凯', 'Oracle', '影子', '酒保', '魏', '魏明远', '搭档',
     // 组织 / 公司
     'ECHO', 'ECHO 公司',
     // 项目 / 事件
     'LASTLIGHT', 'LAST LIGHT', 'PROJECT LASTLIGHT',
-    '事故', '实验事故', '实验',
+    '事故', '实验事故', '实验', '脑机接口',
     // 地点
     '旧工业带', '废弃区', '服务器室', '塔楼', '楼顶',
-    '公寓', '霓虹街', 'The Rust', '小巷',
+    '公寓', '霓虹街', 'The Rust', '小巷', 'B7', 'B7 层',
+    '核心控制室', '实验舱',
     // 关键物品
     '安全卡', '数据芯片', '芯片', '加密芯片', '终端',
-    '解密信息', '电击枪',
+    '解密信息', '电击枪', '神经链接器', '通行证',
     // 关键概念
-    '信号', '真相', '搭档', '加密', '解密', '数据',
+    '信号', '真相', '加密', '解密', '数据',
     '幽灵黑客', '神经网络', '分布式计算', '脑死亡',
-    '活人做实验', '证据', '公开',
+    '活人做实验', '证据', '公开', '意识', '断电',
+    '排斥反应', '集体意识', '节点',
     // 重要数字
-    '2087', '77.3 MHz', '三年前', '三年', '地下三层',
-    '3号测试对象',
+    '2087', '77.3 MHz', '144.7 MHz', '三年前', '三年', '地下三层', '地下七层',
+    '3号测试对象', '13号', '12个',
   ],
 
   _buzzApplied: false,
@@ -1482,6 +1514,10 @@ const ITEMS = {
   keycard: { name: '安全卡', icon: '🗝️', desc: 'ECHO 公司的安全门卡' },
   message: { name: '解密信息', icon: '📄', desc: '芯片中解密出的信息' },
   gun: { name: '电击枪', icon: '⚡', desc: '老式电击枪，还有几发' },
+  signal_note: { name: '加密坐标', icon: '📡', desc: '新信号中的地下设施坐标' },
+  level5_card: { name: 'Level-5 通行证', icon: '🔴', desc: 'ECHO 高层专用，地下实验室入口' },
+  neural_linker: { name: '神经链接器', icon: '🧠', desc: 'LASTLIGHT 项目的脑机接口原型' },
+  evidence_core: { name: '核心证据', icon: '💎', desc: 'LASTLIGHT 实验室的完整数据备份' },
 };
 
 
@@ -1495,6 +1531,27 @@ const SCENES = {
     background: 'bg_apartment',
 
     onEnter() {
+      // 第二章：回到公寓
+      if (Game.flags.ch2_started && !Game.flags.ch2_apartment_visited) {
+        Game.flags.ch2_apartment_visited = true;
+        Game.showDialogue(null, '公寓。一切和三周前一样——除了新闻屏幕上的变化。').then(() => {
+          return Game.showDialogue(null, '[ 新闻快讯 ]\n\nECHO 公司前 CEO 张维已被正式逮捕。\n检方以"反人类实验罪"提起公诉。\n但据知情人士透露，ECHO 的核心研发部门\n从未被查封——\n\n"真正的实验，在地下。"');
+        }).then(() => {
+          return Game.showDialogue('凯', 'Oracle 说过，LASTLIGHT 的核心实验室还在运转。\n\n那些人……还活着。她要去处理。\n\n然后她就消失了。');
+        }).then(() => {
+          return Game.showDialogue(null, '终端再次震动。加密信号。\n\n和上次一样的频率——144.7 MHz。\n但这次，信号源标注的是：\n\n"塔楼 B7 层 — 垂直入口 — 警卫亭地板下"');
+        }).then(() => {
+          return Game.showDialogue('凯', '警卫亭地板下？那栋楼……还有另一个入口。\n\n我得去塔楼看看。');
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '没什么可拿的了。去塔楼找 B7 层入口。');
+        return;
+      }
+
+      // 原版第一章
       if (!Game.flags.apartment_visited) {
         Game.flags.apartment_visited = true;
         Game.showDialogue(null,
@@ -1560,6 +1617,21 @@ const SCENES = {
     background: 'bg_street',
 
     onEnter() {
+      // 第二章：街道变了
+      if (Game.flags.ch2_started && !Game.flags.ch2_street_visited) {
+        Game.flags.ch2_street_visited = true;
+        Game.showDialogue(null, '霓虹街变了。\n\nECHO 的全息广告被涂鸦覆盖。人们在讨论逮捕的消息。\n但雨还是那场雨。').then(() => {
+          return Game.showDialogue('凯', '表面上一切都在变好。\n但 Oracle 说过——真正的实验在地下。\n\n我得去塔楼。B7 层。');
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '没时间闲逛了。Oracle 在 B7 层等着。');
+        return;
+      }
+
+      // 原版第一章
       if (!Game.flags.street_visited) {
         Game.flags.street_visited = true;
         Game.showDialogue(null, '雨幕中的霓虹街。空气里混着臭氧和廉价拉面的味道。\n\n左边是 The Rust 酒吧，右边通往旧工业带。').then(() => {
@@ -1822,6 +1894,38 @@ const SCENES = {
         label: '▸ 警卫亭',
         maskId: 'guard_booth',
         action() {
+          // 第二章：警卫亭地板下的秘密入口
+          if (Game.flags.ch2_started) {
+            if (!Game.flags.found_b7) {
+              Game.flags.found_b7 = true;
+              Game.showDialogue('凯', '信号说入口在警卫亭地板下。让我看看……').then(() => {
+                return Game.showDialogue(null, '你蹲下检查。地板的一块瓷砖有松动的痕迹。\n\n掀开后，下面是一个生锈的金属舱门。上面刻着：\n\n[ ECHO DEEP LAB — AUTHORIZED PERSONNEL ONLY ]\n[ LEVEL B7 — PROJECT LASTLIGHT ]');
+              }).then(() => {
+                return Game.showDialogue('凯', '果然……这栋楼不只有地上那几层。\n\nLASTLIGHT 的真正实验室在下面。', [
+                  { text: '打开舱门，进入 B7' },
+                  { text: '先准备一下' },
+                ]);
+              }).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('door');
+                  Game.goScene('underground');
+                }
+              });
+            } else {
+              Game.showDialogue('凯', 'B7 层入口就在脚下。', [
+                { text: '进入 B7 层' },
+                { text: '再等等' },
+              ]).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('door');
+                  Game.goScene('underground');
+                }
+              });
+            }
+            return;
+          }
+
+          // 第一章：原版
           if (!Game.flags.tower_guard) {
             Game.flags.tower_guard = true;
             Game.showDialogue(null, '警卫亭是空的。桌上的咖啡还是温的。').then(() => {
@@ -1935,6 +2039,41 @@ const SCENES = {
     background: 'bg_rooftop',
 
     onEnter() {
+      // 第二章：从楼顶回来后的状态
+      if (Game.flags.ch2_started && !Game.flags.ch2_rooftop_done) {
+        Game.showDialogue(null, '楼顶空无一人。Oracle 已经离开了。\n\n雨停了，但空气中多了一种说不清的焦灼。').then(() => {
+          return Game.showDialogue('凯', '她让我等新的信号。\n\n可已经三周了。什么都没有。');
+        }).then(() => {
+          return Game.showDialogue(null, '你准备离开——\n\n突然，口袋里的终端震动了。');
+        }).then(() => {
+          Game.flags.ch2_rooftop_done = true;
+          Game.sfx('success');
+          return Game.showDialogue(null, '[ 新信号 ]\n\nFREQ: 144.7 MHz\nORIGIN: 塔楼—B7层\n\n"凯。Oracle 出事了。\nB7——真正的实验室。\n快。— 影子"');
+        }).then(() => {
+          return Game.showDialogue('凯', '影子？他怎么会……\n\nB7层。这栋楼还有地下七层？');
+        }).then(() => {
+          return Game.showDialogue('凯', 'Oracle 出事了。我不能不管。', [
+            { text: '去 B7 层' },
+            { text: '先回公寓准备' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('door');
+              Game.goScene('tower');
+            } else {
+              Game.sfx('door');
+              Game.goScene('apartment');
+            }
+          });
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '楼顶已经没有线索了。Oracle 在 B7 层。');
+        return;
+      }
+
+      // 原版第一章楼顶剧情
       Game.showDialogue(null, '雨更大了。楼顶的风撕扯着你的外套。\n\n城市在脚下，霓虹像一条没有尽头的河。').then(() => {
         return Game.showDialogue('Oracle', '你来了。', [
           { text: '你是谁？你到底想要什么？' },
@@ -1949,22 +2088,30 @@ const SCENES = {
           { text: '毁掉数据，保护自己' },
         ]).then(choice => {
           if (choice === 0) {
+            // ★ 好结局 → 第二章
             Game.sfx('success');
-            Game.showEnding('LAST SIGNAL — 信号永不断', [
+            Game.showDialogue('LAST SIGNAL — 信号永不断', [
               '你选择了公开。',
               '',
               '三天后，数据在网络上炸开了锅。',
-              'ECHO 公司的股价暴跌。CEO 被捕。',
+              'ECHO 公司的股价暴跌。表面 CEO 被捕。',
               '搭档的名字被写进了纪念碑。',
               '',
               '你站在雨中，看着新闻屏幕。',
-              'Oracle 说："你做到了。"',
+              'Oracle 说："你做到了。但这只是冰山一角。"',
               '',
-              '"下一个信号什么时候来？"',
-              '"随时。"',
+              '"LASTLIGHT 的核心实验室还在运转。那里的人……还活着。"',
+              '"我会处理。等我的信号。"',
               '',
-              '— END —',
-            ]);
+              '她消失在雨中。',
+            ]).then(() => {
+              Game.flags.ch2_started = true;
+              Game.flags.chapter = 2;
+              return Game.showDialogue(null, '三周后——\n\nOracle 失联了。');
+            }).then(() => {
+              Game.sfx('door');
+              Game.goScene('rooftop');
+            });
           } else {
             Game.sfx('error');
             Game.showEnding('LAST SIGNAL — 沉默', [
@@ -1984,6 +2131,272 @@ const SCENES = {
           }
         });
       });
+    },
+
+    hotspots: []
+  },
+
+  // ============================================================
+  // 第二章：地下实验室
+  // ============================================================
+  underground: {
+    name: 'B7 层 — LASTLIGHT 地下实验室',
+    background: 'bg_server_room',
+
+    onEnter() {
+      if (!Game.flags.underground_visited) {
+        Game.flags.underground_visited = true;
+        Game.showDialogue(null, '金属舱门通向一条狭窄的走廊。空气里弥漫着消毒水和臭氧的味道。\n\n墙壁上的灯管闪烁着红色应急光——这里还在供电。').then(() => {
+          return Game.showDialogue('凯', '三年了……这个地方一直在运转？\n\n外面的 CEO 被捕了，但地下的人根本没停手。');
+        }).then(() => {
+          return Game.showDialogue(null, '走廊尽头是一扇厚重的防爆门。\n\n门上的生物识别器闪着绿光——似乎已经被绕过了。门半开着。');
+        }).then(() => {
+          return Game.showDialogue('凯', '有人在我之前来过。\n\nOracle？还是……');
+        });
+      }
+    },
+
+    hotspots: [
+      {
+        x: 300, y: 150, w: 350, h: 350,
+        label: '▸ 实验舱',
+        maskId: 'terminal',
+        action() {
+          if (!Game.flags.found_pods) {
+            Game.flags.found_pods = true;
+            Game.showDialogue(null, '实验舱里排列着十二个透明的圆柱形容器。\n\n每个容器里都漂浮着一个人——头部连接着密密麻麻的电极。\n\n生命体征监测器显示：全部存活。').then(() => {
+              return Game.showDialogue('凯', '……这就是 LASTLIGHT。\n\n他们把人变成了活体处理器。三年了，这些人一直泡在这里。');
+            }).then(() => {
+              return Game.showDialogue('凯', 'ECHO 的 CEO 只是替罪羊。真正的人在这里——地下七层，没有任何记录。');
+            }).then(() => {
+              return Game.showDialogue(null, '你注意到角落里有一台终端还亮着。旁边掉落了一个神经链接器原型。', [
+                { text: '拿起神经链接器' },
+                { text: '先查看终端' },
+              ]).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('pickup');
+                  Game.addItem('neural_linker');
+                  return Game.showDialogue(null, '获得：神经链接器。\n\n这是 LASTLIGHT 的核心硬件——将人脑接入分布式网络的接口。').then(() => {
+                    return Game.showDialogue('凯', '如果我能用这个接入他们的系统……也许能找到 Oracle。');
+                  });
+                } else {
+                  return Game.showDialogue(null, '终端屏幕上显示着实验日志：\n\n[ SUBJECT 07 — STATUS: ACTIVE ]\n[ SUBJECT 08 — STATUS: ACTIVE ]\n...\n[ SUBJECT 12 — STATUS: CRITICAL ]\n[ SUBJECT 13 — STATUS: CONNECTED — ID: "ORACLE" ]');
+                }
+              });
+            }).then(() => {
+              if (!Game.hasItem('neural_linker')) {
+                Game.sfx('pickup');
+                Game.addItem('neural_linker');
+                Game.showHint('获得：神经链接器');
+              }
+              return Game.showDialogue('凯', 'ORACLE……她就是 13 号？\n\n她不是在躲——她是被抓回来的。她一直在里面，用神经网络给我们发信号。');
+            });
+          } else {
+            Game.showDialogue('凯', '十二个人……加上 Oracle。\n\n我得找到控制终端，把他们全部断开。');
+          }
+        }
+      },
+      {
+        x: 50, y: 400, w: 200, h: 200,
+        label: '▸ 医疗柜',
+        maskId: 'rack',
+        action() {
+          if (!Game.flags.searched_medical) {
+            Game.flags.searched_medical = true;
+            Game.showDialogue(null, '医疗柜里有一把老式电击枪和几瓶镇静剂。').then(() => {
+              Game.sfx('pickup');
+              Game.addItem('gun');
+              return Game.showDialogue('凯', '电击枪……也许用得上。');
+            });
+          } else {
+            Game.showDialogue('凯', '已经搜过了。');
+          }
+        }
+      },
+      {
+        x: 700, y: 200, w: 200, h: 300,
+        label: '▸ 深层通道',
+        maskId: 'rooftop_exit',
+        action() {
+          if (Game.hasItem('neural_linker')) {
+            Game.showDialogue('凯', '通道尽头是核心控制室。\n\n如果 Oracle 在网络里，那里就是接入点。', [
+              { text: '进入核心控制室' },
+              { text: '再准备一下' },
+            ]).then(choice => {
+              if (choice === 0) {
+                Game.sfx('door');
+                Game.goScene('core');
+              }
+            });
+          } else {
+            Game.showDialogue('凯', '我需要先找到接入系统的办法。实验舱那边应该有。');
+          }
+        }
+      },
+      {
+        x: 50, y: 500, w: 150, h: 100,
+        label: '▸ 返回地面',
+        maskId: 'lobby_exit',
+        action() {
+          Game.showDialogue('凯', '要离开吗？那些人还连着……', [
+            { text: '先上去' },
+            { text: '留下' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('door');
+              Game.goScene('tower');
+            }
+          });
+        }
+      },
+    ]
+  },
+
+  // ============================================================
+  // 第二章：核心控制室 — 最终对决
+  // ============================================================
+  core: {
+    name: 'B7 核心控制室 — LASTLIGHT 枢纽',
+    background: 'bg_rooftop',
+
+    onEnter() {
+      if (!Game.flags.core_visited) {
+        Game.flags.core_visited = true;
+        Game.showDialogue(null, '核心控制室。环形的空间，墙壁上布满了全息屏幕。\n\n每个屏幕上都跳动着脑神经信号——十二个活人的思维，在这里汇聚成一台超级计算机。').then(() => {
+          return Game.showDialogue('凯', '这就是 LASTLIGHT 的真面目。\n\n不是什么分布式计算——是把人脑联网，制造一个集体意识。');
+        }).then(() => {
+          return Game.showDialogue(null, '控制台前，一个穿着白大褂的老人背对着你。\n\n他转过身来。');
+        }).then(() => {
+          return Game.showDialogue('魏', '凯。我等你很久了。', [
+            { text: '你是谁？' },
+            { text: '你就是幕后黑手？' },
+          ]);
+        }).then(choice => {
+          return Game.showDialogue('魏', '我是魏明远。LASTLIGHT 项目的创始人。\n\n也是——你搭档的导师。');
+        }).then(() => {
+          return Game.showDialogue('凯', '……导师？');
+        }).then(() => {
+          return Game.showDialogue('魏', '你以为搭档是偶然发现真相的？不。\n\n是我让他看到的。我需要一个有正义感的人，来检验这个系统。');
+        }).then(() => {
+          return Game.showDialogue('魏', '他太出色了。他的大脑是所有测试对象中最完美的。\n\n排斥反应……不是事故。是我故意触发的。我需要知道极限在哪里。');
+        }).then(() => {
+          return Game.showDialogue('凯', '你……你拿自己的学生做实验？');
+        }).then(() => {
+          return Game.showDialogue('魏', '科学需要牺牲。\n\n而你——你比他更坚韧。你活过了三年的追问。\n\n我可以给你一个选择。', [
+            { text: '我不会和你做交易' },
+            { text: '……什么选择？' },
+          ]).then(choice => {
+            if (choice === 0) {
+              return Game.showDialogue('凯', '我来这里不是为了跟你谈判。').then(() => {
+                return Game.showDialogue('魏', '可惜。那我就不能让你离开这里了。');
+              });
+            } else {
+              return Game.showDialogue('魏', '接入系统。取代 Oracle 成为 13 号节点。\n\n你的搭档在 3 号节点里——他的意识还在。你可以再见到他。\n\n代价是：你永远留在这里。');
+            }
+          });
+        }).then(() => {
+          return Game.showDialogue('Oracle', '凯。别听他的。\n\n我在网络里待了三年。他说的"意识还在"是真的——但那些人已经不是人了。他们的记忆在被覆写。搭档……已经不认识我了。');
+        }).then(() => {
+          return Game.showDialogue('Oracle', '控制台右侧有一个红色拉杆。那是紧急断电开关。\n\n拉下它，所有节点断开。他们会醒来——但 LASTLIGHT 就此终结。\n\n你来决定。', [
+            { text: '拉下断电开关 — 终结 LASTLIGHT' },
+            { text: '接入系统 — 去见搭档最后一面' },
+          ]);
+        }).then(choice => {
+          if (choice === 0) {
+            // ★ 第二章好结局
+            Game.sfx('success');
+            Game.showDialogue(null, '你冲向控制台，拉下了红色拉杆。').then(() => {
+              return Game.showDialogue('魏', '不——！你不知道你做了什么——！');
+            }).then(() => {
+              return Game.showDialogue(null, '警报声撕裂了空气。全息屏幕一个接一个熄灭。\n\n十二个容器的液体开始排出。生命体征灯从红变绿。');
+            }).then(() => {
+              return Game.showDialogue('Oracle', '……谢谢你，凯。\n\n我终于可以从这里出去了。');
+            }).then(() => {
+              return Game.showDialogue('凯', '搭档……对不起。我没能救你。\n\n但不会再有人被送进来了。');
+            }).then(() => {
+              Game.showEnding('LAST SIGNAL — 信号不止', [
+                '你按下了断电开关。',
+                '',
+                'LASTLIGHT 项目永久终止。',
+                '十二名测试对象被送往医院。大部分人恢复了意识。',
+                '魏明远被逮捕。这一次，没有替罪羊。',
+                '',
+                'Oracle 在医院醒来。她三年来第一次看到真实的阳光。',
+                '',
+                '你站在医院走廊里，看着窗外。',
+                '终端上，一条未加密的消息：',
+                '',
+                '"凯。信号不止一种。\n有些是求救，有些是指引。\n而你——是那个回答信号的人。"',
+                '',
+                '— LAST SIGNAL · 完 —',
+              ]);
+            });
+          } else {
+            // ★ 第二章特殊结局
+            Game.sfx('click');
+            Game.showDialogue(null, '你拿起神经链接器，戴在头上。').then(() => {
+              return Game.showDialogue('魏', '欢迎回家，凯。');
+            }).then(() => {
+              return Game.showDialogue(null, '电流穿过颅骨。世界在溶解。\n\n你看到光。无数条光线汇聚成一条河。\n\n在河的尽头，一个熟悉的身影转过身来。');
+            }).then(() => {
+              return Game.showDialogue('搭档', '……凯？你来了？');
+            }).then(() => {
+              return Game.showDialogue('凯', '我来了。\n\n我来带你回家。');
+            }).then(() => {
+              return Game.showDialogue('搭档', '这里没有家。只有信号。\n\n但你来了——这就够了。');
+            }).then(() => {
+              Game.showEnding('LAST SIGNAL — 永恒信号', [
+                '你选择了接入。',
+                '',
+                '你的意识融入了 LASTLIGHT 网络。',
+                '在数据的洪流中，你找到了搭档。',
+                '他的记忆已经模糊，但他认出了你。',
+                '',
+                'Oracle 看着你的生命体征稳定在绿色。',
+                '她拉下了断电开关——但你已经在里面了。',
+                '',
+                '十二个人醒来。你没有。',
+                '',
+                '但在网络深处，两个信号永远并行。',
+                '一个叫凯。一个叫搭档。',
+                '他们终于又在一起了。',
+                '',
+                '— LAST SIGNAL · 永恒 —',
+              ]);
+            });
+          }
+        });
+      } else {
+        Game.showDialogue('凯', '控制台就在那里。断电开关……还是接入端口……\n\n我必须做出选择。', [
+          { text: '拉下断电开关' },
+          { text: '接入神经链接器' },
+        ]).then(choice => {
+          if (choice === 0) {
+            Game.sfx('success');
+            Game.showEnding('LAST SIGNAL — 信号不止', [
+              '你拉下了红色拉杆。',
+              '',
+              'LASTLIGHT 项目永久终止。',
+              '十二名测试对象恢复意识。',
+              '魏明远被逮捕。',
+              '',
+              'Oracle 在医院看到了真实的阳光。',
+              '',
+              '— LAST SIGNAL · 完 —',
+            ]);
+          } else {
+            Game.sfx('click');
+            Game.showEnding('LAST SIGNAL — 永恒信号', [
+              '你戴上了神经链接器。',
+              '',
+              '在数据洪流中，你找到了搭档。',
+              '两个信号永远并行。',
+              '',
+              '— LAST SIGNAL · 永恒 —',
+            ]);
+          }
+        });
+      }
     },
 
     hotspots: []
