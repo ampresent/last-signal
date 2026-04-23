@@ -27,3 +27,7 @@ models/
 .s3cfg
 .git-credentials-file
 preview_*.gif
+.github-token
+.hf-token
+.s3cfg
+.git-credentials-file
