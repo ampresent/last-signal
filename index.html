@@ -1413,6 +1413,7 @@ const Game = {
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
+    const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
     const NUM_FRAMES = 24; // Depth Lighting 生成 24 帧/场景
 
     const loadImg = (src) => {
@@ -1452,6 +1453,14 @@ const Game = {
 
     for (const name of portraits) {
       promises.push(loadImg(`assets/${name}.png`).then(img => { this.images[name] = img; }));
+    }
+
+    // 预加载表情变体
+    for (const char of ['kai', 'oracle', 'joker']) {
+      for (const expr of EXPRESSIONS) {
+        const key = `portrait_${char}_${expr}`;
+        promises.push(loadImg(`assets/expressions/${key}.png`).then(img => { this.images[key] = img; }));
+      }
     }
 
     await Promise.all(promises);
@@ -1795,7 +1804,7 @@ const Game = {
   },
 
   // ---- 对话系统 ----
-  showDialogue(speaker, text, choices, portrait) {
+  showDialogue(speaker, text, choices, portrait, expression) {
     return new Promise((resolve) => {
       this.dialogueActive = true;
       const box = document.getElementById('dialogue-box');
@@ -1807,23 +1816,33 @@ const Game = {
 
       // 头像映射：根据角色名自动匹配，也可手动传入 portrait 参数覆盖
       const PORTRAIT_MAP = {
-        '凯': 'portrait_kai',
-        'Oracle': 'portrait_oracle',
-        '???': 'portrait_oracle',
-        '谐子': 'portrait_joker',
+        '凯': 'kai',
+        'Oracle': 'oracle',
+        '???': 'oracle',
+        '谐子': 'joker',
       };
-      const resolvedPortrait = portrait || PORTRAIT_MAP[speaker];
+      const charId = portrait || PORTRAIT_MAP[speaker];
+      // 如果指定了表情，使用表情变体图；否则用默认头像
+      const resolvedPortrait = expression && charId
+        ? `portrait_${charId}_${expression}`
+        : (charId ? `portrait_${charId}` : null);
 
-      // 谐子 → canvas 动画笑脸；其他角色 → 静态图片
-      if (resolvedPortrait === 'portrait_joker') {
+      // 有表情 → 静态表情图；谐子无表情 → canvas 动画；其他 → 静态默认图
+      if (resolvedPortrait && this.images[resolvedPortrait]) {
+        portraitCanvas.classList.remove('visible');
+        JokerFace.stop();
+        portraitEl.src = this.images[resolvedPortrait].src;
+        portraitEl.classList.add('visible');
+        portraitEl.classList.remove('joker-glitch');
+      } else if (charId === 'joker' && !expression) {
         portraitEl.classList.remove('visible');
         portraitEl.classList.remove('joker-glitch');
         portraitCanvas.classList.add('visible');
         JokerFace.start();
-      } else if (resolvedPortrait && this.images[resolvedPortrait]) {
+      } else if (resolvedPortrait && this.images[`portrait_${charId}`]) {
         portraitCanvas.classList.remove('visible');
         JokerFace.stop();
-        portraitEl.src = this.images[resolvedPortrait].src;
+        portraitEl.src = this.images[`portrait_${charId}`].src;
         portraitEl.classList.add('visible');
         portraitEl.classList.remove('joker-glitch');
       } else {
@@ -1898,6 +1917,15 @@ const Game = {
   hideDialogue() {
     this.dialogueActive = false;
     document.getElementById('dialogue-box').style.display = 'none';
+  },
+
+  // ---- 闲聊对话系统 ----
+  // lines: [{ speaker, text, expression? }, ...]
+  // expression: 'happy' | 'angry' | 'sad' | 'surprised' | 'thinking' | 'smirk'
+  async showCasualChat(lines) {
+    for (const line of lines) {
+      await this.showDialogue(line.speaker, line.text, null, null, line.expression);
+    }
   },
 
   // ---- 物品系统 ----
@@ -2114,6 +2142,29 @@ const SCENES = {
           });
         }
       },
+      {
+        x: 50, y: 150, w: 150, h: 100,
+        label: '▸ 收音机',
+        maskId: null,
+        action() {
+          if (!Game.flags.radio_chat) {
+            Game.flags.radio_chat = true;
+            Game.showCasualChat([
+              { speaker: null, text: '你拧开角落里的老收音机。滋啦声中传出一段爵士乐。' },
+              { speaker: '凯', text: '……好久没听了。小林以前总放这首。', expression: 'sad' },
+              { speaker: null, text: '音乐在空荡的公寓里回响。窗外的雨声和它混在一起。' },
+              { speaker: '凯', text: '嘿，别这样。活人还得继续活着。', expression: 'thinking' },
+              { speaker: '凯', text: '……至少这曲子还不错。', expression: 'smirk' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '收音机还在放那首爵士乐。' },
+              { speaker: '凯', text: '循环播放了三年了。这电台是没人管了吗？', expression: 'thinking' },
+              { speaker: '凯', text: '……不过也好。至少有人还记得这些歌。', expression: 'happy' },
+            ]);
+          }
+        }
+      },
     ]
   },
 
@@ -2194,6 +2245,31 @@ const SCENES = {
           }
         }
       },
+      {
+        x: 800, y: 450, w: 120, h: 100,
+        label: '▸ 拉面摊',
+        maskId: null,
+        action() {
+          if (!Game.flags.ramen_chat) {
+            Game.flags.ramen_chat = true;
+            Game.showCasualChat([
+              { speaker: null, text: '街角的拉面摊还在营业。老板是个独眼的老头，从大崩溃前就在这了。' },
+              { speaker: '拉面老板', text: '哟，凯。老样子？', expression: 'happy' },
+              { speaker: '凯', text: '……不了，今天有事。', expression: 'thinking' },
+              { speaker: '拉面老板', text: '又在查案子？你这人啊，退休了也不消停。', expression: 'smirk' },
+              { speaker: '凯', text: '这次不一样。', expression: 'sad' },
+              { speaker: '拉面老板', text: '每次都不一样。来，送你碗汤。暖暖身子。', expression: 'happy' },
+              { speaker: '凯', text: '……谢了，老周。', expression: 'happy' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: '拉面老板', text: '回来啦？这次来一碗？', expression: 'happy' },
+              { speaker: '凯', text: '等事情办完一定来。', expression: 'smirk' },
+              { speaker: '拉面老板', text: '你上次也是这么说的。', expression: 'surprised' },
+            ]);
+          }
+        }
+      },
     ]
   },
 
@@ -2205,7 +2281,7 @@ const SCENES = {
       if (!Game.flags.bar_visited) {
         Game.flags.bar_visited = true;
         Game.showDialogue(null, 'The Rust 是霓虹街上最老的酒吧。烟雾缭绕，紫色的霓虹灯映在酒瓶上。\n\n酒保认出了你。').then(() => {
-          return Game.showDialogue('酒保', '凯？好久不见。我以为你退休了。');
+          return Game.showDialogue('酒保', '凯？好久不见。我以为你退休了。', null, null, 'surprised');
         });
       }
     },
@@ -2223,12 +2299,12 @@ const SCENES = {
               { text: '你认识 Oracle 吗？' },
             ]).then(choice => {
               if (choice === 0) {
-                return Game.showDialogue('酒保', '加密芯片？让我看看……\n\n嗯，这是 ECHO 公司的旧型号加密。要解密，你得去后面小巷找"影子"。他是个数据贩子。').then(() => {
-                  return Game.showDialogue('酒保', '但影子不白干活。你可能得拿什么东西跟他换。');
+                return Game.showDialogue('酒保', '加密芯片？让我看看……\n\n嗯，这是 ECHO 公司的旧型号加密。要解密，你得去后面小巷找"影子"。他是个数据贩子。', null, null, 'thinking').then(() => {
+                  return Game.showDialogue('酒保', '但影子不白干活。你可能得拿什么东西跟他换。', null, null, 'smirk');
                 });
               } else {
-                return Game.showDialogue('酒保', 'Oracle？那个幽灵黑客？没人见过她的真面目。\n\n但如果你有加密芯片，也许可以去后面小巷找"影子"看看。他什么都能解。').then(() => {
-                  return Game.showDialogue('酒保', '不过要小心。影子是 ECHO 的线人。');
+                return Game.showDialogue('酒保', 'Oracle？那个幽灵黑客？没人见过她的真面目。\n\n但如果你有加密芯片，也许可以去后面小巷找"影子"看看。他什么都能解。', null, null, 'thinking').then(() => {
+                  return Game.showDialogue('酒保', '不过要小心。影子是 ECHO 的线人。', null, null, 'sad');
                 });
               }
             });
@@ -2262,9 +2338,9 @@ const SCENES = {
               ]).then(choice => {
                 if (choice === 1) {
                   Game.flags.knows_oracle = true;
-                  return Game.showDialogue('Oracle', '聪明。但在这里别叫那个名字。\n\n我给你发了信号。搭档的死不是意外——ECHO 公司在掩盖什么。').then(() => {
-                    return Game.showDialogue('Oracle', '我需要你进入他们的服务器。拿到原始数据。\n\n我能帮你解密芯片，但你需要一把安全卡。小巷里的影子有。').then(() => {
-                      return Game.showDialogue('Oracle', '用芯片跟他换。他不知道里面是什么——只有我能解密。');
+                  return Game.showDialogue('Oracle', '聪明。但在这里别叫那个名字。\n\n我给你发了信号。搭档的死不是意外——ECHO 公司在掩盖什么。', null, null, 'smirk').then(() => {
+                    return Game.showDialogue('Oracle', '我需要你进入他们的服务器。拿到原始数据。\n\n我能帮你解密芯片，但你需要一把安全卡。小巷里的影子有。', null, null, 'thinking').then(() => {
+                      return Game.showDialogue('Oracle', '用芯片跟他换。他不知道里面是什么——只有我能解密。', null, null, 'happy');
                     });
                   });
                 } else {
@@ -2273,7 +2349,7 @@ const SCENES = {
               });
             });
           } else {
-            Game.showDialogue('Oracle', '去小巷找影子。用芯片换安全卡。');
+            Game.showDialogue('Oracle', '去小巷找影子。用芯片换安全卡。', null, null, 'thinking');
           }
         },
         condition: () => Game.flags.bar_visited
@@ -2285,6 +2361,33 @@ const SCENES = {
         action() {
           Game.sfx('door');
           Game.goScene('street');
+        }
+      },
+      {
+        x: 50, y: 500, w: 150, h: 100,
+        label: '▸ 点唱机',
+        maskId: null,
+        action() {
+          if (!Game.flags.jukebox_chat) {
+            Game.flags.jukebox_chat = true;
+            Game.showCasualChat([
+              { speaker: null, text: '角落里的老点唱机还亮着灯。你投了个硬币。' },
+              { speaker: null, text: '嗡……滋啦……' },
+              { speaker: '凯', text: '这破机器还活着呢？', expression: 'surprised' },
+              { speaker: '酒保', text: '别小看它。大崩溃的时候全城断电，就它靠电池撑了三天。', expression: 'smirk' },
+              { speaker: '凯', text: '三天？谁给它换的电池？', expression: 'thinking' },
+              { speaker: '酒保', text: '没人。它自己换的。……开玩笑的。是老周。', expression: 'happy' },
+              { speaker: '凯', text: '……那个拉面摊的老周？', expression: 'surprised' },
+              { speaker: '酒保', text: '他以前是这的驻唱。嗓子坏了以后才去卖拉面的。', expression: 'sad' },
+              { speaker: '凯', text: '……每个人都有故事啊。', expression: 'thinking' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '点唱机在放一首老歌。旋律有些走调。' },
+              { speaker: '凯', text: '这歌……好像在哪听过。', expression: 'thinking' },
+              { speaker: '酒保', text: '二十年前的流行曲。那时候还没大崩溃呢。', expression: 'happy' },
+            ]);
+          }
         }
       },
     ]
@@ -2354,6 +2457,31 @@ const SCENES = {
         action() {
           Game.sfx('door');
           Game.goScene('street');
+        }
+      },
+      {
+        x: 400, y: 500, w: 120, h: 80,
+        label: '▸ 流浪猫',
+        maskId: null,
+        action() {
+          if (!Game.flags.cat_chat) {
+            Game.flags.cat_chat = true;
+            Game.showCasualChat([
+              { speaker: null, text: '一只花猫从垃圾桶后面探出头。它的一只眼睛是机械的，闪着蓝光。' },
+              { speaker: '凯', text: '哟，小家伙。你也是半机械的？', expression: 'happy' },
+              { speaker: null, text: '猫歪了歪头，机械眼发出轻微的嗡嗡声。' },
+              { speaker: '凯', text: '……等等。这眼睛的型号，和 ECHO 的监控器一样。', expression: 'surprised' },
+              { speaker: null, text: '猫"喵"了一声，转身消失在黑暗中。' },
+              { speaker: '凯', text: 'ECHO 连猫都不放过？……算了，先办正事。', expression: 'angry' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '那只花猫又出现了，蹲在远处看着你。' },
+              { speaker: '凯', text: '你是来监视我的？还是来要吃的？', expression: 'thinking' },
+              { speaker: null, text: '猫打了个哈欠，跳上墙头走了。' },
+              { speaker: '凯', text: '……至少比影子友善。', expression: 'smirk' },
+            ]);
+          }
         }
       },
     ]
@@ -2448,6 +2576,28 @@ const SCENES = {
         action() {
           Game.sfx('door');
           Game.goScene('street');
+        }
+      },
+      {
+        x: 50, y: 150, w: 150, h: 100,
+        label: '▸ 玻璃碎片',
+        maskId: null,
+        action() {
+          if (!Game.flags.glass_chat) {
+            Game.flags.glass_chat = true;
+            Game.showCasualChat([
+              { speaker: null, text: '地上散落着黑色玻璃碎片。是塔楼外墙掉下来的。' },
+              { speaker: '凯', text: '这些玻璃……有烧焦的痕迹。', expression: 'thinking' },
+              { speaker: null, text: '你捡起一片。边缘锋利，在霓虹灯下折射出奇异的光。' },
+              { speaker: '凯', text: '三年前的大火把整层楼都烧了。官方说是电路故障。', expression: 'sad' },
+              { speaker: '凯', text: '……但电路故障不会把防弹玻璃烧成这样。', expression: 'angry' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '玻璃碎片在雨中闪着冷光。' },
+              { speaker: '凯', text: '真相就藏在这些碎片里。和灰烬一起。', expression: 'thinking' },
+            ]);
+          }
         }
       },
     ]
