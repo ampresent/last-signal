@@ -3,11 +3,11 @@
 # 用法: bash setup.sh [项目目录]
 #   默认项目目录: /root/.openclaw/workspace/last-signal
 #
-# R2 桶依赖：
+# R2 桶依赖（setup.sh 仅下载 deps/，模型按需由各脚本自行拉取）：
 #   s3://mystore/deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl
 #   s3://mystore/deps/torchvision-0.22.0+cpu.stub-py3-none-any.whl
-#   s3://mystore/depth_anything_v2_vitl.pth
-#   s3://mystore/models/depth-anything-v2-large-hf/{config.json,preprocessor_config.json,model.safetensors}
+#   s3://mystore/depth_anything_v2_vitl.pth          ← 按需
+#   s3://mystore/models/depth-anything-v2-large-hf/  ← 按需
 #   s3://mystore/scripts/setup.sh  (本脚本自身)
 set -euo pipefail
 
@@ -118,42 +118,9 @@ pip3 install --break-system-packages -q \
 echo "  ✓ $(python3 -c 'import numpy,cv2,transformers,timm; print(f"numpy {numpy.__version__}, cv2 {cv2.__version__}, transformers {transformers.__version__}, timm {timm.__version__}")')"
 
 # ──────────────────────────────────────────────
-# 5. 模型文件（R2 并行下载）
+# 5. git 配置
 # ──────────────────────────────────────────────
-echo "=== [5/7] 模型文件 ==="
-
-mkdir -p models models/depth-anything-v2-large-hf
-
-NEED_ORIG=false; NEED_HF=false
-[ ! -f models/depth_anything_v2_vitl.pth ] && NEED_ORIG=true
-[ ! -f models/depth-anything-v2-large-hf/model.safetensors ] && NEED_HF=true
-
-if $NEED_ORIG; then
-  s3cmd --region=auto get s3://mystore/depth_anything_v2_vitl.pth \
-    models/depth_anything_v2_vitl.pth --force 2>/dev/null &
-  echo "  ↓ DA2 原始权重 (~1.3GB) 下载中..."
-fi
-
-if $NEED_HF; then
-  for f in config.json preprocessor_config.json model.safetensors; do
-    s3cmd --region=auto get \
-      "s3://mystore/models/depth-anything-v2-large-hf/$f" \
-      "models/depth-anything-v2-large-hf/$f" --force 2>/dev/null &
-  done
-  echo "  ↓ DA2 transformers 权重 (~1.3GB) 下载中..."
-fi
-
-if $NEED_ORIG || $NEED_HF; then
-  wait
-  echo "  ✓ 模型下载完成"
-else
-  echo "  ✓ 模型已存在"
-fi
-
-# ──────────────────────────────────────────────
-# 6. git 配置
-# ──────────────────────────────────────────────
-echo "=== [6/7] git 配置 ==="
+echo "=== [5/6] git 配置 ==="
 
 # 凭据文件不入仓库
 echo ".git-credentials-file" >> .gitignore 2>/dev/null || true
@@ -164,9 +131,9 @@ git add .gitignore 2>/dev/null && git commit -m "chore: ignore credential files"
 echo "  ✓ .gitignore 已更新"
 
 # ──────────────────────────────────────────────
-# 7. 环境检查
+# 6. 环境检查
 # ──────────────────────────────────────────────
-echo "=== [7/7] 环境检查 ==="
+echo "=== [6/6] 环境检查 ==="
 ERR=0
 check() { python3 -c "$1" 2>/dev/null && echo "  ✓ $2" || { echo "  ✗ $2 FAILED"; ERR=$((ERR+1)); }; }
 
@@ -179,12 +146,10 @@ check "import numpy" "numpy $(python3 -c 'import numpy; print(numpy.__version__)
 
 [ $(git log --oneline 2>/dev/null | wc -l) -ge 1 ] && echo "  ✓ git repo" || { echo "  ✗ git repo"; ERR=$((ERR+1)); }
 s3cmd --region=auto ls 2>/dev/null | grep -q mystore && echo "  ✓ R2 connection" || { echo "  ✗ R2"; ERR=$((ERR+1)); }
-[ -f models/depth_anything_v2_vitl.pth ] && echo "  ✓ DA2 original $(du -h models/depth_anything_v2_vitl.pth | cut -f1)" || { echo "  ✗ DA2 original missing"; ERR=$((ERR+1)); }
-[ -f models/depth-anything-v2-large-hf/model.safetensors ] && echo "  ✓ DA2 HF $(du -h models/depth-anything-v2-large-hf/model.safetensors | cut -f1)" || { echo "  ✗ DA2 HF missing"; ERR=$((ERR+1)); }
 
 echo ""
 if [ $ERR -eq 0 ]; then
-  echo "🎉 全部通过，环境就绪！"
+  echo "🎉 全部通过，环境就绪！（模型文件按需下载）"
 else
   echo "⚠️  ${ERR} 项检查失败，请查看上方输出"
   exit 1
