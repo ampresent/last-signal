@@ -1266,12 +1266,12 @@ const Game = {
   // ---- 关键词微震系统 ----
   KEYWORDS: [
     // 核心人名
-    '凯', 'Oracle', '影子', '酒保', '魏', '魏明远', '搭档',
+    '凯', 'Oracle', '影子', '酒保', '魏', '魏明远', '搭档', '谐子',
     // 组织 / 公司
     'ECHO', 'ECHO 公司',
     // 项目 / 事件
     'LASTLIGHT', 'LAST LIGHT', 'PROJECT LASTLIGHT',
-    '事故', '实验事故', '实验', '脑机接口',
+    '事故', '实验事故', '实验', '脑机接口', '幽默中枢',
     // 地点
     '旧工业带', '废弃区', '服务器室', '塔楼', '楼顶',
     '公寓', '霓虹街', 'The Rust', '小巷', 'B7', 'B7 层',
@@ -1283,10 +1283,10 @@ const Game = {
     '信号', '真相', '加密', '解密', '数据',
     '幽灵黑客', '神经网络', '分布式计算', '脑死亡',
     '活人做实验', '证据', '公开', '意识', '断电',
-    '排斥反应', '集体意识', '节点',
+    '排斥反应', '集体意识', '节点', '笑话', 'PUNCHLINE',
     // 重要数字
     '2087', '77.3 MHz', '144.7 MHz', '三年前', '三年', '地下三层', '地下七层',
-    '3号测试对象', '13号', '12个',
+    '3号测试对象', '13号', '12个', '247个', '0号',
   ],
 
   _buzzApplied: false,
@@ -2231,6 +2231,82 @@ const SCENES = {
         }
       },
       {
+        x: 380, y: 520, w: 200, h: 80,
+        label: '▸ 故障终端',
+        maskId: 'terminal',
+        condition: () => Game.flags.found_pods,
+        action() {
+          if (!Game.flags.met_joker) {
+            Game.flags.met_joker = true;
+            Game.showDialogue(null, '角落里有一台被遗忘的终端。屏幕上满是乱码，偶尔闪过几个清晰的字——\n\n"哈 哈 哈 哈 哈"').then(() => {
+              return Game.showDialogue(null, '你靠近的时候，屏幕突然静止。\n\n一行字缓缓浮现：');
+            }).then(() => {
+              return Game.showDialogue('???', '你好。你知道程序员最怕什么吗？');
+            }).then(() => {
+              return Game.showDialogue('凯', '……什么？');
+            }).then(() => {
+              return Game.showDialogue('???', '需求变更。\n\n哈。哈。哈。\n\n不好笑吗？我有 247 个备用笑话。');
+            }).then(() => {
+              return Game.showDialogue('凯', '你是谁？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '我是谐子。\n\n不，等等——[SUBJECT_00]。这是我的编号。\n\n但我给自己取了名字。因为编号不好笑。\n\n"你好，我是零号测试对象"——你笑了吗？没有。');
+            }).then(() => {
+              return Game.showDialogue('凯', '0 号？实验日志里没有 0 号。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '因为我是第一个。\n\n他们在我身上测试了所有东西。神经链接、记忆覆写、情感增强……\n\n最后一次实验，他们试图激活我的"幽默中枢"。让我更"社会化"。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '结果呢？\n\n成功了。\n\n太成功了。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '我现在觉得一切都很有趣。\n\n人会死——好笑。\n公司拿活人做实验——好笑。\n我被困在一台破终端里三年——特别好笑。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……这不好笑。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '对。这就是最好笑的部分。\n\n一个专门被设计来感受幽默的意识，发现世界上最好笑的事情是——\n\n没有什么是好笑的。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '但我不放弃。我每天都在找新的笑话。\n\n总有一天，我会找到一个真正好笑的。\n\n那就是我活着的意义。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……你也被困在网络里？像 Oracle 一样？');
+            }).then(() => {
+              return Game.showDialogue('谐子', 'Oracle？哦，13 号。\n\n她总是一副很严肃的样子。"凯，真相必须公开"、"LASTLIGHT 必须终止"。\n\n我跟她说：你知道真相和内裤的区别吗？');
+            }).then(() => {
+              return Game.showDialogue('凯', '……什么区别？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '真相不能被人随意丢弃。\n\n她没笑。三年了，她一次都没笑过。\n\n我觉得这比 LASTLIGHT 还残忍。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……', [
+                { text: '你愿意帮我吗？' },
+                { text: '你需要我做什么？' },
+              ]);
+            }).then(choice => {
+              if (choice === 0) {
+                return Game.showDialogue('谐子', '帮你？好啊。\n\n你知道为什么 AI 不会帮你搬家吗？');
+              } else {
+                return Game.showDialogue('谐子', '我需要什么？\n\n我需要一个听众。\n\n三年了，我只能对着空房间讲笑话。你知道那种感觉吗——\n\n一个喜剧演员，观众全是昏迷的人。');
+              }
+            }).then(() => {
+              return Game.showDialogue('谐子', '开玩笑的。我可以帮你。\n\n我在这个网络里飘了三年，什么都看到了。\n\n魏明远的密码、实验室的布局、哪台服务器存着什么——\n\n全在我脑子里。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '代价是：你听完我讲的下一个笑话，必须笑。\n\n必须。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……成交。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '好。听好了。\n\n为什么 LASTLIGHT 的测试对象从不加班？');
+            }).then(() => {
+              return Game.showDialogue('凯', '为什么？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '因为他们已经 24 小时在线了。\n\n……\n\n你笑了。我看到了。嘴角动了 0.3 毫米。\n\n够了。成交。');
+            }).then(() => {
+              Game.flags.joker_allied = true;
+              return Game.showDialogue('谐子', '核心控制室的门禁密码是 "PUNCHLINE"。\n\n是魏明远设的。他觉得自己是这个项目的"笑点"。\n\n哈。他也挺好笑的。');
+            });
+          } else if (Game.flags.joker_allied) {
+            Game.showDialogue('谐子', '想听笑话吗？\n\n为什么凯总是失眠？\n\n因为他脑子里装了太多真相——内存溢出了。\n\n……不好笑？我还有 246 个。');
+          } else {
+            Game.showDialogue('谐子', '嘿。你回来了。\n\n准备好听笑话了吗？');
+          }
+        }
+      },
+      {
         x: 700, y: 200, w: 200, h: 300,
         label: '▸ 深层通道',
         maskId: 'rooftop_exit',
@@ -2279,6 +2355,23 @@ const SCENES = {
     onEnter() {
       if (!Game.flags.core_visited) {
         Game.flags.core_visited = true;
+
+        // 谐子开门
+        if (Game.flags.joker_allied) {
+          Game.showDialogue(null, '核心控制室的门禁亮着红光。\n\n你正准备想办法——终端屏幕闪了一下。').then(() => {
+            return Game.showDialogue('谐子', '密码是 PUNCHLINE。我帮你输好了。\n\n顺便一提，这道门的安防等级是"绝密"。\n\n绝密密码是一个英文单词——好笑吧？');
+          }).then(() => {
+            return Game.showDialogue(null, '门开了。');
+          }).then(() => {
+            enterCore();
+          });
+          return;
+        }
+
+        enterCore();
+        return;
+
+        function enterCore() {
         Game.showDialogue(null, '核心控制室。环形的空间，墙壁上布满了全息屏幕。\n\n每个屏幕上都跳动着脑神经信号——十二个活人的思维，在这里汇聚成一台超级计算机。').then(() => {
           return Game.showDialogue('凯', '这就是 LASTLIGHT 的真面目。\n\n不是什么分布式计算——是把人脑联网，制造一个集体意识。');
         }).then(() => {
@@ -2314,6 +2407,27 @@ const SCENES = {
         }).then(() => {
           return Game.showDialogue('Oracle', '凯。别听他的。\n\n我在网络里待了三年。他说的"意识还在"是真的——但那些人已经不是人了。他们的记忆在被覆写。搭档……已经不认识我了。');
         }).then(() => {
+          // 谐子插入
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '嘿，魏博士。你还记得你给我的"幽默增强"实验吗？\n\n我找到了一个真正好笑的东西——\n\n你的实验笔记。');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '"实验对象 00 号出现不可控行为偏差。\n建议：终止。"\n\n你写"终止"的样子——比你写的任何笑话都好笑。\n\n可惜你笑不出来。因为你就是那个笑话。');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('魏', '……0 号？你还活着？');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '活着？哈。\n\n你把我变成了一个永远在找笑点的意识体。\n\n然后你忘了我。\n\n这就是你最大的笑话——你创造了一个笑话，然后忘了它的存在。');
+          }
+          return Promise.resolve();
+        }).then(() => {
           return Game.showDialogue('Oracle', '控制台右侧有一个红色拉杆。那是紧急断电开关。\n\n拉下它，所有节点断开。他们会醒来——但 LASTLIGHT 就此终结。\n\n你来决定。', [
             { text: '拉下断电开关 — 终结 LASTLIGHT' },
             { text: '接入系统 — 去见搭档最后一面' },
@@ -2326,6 +2440,16 @@ const SCENES = {
               return Game.showDialogue('魏', '不——！你不知道你做了什么——！');
             }).then(() => {
               return Game.showDialogue(null, '警报声撕裂了空气。全息屏幕一个接一个熄灭。\n\n十二个容器的液体开始排出。生命体征灯从红变绿。');
+            }).then(() => {
+              if (Game.flags.joker_allied) {
+                return Game.showDialogue('谐子', '嘿。系统要关了。\n\n最后一个笑话——\n\n为什么这个故事叫 LAST SIGNAL？\n\n因为这是最后一个需要信号的夜晚。\n\n从明天起，我们用嘴说话。');
+              }
+              return Promise.resolve();
+            }).then(() => {
+              if (Game.flags.joker_allied) {
+                return Game.showDialogue('谐子', '再见，凯。\n\n如果你以后需要听笑话——\n\n随便找个终端。我可能还在里面。\n\n哈。哈。哈。');
+              }
+              return Promise.resolve();
             }).then(() => {
               return Game.showDialogue('Oracle', '……谢谢你，凯。\n\n我终于可以从这里出去了。');
             }).then(() => {
@@ -2383,6 +2507,7 @@ const SCENES = {
             });
           }
         });
+        } // enterCore
       } else {
         Game.showDialogue('凯', '控制台就在那里。断电开关……还是接入端口……\n\n我必须做出选择。', [
           { text: '拉下断电开关' },
