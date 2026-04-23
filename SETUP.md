@@ -13,7 +13,7 @@ cd /root/.openclaw/workspace/last-signal
 bash setup.sh
 ```
 
-自动完成 7 步：阿里云源 → s3cmd + R2 → PyTorch → torchvision stub → pip 依赖 → 模型并行下载 → git 配置。
+自动完成 6 步：阿里云源 → s3cmd + R2 → PyTorch → torchvision stub → pip 依赖 → git 配置。模型文件按需下载，不随初始化安装。
 
 ---
 
@@ -25,7 +25,7 @@ bash setup.sh
 | `deps/torch-2.11.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl` | 182MB | 自构建 | PyTorch CPU wheel |
 | `deps/torchvision-0.22.0+cpu-cp312-cp312-manylinux_2_28_x86_64.whl` | 2.0MB | PyTorch CDN 备份 | 原生 wheel（ABI 不兼容，备用） |
 | `deps/torchvision-0.22.0+cpu.stub-py3-none-any.whl` | 5KB | 本机构建 | **纯 Python stub**，解决 torch 2.11.0 ABI 问题 |
-| **models/** | | | 模型权重 |
+| **models/** | | | 模型权重（按需下载，不随 setup.sh） |
 | `depth_anything_v2_vitl.pth` | 1.3GB | R2 原始 | DA2-Large 原始权重 |
 | `models/depth-anything-v2-large-hf/model.safetensors` | 1.3GB | R2 原始 | DA2-Large transformers 权重 |
 | `models/depth-anything-v2-large-hf/config.json` | 1KB | R2 原始 | transformers 配置 |
@@ -138,18 +138,27 @@ torch 2.11.0+cpu 和原生 torchvision C++ ABI 不兼容：
 
 ---
 
-## 5. 下载模型文件（并行）
+## 5. 模型文件（按需下载）
+
+> **模型不在 setup.sh 中下载。** 各脚本（如 `gen_apartment_lightning.py`）运行时会自动检测，
+> 缺失则从 R2 桶按需拉取，下载完成后缓存到本地，后续运行跳过。
+
+首次运行某个需要模型的脚本时，会自动触发下载。也可手动预拉取：
 
 ```bash
 mkdir -p models models/depth-anything-v2-large-hf
 
-s3cmd --region=auto get s3://mystore/depth_anything_v2_vitl.pth models/depth_anything_v2_vitl.pth &
-for f in config.json preprocessor_config.json model.safetensors; do
-  s3cmd --region=auto get "s3://mystore/models/depth-anything-v2-large-hf/$f" \
-    "models/depth-anything-v2-large-hf/$f" &
-done
-wait
+# 仅当需要原始 .pth 权重时（gen_apartment_lightning.py 等）
+[ ! -f models/depth_anything_v2_vitl.pth ] && \
+  s3cmd --region=auto get s3://mystore/depth_anything_v2_vitl.pth models/depth_anything_v2_vitl.pth
+
+# 仅当需要 transformers 权重时（HuggingFace fallback 路径）
+[ ! -f models/depth-anything-v2-large-hf/model.safetensors ] && \
+  s3cmd --region=auto get s3://mystore/models/depth-anything-v2-large-hf/model.safetensors \
+    models/depth-anything-v2-large-hf/model.safetensors
 ```
+
+R2 桶中还存有 `config.json` 和 `preprocessor_config.json`，transformers fallback 路径需要时可一并拉取。
 
 ---
 
@@ -162,9 +171,9 @@ python3 -c "import transformers; print(transformers.__version__)"
 python3 -c "import timm; print(timm.__version__)"
 python3 -c "import cv2; print(cv2.__version__)"
 python3 -c "import numpy; print(numpy.__version__)"
-ls -lh models/depth_anything_v2_vitl.pth                     # ~1.3GB
-ls -lh models/depth-anything-v2-large-hf/model.safetensors   # ~1.3GB
 ```
+
+模型文件按需下载，此处不检查。
 
 ---
 
