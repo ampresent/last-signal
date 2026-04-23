@@ -74,6 +74,59 @@
     display: block;
   }
 
+  /* 谐子的头像：持续故障变幻 */
+  @keyframes portrait-glitch {
+    0%, 90%, 100% {
+      transform: translate(0, 0);
+      filter: none;
+    }
+    91% {
+      transform: translate(-3px, 1px);
+      filter: hue-rotate(90deg) saturate(2);
+    }
+    92% {
+      transform: translate(2px, -2px);
+      filter: hue-rotate(-60deg) brightness(1.5);
+    }
+    93% {
+      transform: translate(-1px, 2px);
+      filter: hue-rotate(180deg) contrast(1.5);
+    }
+    94% {
+      transform: translate(3px, -1px);
+      filter: saturate(3) brightness(0.8);
+    }
+    95% {
+      transform: translate(0, 0);
+      filter: none;
+    }
+  }
+
+  @keyframes portrait-scanline {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 8px; }
+  }
+
+  #dialogue-portrait.joker-glitch {
+    animation: portrait-glitch 3s ease-in-out infinite;
+    position: relative;
+  }
+
+  #dialogue-portrait.joker-glitch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 255, 136, 0.05) 3px,
+      rgba(0, 255, 136, 0.05) 4px
+    );
+    animation: portrait-scanline 0.5s linear infinite;
+    pointer-events: none;
+  }
+
   #dialogue-body {
     flex: 1;
     min-width: 0;
@@ -959,7 +1012,7 @@ const Game = {
       'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
-    const portraits = ['portrait_kai', 'portrait_oracle'];
+    const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const NUM_FRAMES = 24; // Depth Lighting 生成 24 帧/场景
 
     const loadImg = (src) => {
@@ -1335,14 +1388,22 @@ const Game = {
         '凯': 'portrait_kai',
         'Oracle': 'portrait_oracle',
         '???': 'portrait_oracle',
+        '谐子': 'portrait_joker',
       };
       const resolvedPortrait = portrait || PORTRAIT_MAP[speaker];
 
       if (resolvedPortrait && this.images[resolvedPortrait]) {
         portraitEl.src = this.images[resolvedPortrait].src;
         portraitEl.classList.add('visible');
+        // 谐子的头像持续故障变幻
+        if (resolvedPortrait === 'portrait_joker') {
+          portraitEl.classList.add('joker-glitch');
+        } else {
+          portraitEl.classList.remove('joker-glitch');
+        }
       } else {
         portraitEl.classList.remove('visible');
+        portraitEl.classList.remove('joker-glitch');
       }
 
       let speakerDisplay = speaker || '';
