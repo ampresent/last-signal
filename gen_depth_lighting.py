@@ -121,10 +121,10 @@ SCENE_LIGHTS = {
              "color": [0.55, 0.65, 0.85], "intensity": (0.08, 0.22),
              "radius": 600, "phase": _moonlight_clouds},
             {"name": "car1", "pos": (60, 220),
-             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.2),
+             "color": [1.0, 0.92, 0.7], "intensity": (0.0, 0.08),
              "radius": 500, "phase": _irregular_car},
             {"name": "car2", "pos": (200, 180),
-             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.1),
+             "color": [1.0, 0.85, 0.6], "intensity": (0.0, 0.04),
              "radius": 450, "phase": _phase_shift(_irregular_car, 3)},
             {"name": "screen", "pos": (770, 320),
              "color": [0.15, 0.7, 0.25], "intensity": (0.03, 0.18),
@@ -150,7 +150,7 @@ SCENE_LIGHTS = {
              "radius": 350, "phase": _phase_shift(_flicker, 4)},
             # 远处车灯
             {"name": "car", "pos": (480, 500),
-             "color": [1.0, 0.95, 0.8], "intensity": (0.0, 0.15),
+             "color": [1.0, 0.95, 0.8], "intensity": (0.0, 0.06),
              "radius": 500, "phase": _irregular_car},
             # 地面积水反射（来自多个霓虹）
             {"name": "puddle", "pos": (480, 580),
