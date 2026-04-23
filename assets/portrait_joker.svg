@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 背景网格 -->
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <rect width="32" height="32" fill="none"/>
+      <path d="M32 0H0V32" fill="none" stroke="#00ff88" stroke-width="0.3" opacity="0.15"/>
+    </pattern>
+    <!-- 发光效果 -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-strong">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- 故障偏移 -->
+    <filter id="glitch">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="512" height="512" fill="#0a0a14"/>
+  <rect width="512" height="512" fill="url(#grid)"/>
+
+  <!-- 暗角 -->
+  <radialGradient id="vignette" cx="50%" cy="50%" r="50%">
+    <stop offset="40%" stop-color="transparent"/>
+    <stop offset="100%" stop-color="rgba(0,0,0,0.7)"/>
+  </radialGradient>
+  <rect width="512" height="512" fill="url(#vignette)"/>
+
+  <!-- 脸部轮廓 - 不规则的像素风圆形 -->
+  <g filter="url(#glow)">
+    <circle cx="256" cy="256" r="180" fill="none" stroke="#00ff88" stroke-width="2.5" opacity="0.9"/>
+    <!-- 脸部内部微光 -->
+    <circle cx="256" cy="256" r="175" fill="#00ff88" opacity="0.03"/>
+  </g>
+
+  <!-- 左眼 - 像素方块 -->
+  <g filter="url(#glow)">
+    <rect x="168" y="200" width="36" height="36" fill="#00ff88" opacity="0.9"/>
+    <!-- 瞳孔 -->
+    <rect x="180" y="208" width="16" height="16" fill="#0a0a14"/>
+    <!-- 高光 -->
+    <rect x="184" y="204" width="6" height="6" fill="#ffffff" opacity="0.8"/>
+  </g>
+
+  <!-- 右眼 - 眨眼状态（半闭） -->
+  <g filter="url(#glow)">
+    <rect x="308" y="208" width="36" height="8" fill="#00ff88" opacity="0.9"/>
+    <!-- 像素睫毛 -->
+    <rect x="308" y="200" width="8" height="8" fill="#00ff88" opacity="0.6"/>
+    <rect x="320" y="196" width="8" height="8" fill="#00ff88" opacity="0.6"/>
+    <rect x="332" y="200" width="8" height="8" fill="#00ff88" opacity="0.6"/>
+  </g>
+
+  <!-- 嘴巴 - 大笑的锯齿形 -->
+  <g filter="url(#glow-strong)">
+    <!-- 主嘴型：向上的弧线 -->
+    <path d="M160 320 Q180 380 210 360 Q230 390 256 370 Q280 395 300 360 Q330 385 352 320"
+          fill="none" stroke="#00ff88" stroke-width="3" stroke-linecap="round"/>
+    <!-- 嘴巴填充 -->
+    <path d="M160 320 Q180 380 210 360 Q230 390 256 370 Q280 395 300 360 Q330 385 352 320 Z"
+          fill="#00ff88" opacity="0.12"/>
+    <!-- 牙齿 - 像素方块 -->
+    <rect x="196" y="324" width="12" height="16" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+    <rect x="216" y="328" width="12" height="20" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+    <rect x="236" y="326" width="12" height="18" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+    <rect x="256" y="330" width="12" height="22" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+    <rect x="276" y="326" width="12" height="18" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+    <rect x="296" y="328" width="12" height="20" fill="#0a0a14" stroke="#00ff88" stroke-width="1"/>
+  </g>
+
+  <!-- 故障条纹 - 横向错位 -->
+  <g opacity="0.4">
+    <rect x="140" y="170" width="240" height="3" fill="#ff0040" opacity="0.5"/>
+    <rect x="160" y="280" width="200" height="2" fill="#00ff88" opacity="0.4"/>
+    <rect x="180" y="350" width="160" height="4" fill="#ff0040" opacity="0.3"/>
+    <rect x="200" y="140" width="120" height="2" fill="#00ff88" opacity="0.3"/>
+  </g>
+
+  <!-- 红蓝偏移（色差效果） -->
+  <g opacity="0.15">
+    <circle cx="258" cy="256" r="180" fill="none" stroke="#ff0040" stroke-width="1.5"/>
+    <circle cx="254" cy="256" r="180" fill="none" stroke="#0088ff" stroke-width="1.5"/>
+  </g>
+
+  <!-- 像素散点 - 数字化感 -->
+  <g fill="#00ff88" opacity="0.2">
+    <rect x="100" y="100" width="4" height="4"/>
+    <rect x="400" y="120" width="4" height="4"/>
+    <rect x="80" y="350" width="4" height="4"/>
+    <rect x="420" y="400" width="4" height="4"/>
+    <rect x="150" y="450" width="4" height="4"/>
+    <rect x="380" y="80" width="4" height="4"/>
+    <rect x="60" y="200" width="4" height="4"/>
+    <rect x="440" y="280" width="4" height="4"/>
+  </g>
+
+  <!-- 文字标识 -->
+  <text x="256" y="480" text-anchor="middle" font-family="'Courier New', monospace"
+        font-size="14" fill="#00ff88" opacity="0.5" letter-spacing="4">
+    SUBJECT_00
+  </text>
+
+  <!-- 闪烁的 JOKER 标记 -->
+  <text x="256" y="100" text-anchor="middle" font-family="'Courier New', monospace"
+        font-size="24" fill="#00ff88" opacity="0.7" letter-spacing="6" filter="url(#glow)">
+    ♫ HA HA ♫
+  </text>
+
+  <!-- 腮红 - 像素方块 -->
+  <rect x="136" y="280" width="20" height="12" fill="#ff0040" opacity="0.15" rx="2"/>
+  <rect x="356" y="280" width="20" height="12" fill="#ff0040" opacity="0.15" rx="2"/>
+</svg>
