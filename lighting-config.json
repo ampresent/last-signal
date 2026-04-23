@@ -1,0 +1,350 @@
+{
+  "version": "1.0",
+  "canvas": { "width": 960, "height": 640 },
+  "ambient": 0.02,
+  "scenes": {
+    "apartment": {
+      "name": "公寓",
+      "base": "bg_apartment.png",
+      "depth": "apartment_depth.png",
+      "lights": [
+        {
+          "id": "moonlight",
+          "name": "月光",
+          "type": "directional",
+          "dir": [0.7, 0.3],
+          "color": [0.55, 0.65, 0.85],
+          "intensity": 0.3,
+          "phase": { "type": "sine", "speed": 1.0, "min": 0.15, "max": 0.45 },
+          "mask": { "type": "window", "file": "masks/apartment_window_mask.png", "spread": 0.5, "feather": 30 }
+        },
+        {
+          "id": "car1",
+          "name": "车灯 A",
+          "type": "directional",
+          "dir": [0.7, 0.4],
+          "color": [1.0, 0.92, 0.7],
+          "intensity": 0.02,
+          "phase": { "type": "car_sweep", "speed": 1.0, "min": 0.0, "max": 0.035 },
+          "mask": { "type": "window", "file": "masks/apartment_window_mask.png", "spread": 0.03, "feather": 20 }
+        },
+        {
+          "id": "car2",
+          "name": "车灯 B",
+          "type": "directional",
+          "dir": [0.7, 0.35],
+          "color": [1.0, 0.85, 0.6],
+          "intensity": 0.015,
+          "phase": { "type": "car_sweep", "speed": 0.7, "min": 0.0, "max": 0.025, "offset": 3.0 },
+          "mask": { "type": "window", "file": "masks/apartment_window_mask.png", "spread": 0.03, "feather": 20 }
+        },
+        {
+          "id": "screen1",
+          "name": "屏幕 A",
+          "type": "point",
+          "x": 0.72, "y": 0.38,
+          "color": [0.2, 0.9, 0.4],
+          "radius": 120,
+          "intensity": 0.25,
+          "phase": { "type": "flicker", "speed": 2.0, "min": 0.1, "max": 0.35 }
+        },
+        {
+          "id": "screen2",
+          "name": "屏幕 B",
+          "type": "point",
+          "x": 0.28, "y": 0.45,
+          "color": [0.15, 0.85, 0.5],
+          "radius": 100,
+          "intensity": 0.2,
+          "phase": { "type": "flicker", "speed": 1.5, "min": 0.08, "max": 0.28 }
+        }
+      ]
+    },
+    "street": {
+      "name": "霓虹街",
+      "base": "bg_street.png",
+      "depth": "street_depth.png",
+      "lights": [
+        {
+          "id": "neon_magenta",
+          "name": "品红霓虹",
+          "type": "point",
+          "x": 0.3, "y": 0.25,
+          "color": [1.0, 0.1, 0.6],
+          "radius": 200,
+          "intensity": 0.4,
+          "phase": { "type": "pulse", "speed": 1.0, "min": 0.2, "max": 0.5 }
+        },
+        {
+          "id": "neon_cyan",
+          "name": "青色霓虹",
+          "type": "point",
+          "x": 0.7, "y": 0.3,
+          "color": [0.1, 0.9, 1.0],
+          "radius": 180,
+          "intensity": 0.35,
+          "phase": { "type": "pulse", "speed": 1.2, "min": 0.15, "max": 0.45 }
+        },
+        {
+          "id": "street_car",
+          "name": "街道车灯",
+          "type": "directional",
+          "dir": [1.0, 0.2],
+          "color": [1.0, 0.95, 0.8],
+          "intensity": 0.15,
+          "phase": { "type": "car_sweep", "speed": 0.8, "min": 0.0, "max": 0.2 }
+        },
+        {
+          "id": "puddle_glow",
+          "name": "积水反射",
+          "type": "point",
+          "x": 0.5, "y": 0.85,
+          "color": [0.3, 0.5, 0.8],
+          "radius": 150,
+          "intensity": 0.1,
+          "phase": { "type": "sine", "speed": 0.5, "min": 0.05, "max": 0.15 }
+        }
+      ]
+    },
+    "bar": {
+      "name": "The Rust 酒吧",
+      "base": "bg_bar.png",
+      "depth": "bar_depth.png",
+      "lights": [
+        {
+          "id": "neon_purple",
+          "name": "紫霓虹",
+          "type": "point",
+          "x": 0.5, "y": 0.2,
+          "color": [0.7, 0.1, 0.9],
+          "radius": 220,
+          "intensity": 0.35,
+          "phase": { "type": "pulse", "speed": 0.8, "min": 0.15, "max": 0.45 }
+        },
+        {
+          "id": "neon_red",
+          "name": "红霓虹",
+          "type": "point",
+          "x": 0.2, "y": 0.35,
+          "color": [1.0, 0.15, 0.15],
+          "radius": 160,
+          "intensity": 0.3,
+          "phase": { "type": "pulse", "speed": 1.0, "min": 0.1, "max": 0.4 }
+        },
+        {
+          "id": "bar_backlight",
+          "name": "吧台背光",
+          "type": "point",
+          "x": 0.5, "y": 0.55,
+          "color": [1.0, 0.75, 0.3],
+          "radius": 180,
+          "intensity": 0.25,
+          "phase": { "type": "steady", "min": 0.2, "max": 0.3 }
+        },
+        {
+          "id": "tv_screen",
+          "name": "电视",
+          "type": "point",
+          "x": 0.8, "y": 0.3,
+          "color": [0.4, 0.6, 1.0],
+          "radius": 100,
+          "intensity": 0.2,
+          "phase": { "type": "flicker", "speed": 3.0, "min": 0.05, "max": 0.25 }
+        }
+      ]
+    },
+    "alley": {
+      "name": "暗巷",
+      "base": "bg_alley.png",
+      "depth": "alley_depth.png",
+      "lights": [
+        {
+          "id": "neon_green",
+          "name": "绿霓虹",
+          "type": "point",
+          "x": 0.6, "y": 0.3,
+          "color": [0.1, 1.0, 0.3],
+          "radius": 180,
+          "intensity": 0.3,
+          "phase": { "type": "flicker", "speed": 2.0, "min": 0.1, "max": 0.4 }
+        },
+        {
+          "id": "emergency",
+          "name": "应急灯",
+          "type": "point",
+          "x": 0.15, "y": 0.2,
+          "color": [1.0, 0.2, 0.1],
+          "radius": 140,
+          "intensity": 0.25,
+          "phase": { "type": "pulse", "speed": 1.5, "min": 0.1, "max": 0.35 }
+        },
+        {
+          "id": "distant_warm",
+          "name": "远处街灯",
+          "type": "point",
+          "x": 0.9, "y": 0.4,
+          "color": [1.0, 0.85, 0.5],
+          "radius": 250,
+          "intensity": 0.1,
+          "phase": { "type": "steady", "min": 0.08, "max": 0.12 }
+        }
+      ]
+    },
+    "tower": {
+      "name": "ECHO 塔楼",
+      "base": "bg_tower_exterior.png",
+      "depth": "tower_exterior_depth.png",
+      "lights": [
+        {
+          "id": "lobby",
+          "name": "大厅灯光",
+          "type": "point",
+          "x": 0.5, "y": 0.6,
+          "color": [1.0, 0.9, 0.7],
+          "radius": 200,
+          "intensity": 0.3,
+          "phase": { "type": "steady", "min": 0.25, "max": 0.35 }
+        },
+        {
+          "id": "glass_refl",
+          "name": "玻璃反射",
+          "type": "point",
+          "x": 0.4, "y": 0.3,
+          "color": [0.4, 0.5, 0.7],
+          "radius": 160,
+          "intensity": 0.15,
+          "phase": { "type": "sine", "speed": 0.3, "min": 0.08, "max": 0.18 }
+        },
+        {
+          "id": "guard",
+          "name": "岗亭灯",
+          "type": "point",
+          "x": 0.65, "y": 0.75,
+          "color": [1.0, 0.8, 0.4],
+          "radius": 80,
+          "intensity": 0.2,
+          "phase": { "type": "steady", "min": 0.18, "max": 0.22 }
+        }
+      ]
+    },
+    "server": {
+      "name": "服务器室",
+      "base": "bg_server_room.png",
+      "depth": "server_room_depth.png",
+      "lights": [
+        {
+          "id": "led_blue",
+          "name": "蓝色 LED",
+          "type": "point",
+          "x": 0.3, "y": 0.4,
+          "color": [0.1, 0.3, 1.0],
+          "radius": 140,
+          "intensity": 0.3,
+          "phase": { "type": "flicker", "speed": 2.5, "min": 0.1, "max": 0.4 }
+        },
+        {
+          "id": "led_green",
+          "name": "绿色 LED",
+          "type": "point",
+          "x": 0.7, "y": 0.35,
+          "color": [0.1, 0.9, 0.2],
+          "radius": 120,
+          "intensity": 0.25,
+          "phase": { "type": "flicker", "speed": 1.8, "min": 0.08, "max": 0.3 }
+        },
+        {
+          "id": "fluorescent",
+          "name": "荧光灯",
+          "type": "point",
+          "x": 0.5, "y": 0.1,
+          "color": [0.9, 0.95, 1.0],
+          "radius": 300,
+          "intensity": 0.15,
+          "phase": { "type": "flicker", "speed": 4.0, "min": 0.05, "max": 0.2 }
+        },
+        {
+          "id": "terminal",
+          "name": "终端绿光",
+          "type": "point",
+          "x": 0.5, "y": 0.55,
+          "color": [0.0, 0.8, 0.3],
+          "radius": 100,
+          "intensity": 0.2,
+          "phase": { "type": "sine", "speed": 1.0, "min": 0.12, "max": 0.25 }
+        }
+      ]
+    },
+    "rooftop": {
+      "name": "楼顶",
+      "base": "bg_rooftop.png",
+      "depth": "rooftop_depth.png",
+      "lights": [
+        {
+          "id": "city_glow",
+          "name": "城市霓虹",
+          "type": "point",
+          "x": 0.5, "y": 0.7,
+          "color": [0.3, 0.4, 0.8],
+          "radius": 400,
+          "intensity": 0.15,
+          "phase": { "type": "sine", "speed": 0.2, "min": 0.1, "max": 0.2 }
+        },
+        {
+          "id": "lightning",
+          "name": "闪电",
+          "type": "global",
+          "color": [0.9, 0.92, 1.0],
+          "intensity": 0.6,
+          "phase": { "type": "lightning", "speed": 0.3, "min": 0.0, "max": 0.6 }
+        },
+        {
+          "id": "antenna",
+          "name": "天线灯",
+          "type": "point",
+          "x": 0.8, "y": 0.15,
+          "color": [1.0, 0.1, 0.1],
+          "radius": 60,
+          "intensity": 0.4,
+          "phase": { "type": "pulse", "speed": 2.0, "min": 0.2, "max": 0.5 }
+        }
+      ]
+    },
+    "office": {
+      "name": "办公室",
+      "base": "bg_office.png",
+      "depth": "office_depth.png",
+      "lights": [
+        {
+          "id": "holo",
+          "name": "全息屏",
+          "type": "point",
+          "x": 0.5, "y": 0.35,
+          "color": [0.2, 0.5, 1.0],
+          "radius": 160,
+          "intensity": 0.3,
+          "phase": { "type": "flicker", "speed": 1.5, "min": 0.15, "max": 0.4 }
+        },
+        {
+          "id": "desk_lamp",
+          "name": "台灯",
+          "type": "point",
+          "x": 0.35, "y": 0.5,
+          "color": [1.0, 0.85, 0.5],
+          "radius": 120,
+          "intensity": 0.25,
+          "phase": { "type": "steady", "min": 0.2, "max": 0.3 }
+        },
+        {
+          "id": "city_window",
+          "name": "窗外城市",
+          "type": "point",
+          "x": 0.8, "y": 0.3,
+          "color": [0.3, 0.4, 0.7],
+          "radius": 200,
+          "intensity": 0.12,
+          "phase": { "type": "sine", "speed": 0.4, "min": 0.08, "max": 0.16 }
+        }
+      ]
+    }
+  }
+}
