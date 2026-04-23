@@ -1343,6 +1343,328 @@ const JokerFace = {
 
 
 // ============================================================
+// CHARACTER SYSTEM — 角色行走与深度排序
+// ============================================================
+const CharSystem = {
+  // 角色状态: { id, x, y, dir, frame, animTimer, targetX, targetY, walking, speed, visible }
+  chars: {},
+  // 已加载的精灵图: { charId: { dir_fN: Image } }
+  sprites: {},
+  // 场景深度图数据 (用于深度排序)
+  depthData: null,
+  // 行走区域 mask 数据
+  walkMask: null,
+
+  SPRITE_SIZE: 128,
+  WALK_SPEED: 0.12,        // 归一化坐标/秒
+  ANIM_INTERVAL: 180,      // 帧切换间隔 ms
+  CHAR_SCALE: 0.25,        // 角色缩放 (相对于画面)
+  DEPTH_THRESHOLD: 0.05,   // 深度差阈值 (遮挡判断)
+
+  // ── 初始化场景角色 ──
+  async initScene(sceneId, images) {
+    const scene = SCENES[sceneId];
+    if (!scene || !scene.characters) {
+      this.chars = {};
+      return;
+    }
+
+    // 加载行走 mask
+    await this._loadWalkMask(sceneId);
+
+    // 加载深度图
+    await this._loadDepthMap(sceneId);
+
+    // 初始化角色状态
+    const newChars = {};
+    for (const cfg of scene.characters) {
+      const id = cfg.id;
+      // 保留已有状态（跨场景切换保持位置）
+      if (this.chars[id]) {
+        newChars[id] = { ...this.chars[id], ...cfg };
+        newChars[id].visible = cfg.visible !== false;
+      } else {
+        newChars[id] = {
+          id,
+          x: cfg.x || 0.5,
+          y: cfg.y || 0.7,
+          dir: cfg.dir || 'down',
+          frame: 0,
+          animTimer: 0,
+          targetX: null,
+          targetY: null,
+          walking: false,
+          speed: cfg.speed || this.WALK_SPEED,
+          visible: cfg.visible !== false,
+          scale: cfg.scale || this.CHAR_SCALE,
+          depth: cfg.depth || null,  // 固定深度 (null = 用Y推算)
+        };
+      }
+    }
+    this.chars = newChars;
+
+    // 加载精灵图
+    await this._loadSprites(images);
+  },
+
+  // ── 加载精灵图 ──
+  async _loadSprites(images) {
+    const loadImg = (src) => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
+    const dirs = ['down', 'left', 'right', 'up'];
+    const promises = [];
+
+    for (const [id, char] of Object.entries(this.chars)) {
+      if (this.sprites[id]) continue; // 已加载
+
+      this.sprites[id] = {};
+      for (const dir of dirs) {
+        for (let fi = 0; fi < 4; fi++) {
+          const key = `${dir}_f${fi}`;
+          const path = `assets/sprites/${id}_${key}.png`;
+          promises.push(
+            loadImg(path).then(img => {
+              if (img) this.sprites[id][key] = img;
+            })
+          );
+        }
+      }
+    }
+
+    await Promise.all(promises);
+  },
+
+  // ── 加载行走 mask ──
+  async _loadWalkMask(sceneId) {
+    this.walkMask = null;
+    // 优先使用 walkable mask，否则使用场景交互 mask
+    const maskNames = [
+      `assets/masks/${sceneId}_walkable_mask.png`,
+      `assets/masks/${sceneId}_mask.png`,
+    ];
+
+    for (const path of maskNames) {
+      try {
+        const img = new Image();
+        const loaded = await new Promise(resolve => {
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = path;
+        });
+        if (loaded) {
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d', { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, 960, 640);
+          this.walkMask = cx.getImageData(0, 0, 960, 640);
+          break;
+        }
+      } catch (e) { /* continue */ }
+    }
+  },
+
+  // ── 加载深度图 ──
+  async _loadDepthMap(sceneId) {
+    this.depthData = null;
+    const depthNames = [
+      `assets/${sceneId}_depth.png`,
+      `assets/depth_${sceneId}.png`,
+    ];
+
+    for (const path of depthNames) {
+      try {
+        const img = new Image();
+        const loaded = await new Promise(resolve => {
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = path;
+        });
+        if (loaded) {
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d', { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, 960, 640);
+          this.depthData = cx.getImageData(0, 0, 960, 640);
+          break;
+        }
+      } catch (e) { /* continue */ }
+    }
+  },
+
+  // ── 检查位置是否可行走 ──
+  isWalkable(nx, ny) {
+    if (!this.walkMask) return true; // 无 mask 则允许行走
+    const px = Math.floor(nx * 960);
+    const py = Math.floor(ny * 640);
+    if (px < 0 || px >= 960 || py < 0 || py >= 640) return false;
+    const idx = (py * 960 + px) * 4;
+    return this.walkMask.data[idx] > 128;
+  },
+
+  // ── 获取深度值 (0=near, 1=far) ──
+  getDepth(nx, ny) {
+    if (!this.depthData) {
+      // 无深度图：用 Y 坐标推算 (下方=近, 上方=远)
+      return 1.0 - ny;
+    }
+    const px = Math.floor(nx * 960);
+    const py = Math.floor(ny * 640);
+    if (px < 0 || px >= 960 || py < 0 || py >= 640) return 0.5;
+    const idx = (py * 960 + px) * 4;
+    return this.depthData.data[idx] / 255;
+  },
+
+  // ── 移动角色到目标位置 ──
+  moveTo(charId, tx, ty) {
+    const char = this.chars[charId];
+    if (!char || !char.visible) return;
+
+    // 检查目标是否可行走
+    if (!this.isWalkable(tx, ty)) return;
+
+    char.targetX = tx;
+    char.targetY = ty;
+    char.walking = true;
+  },
+
+  // ── 更新所有角色 ──
+  update(dt) {
+    for (const [id, char] of Object.entries(this.chars)) {
+      if (!char.visible) continue;
+
+      // 行走移动
+      if (char.walking && char.targetX != null) {
+        const dx = char.targetX - char.x;
+        const dy = char.targetY - char.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 0.01) {
+          // 到达目标
+          char.x = char.targetX;
+          char.y = char.targetY;
+          char.walking = false;
+          char.targetX = null;
+          char.targetY = null;
+          char.frame = 0;
+        } else {
+          // 移动
+          const step = char.speed * dt / 1000;
+          const ratio = Math.min(step / dist, 1);
+          const nx = char.x + dx * ratio;
+          const ny = char.y + dy * ratio;
+
+          // 碰撞检测
+          if (this.isWalkable(nx, ny)) {
+            char.x = nx;
+            char.y = ny;
+          } else {
+            // 尝试只沿 X 或只沿 Y 移动 (滑墙)
+            if (this.isWalkable(nx, char.y)) {
+              char.x = nx;
+            } else if (this.isWalkable(char.x, ny)) {
+              char.y = ny;
+            } else {
+              // 完全卡住，停止
+              char.walking = false;
+              char.targetX = null;
+              char.targetY = null;
+            }
+          }
+
+          // 更新朝向
+          if (Math.abs(dx) > Math.abs(dy)) {
+            char.dir = dx > 0 ? 'right' : 'left';
+          } else {
+            char.dir = dy > 0 ? 'down' : 'up';
+          }
+        }
+      }
+
+      // 行走动画
+      if (char.walking) {
+        char.animTimer += dt;
+        if (char.animTimer >= this.ANIM_INTERVAL) {
+          char.animTimer -= this.ANIM_INTERVAL;
+          char.frame = (char.frame + 1) % 4;
+        }
+      } else {
+        char.frame = 0;
+        char.animTimer = 0;
+      }
+    }
+  },
+
+  // ── 渲染所有角色 (深度排序) ──
+  render(ctx) {
+    // 收集可见角色并按深度排序
+    const visible = [];
+    for (const [id, char] of Object.entries(this.chars)) {
+      if (!char.visible) continue;
+      const depth = char.depth != null ? char.depth : this.getDepth(char.x, char.y);
+      visible.push({ char, depth });
+    }
+
+    // 按深度排序 (远→近, 即 depth 大的先画)
+    visible.sort((a, b) => b.depth - a.depth);
+
+    for (const { char, depth } of visible) {
+      this._drawChar(ctx, char, depth);
+    }
+  },
+
+  // ── 绘制单个角色 ──
+  _drawChar(ctx, char, depth) {
+    const spriteKey = `${char.dir}_f${char.frame}`;
+    const sprite = this.sprites[char.id]?.[spriteKey];
+
+    if (!sprite) return; // 精灵图未加载
+
+    // 角色尺寸 (根据深度缩放 — 远处小, 近处大)
+    const depthScale = 0.6 + (1.0 - depth) * 0.8;
+    const baseSize = 960 * char.scale;
+    const w = baseSize * depthScale;
+    const h = baseSize * depthScale;
+
+    // 角色位置 (脚部对齐 Y 坐标)
+    const px = char.x * 960 - w / 2;
+    const py = char.y * 640 - h;
+
+    // 深度遮挡：如果角色深度 > 场景深度，降低不透明度 (被遮挡)
+    const sceneDepth = this.getDepth(char.x, char.y);
+    const occlusion = depth > sceneDepth + this.DEPTH_THRESHOLD ? 0.4 : 1.0;
+
+    ctx.save();
+    ctx.globalAlpha = occlusion;
+
+    // 像素风渲染
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite, px, py, w, h);
+
+    // 角色阴影 (脚下椭圆)
+    ctx.globalAlpha = 0.3 * occlusion;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(char.x * 960, char.y * 640, w * 0.3, h * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  },
+
+  // ── 清除场景角色 ──
+  clear() {
+    this.chars = {};
+    this.depthData = null;
+    this.walkMask = null;
+  },
+};
+
+
+// ============================================================
 // LAST SIGNAL - Point & Click Adventure Engine
 // ============================================================
 const Game = {
@@ -1472,6 +1794,32 @@ const Game = {
         console.log(`🎬 ${bgName}: ${count} 帧 (AI 动画模式)`);
       } else {
         console.log(`🖼️ ${bgName}: 1 帧 (静态 + VFX 模式)`);
+      }
+    }
+
+    // ── 加载角色行走精灵图 ──
+    const spriteChars = ['kai', 'oracle', 'joker'];
+    const spriteDirs = ['down', 'left', 'right', 'up'];
+    for (const charId of spriteChars) {
+      for (const dir of spriteDirs) {
+        for (let fi = 0; fi < 4; fi++) {
+          const key = `${charId}_${dir}_f${fi}`;
+          promises.push(loadImg(`assets/sprites/${key}.png`).then(img => {
+            if (img) {
+              if (!CharSystem.sprites[charId]) CharSystem.sprites[charId] = {};
+              CharSystem.sprites[charId][`${dir}_f${fi}`] = img;
+            }
+          }));
+        }
+      }
+    }
+    await Promise.all(promises);
+
+    // 汇报精灵图加载
+    for (const charId of spriteChars) {
+      const count = Object.keys(CharSystem.sprites[charId] || {}).length;
+      if (count > 0) {
+        console.log(`🚶 ${charId}: ${count} 帧行走帧`);
       }
     }
   },
@@ -1609,6 +1957,9 @@ const Game = {
     // 初始化 VFX 引擎
     VFX.init(sceneId);
 
+    // ── 初始化角色系统 ──
+    await CharSystem.initScene(sceneId, this.images);
+
     this.startRenderLoop();
     this.updateHUD();
 
@@ -1673,6 +2024,11 @@ const Game = {
       }
     }
 
+    // ★ 角色渲染 (深度排序) ★
+    KeyMove.update(dt);
+    CharSystem.update(dt);
+    CharSystem.render(this.ctx);
+
     // ★ VFX 实时粒子动效叠加 ★
     VFX.render(this.ctx, dt, this.currentScene);
 
@@ -1705,6 +2061,21 @@ const Game = {
     const rect = this.canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (960 / rect.width);
     const y = (e.clientY - rect.top) * (640 / rect.height);
+
+    // ── 角色行走：点击移动 ──
+    const scene = SCENES[this.currentScene];
+    if (scene && scene.characters && scene.characters.length > 0) {
+      // 找到当前场景的玩家角色 (第一个角色)
+      const playerChar = scene.characters[0];
+      if (playerChar) {
+        const nx = x / 960;
+        const ny = y / 640;
+        if (CharSystem.isWalkable(nx, ny)) {
+          CharSystem.moveTo(playerChar.id, nx, ny);
+          return; // 行走优先于热点
+        }
+      }
+    }
 
     const hotspot = this.getHotspotAt(x, y);
     if (hotspot) {
@@ -2106,6 +2477,17 @@ const SCENES = {
       }
     },
 
+    // ── 角色配置 ──
+    characters: [
+      {
+        id: 'kai',
+        x: 0.5, y: 0.75,   // 归一化坐标 (房间中央偏下)
+        dir: 'down',
+        speed: 0.12,
+        scale: 0.22,
+      },
+    ],
+
     hotspots: [
       {
         x: 350, y: 250, w: 250, h: 200,
@@ -2200,6 +2582,17 @@ const SCENES = {
         });
       }
     },
+
+    // ── 角色配置 ──
+    characters: [
+      {
+        id: 'kai',
+        x: 0.5, y: 0.8,
+        dir: 'down',
+        speed: 0.12,
+        scale: 0.2,
+      },
+    ],
 
     hotspots: [
       {
@@ -3195,6 +3588,87 @@ const SCENES = {
 Game.init();
 
 // ── Lighting Controls ──
+// ── 角色键盘移动状态 ──
+const KeyMove = {
+  keys: {},
+  speed: 0.15,  // 归一化坐标/秒
+
+  init() {
+    document.addEventListener('keydown', (e) => {
+      if (Game.dialogueActive) return;
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+        this.keys[key] = true;
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      this.keys[key] = false;
+    });
+  },
+
+  update(dt) {
+    const scene = SCENES[Game.currentScene];
+    if (!scene || !scene.characters || scene.characters.length === 0) return;
+
+    const player = scene.characters[0];
+    const char = CharSystem.chars[player.id];
+    if (!char || !char.visible) return;
+
+    let dx = 0, dy = 0;
+    if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
+    if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
+    if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
+    if (this.keys['d'] || this.keys['arrowright']) dx += 1;
+
+    if (dx === 0 && dy === 0) {
+      // 无按键，如果键盘驱动的行走停止
+      if (char._keyWalking) {
+        char.walking = false;
+        char._keyWalking = false;
+        char.targetX = null;
+        char.targetY = null;
+      }
+      return;
+    }
+
+    // 归一化方向
+    const len = Math.sqrt(dx * dx + dy * dy);
+    dx /= len;
+    dy /= len;
+
+    const step = this.speed * dt / 1000;
+    const nx = char.x + dx * step;
+    const ny = char.y + dy * step;
+
+    // 更新朝向
+    if (Math.abs(dx) > Math.abs(dy)) {
+      char.dir = dx > 0 ? 'right' : 'left';
+    } else {
+      char.dir = dy > 0 ? 'down' : 'up';
+    }
+
+    // 碰撞检测 + 移动
+    if (CharSystem.isWalkable(nx, ny)) {
+      char.x = nx;
+      char.y = ny;
+    } else if (CharSystem.isWalkable(nx, char.y)) {
+      char.x = nx;
+    } else if (CharSystem.isWalkable(char.x, ny)) {
+      char.y = ny;
+    }
+
+    // 标记为键盘行走中 (触发动画)
+    char.walking = true;
+    char._keyWalking = true;
+
+    // 边界限制
+    char.x = Math.max(0.02, Math.min(0.98, char.x));
+    char.y = Math.max(0.1, Math.min(0.98, char.y));
+  },
+};
+
 document.addEventListener('keydown', (e) => {
   // L key: toggle real-time lighting vs pre-generated frames
   if (e.key === 'l' || e.key === 'L') {
@@ -3215,6 +3689,9 @@ document.addEventListener('keydown', (e) => {
     window.open('lighting-editor.html', '_blank');
   }
 });
+
+// 初始化键盘移动
+KeyMove.init();
 </script>
 </body>
 </html>
