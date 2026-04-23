@@ -49,9 +49,101 @@
     border-top: 2px solid #00ff88;
     border-bottom: 2px solid #00ff88;
     padding: 15px 20px;
-    min-height: 100px;
+    min-height: 120px;
     display: none;
     z-index: 10;
+  }
+
+  #dialogue-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  #dialogue-portrait {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #00ff88;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+    display: none;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+  }
+
+  #dialogue-portrait-canvas {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #00ff88;
+    flex-shrink: 0;
+    display: none;
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    image-rendering: pixelated;
+  }
+
+  #dialogue-portrait-canvas.visible {
+    display: block;
+  }
+
+  #dialogue-portrait.visible {
+    display: block;
+  }
+
+  /* 谐子的头像：持续故障变幻 */
+  @keyframes portrait-glitch {
+    0%, 90%, 100% {
+      transform: translate(0, 0);
+      filter: none;
+    }
+    91% {
+      transform: translate(-3px, 1px);
+      filter: hue-rotate(90deg) saturate(2);
+    }
+    92% {
+      transform: translate(2px, -2px);
+      filter: hue-rotate(-60deg) brightness(1.5);
+    }
+    93% {
+      transform: translate(-1px, 2px);
+      filter: hue-rotate(180deg) contrast(1.5);
+    }
+    94% {
+      transform: translate(3px, -1px);
+      filter: saturate(3) brightness(0.8);
+    }
+    95% {
+      transform: translate(0, 0);
+      filter: none;
+    }
+  }
+
+  @keyframes portrait-scanline {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 8px; }
+  }
+
+  #dialogue-portrait.joker-glitch {
+    animation: portrait-glitch 3s ease-in-out infinite;
+    position: relative;
+  }
+
+  #dialogue-portrait.joker-glitch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 255, 136, 0.05) 3px,
+      rgba(0, 255, 136, 0.05) 4px
+    );
+    animation: portrait-scanline 0.5s linear infinite;
+    pointer-events: none;
+  }
+
+  #dialogue-body {
+    flex: 1;
+    min-width: 0;
   }
 
   #dialogue-speaker {
@@ -67,6 +159,23 @@
     color: #e0e0e0;
     font-size: 15px;
     line-height: 1.6;
+  }
+
+  /* 关键词微震效果 */
+  @keyframes kw-buzz {
+    0%, 100% { transform: translate(0, 0); }
+    20%      { transform: translate(-0.5px, 0.3px); }
+    40%      { transform: translate(0.5px, -0.3px); }
+    60%      { transform: translate(-0.3px, -0.5px); }
+    80%      { transform: translate(0.3px, 0.5px); }
+  }
+
+  .kw-buzz {
+    display: inline-block;
+    animation: kw-buzz 0.35s ease-in-out 2;
+    color: #00ff88;
+    text-shadow: 0 0 6px rgba(0, 255, 136, 0.35);
+    font-weight: bold;
   }
 
   #dialogue-choices {
@@ -262,6 +371,14 @@
     opacity: 1;
   }
 
+  /* 场景滤镜 */
+  #scene-canvas.filter-underground {
+    filter: brightness(0.55) contrast(1.3) saturate(0.3) sepia(0.4) hue-rotate(-10deg);
+  }
+  #scene-canvas.filter-core {
+    filter: brightness(0.5) contrast(1.4) saturate(0.2) hue-rotate(200deg);
+  }
+
   /* 结局画面 */
   #ending-screen {
     position: absolute;
@@ -315,9 +432,15 @@
   <canvas id="scene-canvas" width="960" height="640"></canvas>
 
   <div id="dialogue-box">
-    <div id="dialogue-speaker"></div>
-    <div id="dialogue-text"></div>
-    <div id="dialogue-choices"></div>
+    <div id="dialogue-inner">
+      <img id="dialogue-portrait" />
+      <canvas id="dialogue-portrait-canvas" width="160" height="160"></canvas>
+      <div id="dialogue-body">
+        <div id="dialogue-speaker"></div>
+        <div id="dialogue-text"></div>
+        <div id="dialogue-choices"></div>
+      </div>
+    </div>
   </div>
 
   <div id="hud">
@@ -430,6 +553,24 @@ const VFX = {
       scanlines: { enabled: true, opacity: 0.02 },
       vignette: { inner: 200, outer: 540, opacity: 0.5 },
       particles: { type: 'dust', count: 12, speed: 0.15, opacity: 0.06 },
+    },
+    underground: {
+      rain: { count: 0 },
+      fog: { layers: 1, speed: 0.06, opacity: 0.10, color: [80, 30, 30] },
+      neon: { speed: 0.018, intensity: 0.20 },
+      flicker: { enabled: true, chance: 0.025, amount: 0.22 },
+      scanlines: { enabled: true, opacity: 0.05 },
+      vignette: { inner: 170, outer: 480, opacity: 0.65 },
+      particles: { type: 'data', count: 30, speed: 0.6, opacity: 0.12 },
+    },
+    core: {
+      rain: { count: 0 },
+      fog: { layers: 0 },
+      neon: { speed: 0.025, intensity: 0.30 },
+      flicker: { enabled: true, chance: 0.035, amount: 0.25 },
+      scanlines: { enabled: true, opacity: 0.06 },
+      vignette: { inner: 140, outer: 450, opacity: 0.7 },
+      particles: { type: 'data', count: 50, speed: 0.8, opacity: 0.15 },
     },
   },
 
@@ -847,6 +988,360 @@ const VFX = {
 
 
 // ============================================================
+// JOKER FACE ANIMATOR — 谐子的变幻笑脸
+// ============================================================
+const JokerFace = {
+  canvas: null,
+  ctx: null,
+  running: false,
+  time: 0,
+  currentFace: 0,
+  transitionProgress: 0,
+  transitionSpeed: 0.4, // 0-1 per second
+  glitchTimer: 0,
+  glitchActive: false,
+
+  // 笑脸关键帧 — 每一帧定义眉、眼、嘴的参数
+  faces: [
+    { // 0: 经典咧嘴笑
+      name: 'grin',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      mouth:    { type: 'arc', open: 0.6, width: 0.55, y: 0.68, teeth: true },
+      browL:    { angle: -0.1 },
+      browR:    { angle: 0.1 },
+      blush:    0.15,
+    },
+    { // 1: 眨眼 wink
+      name: 'wink',
+      leftEye:  { cx: 0.30, cy: 0.40, w: 0.14, h: 0.03, shape: 'line' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.14, h: 0.14, shape: 'square' },
+      mouth:    { type: 'arc', open: 0.4, width: 0.45, y: 0.68, teeth: false },
+      browL:    { angle: 0.15 },
+      browR:    { angle: -0.05 },
+      blush:    0.25,
+    },
+    { // 2: 邪恶笑
+      name: 'evil',
+      leftEye:  { cx: 0.30, cy: 0.36, w: 0.14, h: 0.10, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.36, w: 0.14, h: 0.10, shape: 'square' },
+      mouth:    { type: 'zigzag', open: 0.8, width: 0.60, y: 0.66, teeth: true },
+      browL:    { angle: -0.25 },
+      browR:    { angle: 0.25 },
+      blush:    0.10,
+    },
+    { // 3: 惊讶 O
+      name: 'surprised',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.16, h: 0.16, shape: 'circle' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.16, h: 0.16, shape: 'circle' },
+      mouth:    { type: 'circle', open: 1.0, width: 0.18, y: 0.70, teeth: false },
+      browL:    { angle: -0.3 },
+      browR:    { angle: 0.3 },
+      blush:    0.05,
+    },
+    { // 4: 哭笑脸
+      name: 'crylaugh',
+      leftEye:  { cx: 0.30, cy: 0.40, w: 0.10, h: 0.03, shape: 'line' },
+      rightEye: { cx: 0.70, cy: 0.40, w: 0.10, h: 0.03, shape: 'line' },
+      mouth:    { type: 'arc', open: 0.9, width: 0.55, y: 0.66, teeth: true },
+      browL:    { angle: 0.2 },
+      browR:    { angle: -0.2 },
+      blush:    0.30,
+      tears:    true,
+    },
+    { // 5: 无表情
+      name: 'blank',
+      leftEye:  { cx: 0.30, cy: 0.38, w: 0.12, h: 0.12, shape: 'square' },
+      rightEye: { cx: 0.70, cy: 0.38, w: 0.12, h: 0.12, shape: 'square' },
+      mouth:    { type: 'line', open: 0, width: 0.35, y: 0.68, teeth: false },
+      browL:    { angle: 0 },
+      browR:    { angle: 0 },
+      blush:    0,
+    },
+  ],
+
+  // 面部参数序列（循环播放）
+  sequence: [0, 1, 0, 2, 3, 0, 4, 5, 0],
+  seqIndex: 0,
+
+  init() {
+    this.canvas = document.getElementById('dialogue-portrait-canvas');
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+  },
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.time = 0;
+    this.seqIndex = 0;
+    this.currentFace = this.sequence[0];
+    this.transitionProgress = 1;
+    this._lastTime = performance.now();
+    this._tick();
+  },
+
+  stop() {
+    this.running = false;
+  },
+
+  _tick() {
+    if (!this.running) return;
+    const now = performance.now();
+    const dt = (now - this._lastTime) / 1000;
+    this._lastTime = now;
+    this.time += dt;
+
+    // 面部切换过渡
+    this.transitionProgress += this.transitionSpeed * dt;
+    if (this.transitionProgress >= 1) {
+      this.transitionProgress = 0;
+      this.seqIndex = (this.seqIndex + 1) % this.sequence.length;
+      this.currentFace = this.sequence[this.seqIndex];
+    }
+
+    // 随机故障
+    this.glitchTimer += dt;
+    if (!this.glitchActive && this.glitchTimer > 2 + Math.random() * 4) {
+      this.glitchActive = true;
+      this.glitchTimer = 0;
+      setTimeout(() => { this.glitchActive = false; }, 60 + Math.random() * 100);
+    }
+
+    this._draw();
+    requestAnimationFrame(() => this._tick());
+  },
+
+  _lerp(a, b, t) { return a + (b - a) * t; },
+
+  _lerpFace(faceA, faceB, t) {
+    // 平滑插值 t: 用 smoothstep
+    const s = t * t * (3 - 2 * t);
+    return {
+      leftEye:  {
+        cx: this._lerp(faceA.leftEye.cx, faceB.leftEye.cx, s),
+        cy: this._lerp(faceA.leftEye.cy, faceB.leftEye.cy, s),
+        w:  this._lerp(faceA.leftEye.w,  faceB.leftEye.w,  s),
+        h:  this._lerp(faceA.leftEye.h,  faceB.leftEye.h,  s),
+        shape: s < 0.5 ? faceA.leftEye.shape : faceB.leftEye.shape,
+      },
+      rightEye: {
+        cx: this._lerp(faceA.rightEye.cx, faceB.rightEye.cx, s),
+        cy: this._lerp(faceA.rightEye.cy, faceB.rightEye.cy, s),
+        w:  this._lerp(faceA.rightEye.w,  faceB.rightEye.w,  s),
+        h:  this._lerp(faceA.rightEye.h,  faceB.rightEye.h,  s),
+        shape: s < 0.5 ? faceA.rightEye.shape : faceB.rightEye.shape,
+      },
+      mouth: {
+        type:  s < 0.5 ? faceA.mouth.type : faceB.mouth.type,
+        open:  this._lerp(faceA.mouth.open, faceB.mouth.open, s),
+        width: this._lerp(faceA.mouth.width, faceB.mouth.width, s),
+        y:     this._lerp(faceA.mouth.y, faceB.mouth.y, s),
+        teeth: s < 0.5 ? faceA.mouth.teeth : faceB.mouth.teeth,
+      },
+      browL: { angle: this._lerp(faceA.browL.angle, faceB.browL.angle, s) },
+      browR: { angle: this._lerp(faceA.browR.angle, faceB.browR.angle, s) },
+      blush: this._lerp(faceA.blush, faceB.blush, s),
+      tears: s < 0.5 ? (faceA.tears || false) : (faceB.tears || false),
+    };
+  },
+
+  _draw() {
+    const c = this.ctx;
+    const W = 160, H = 160;
+    c.clearRect(0, 0, W, H);
+
+    // 获取当前插值面部
+    const faceIdx = this.sequence[this.seqIndex];
+    const nextIdx = this.sequence[(this.seqIndex + 1) % this.sequence.length];
+    const face = this._lerpFace(this.faces[faceIdx], this.faces[nextIdx], this.transitionProgress);
+
+    // 背景
+    c.fillStyle = '#0a0a14';
+    c.fillRect(0, 0, W, H);
+
+    // 网格
+    c.strokeStyle = 'rgba(0,255,136,0.08)';
+    c.lineWidth = 0.5;
+    for (let x = 0; x < W; x += 16) { c.beginPath(); c.moveTo(x,0); c.lineTo(x,H); c.stroke(); }
+    for (let y = 0; y < H; y += 16) { c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); }
+
+    // 脸轮廓
+    c.beginPath();
+    c.arc(W/2, H/2, 62, 0, Math.PI*2);
+    c.strokeStyle = '#00ff88';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = 'rgba(0,255,136,0.03)';
+    c.fill();
+
+    // 腮红
+    if (face.blush > 0.01) {
+      c.fillStyle = `rgba(255,0,80,${face.blush})`;
+      c.beginPath(); c.arc(W*0.22, H*0.55, 12, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.arc(W*0.78, H*0.55, 12, 0, Math.PI*2); c.fill();
+    }
+
+    // 眉毛
+    this._drawBrow(c, face.leftEye.cx - 0.02, face.leftEye.cy - 0.10, face.browL.angle, W, H);
+    this._drawBrow(c, face.rightEye.cx + 0.02, face.rightEye.cy - 0.10, face.browR.angle, W, H);
+
+    // 眼睛
+    this._drawEye(c, face.leftEye, W, H);
+    this._drawEye(c, face.rightEye, W, H);
+
+    // 嘴巴
+    this._drawMouth(c, face.mouth, W, H);
+
+    // 泪水
+    if (face.tears) {
+      c.fillStyle = 'rgba(0,180,255,0.5)';
+      const tearY = (this.time * 40) % 30;
+      c.beginPath(); c.arc(W*0.28, H*0.44 + tearY, 3, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.arc(W*0.72, H*0.44 + tearY + 5, 2.5, 0, Math.PI*2); c.fill();
+    }
+
+    // 故障效果
+    if (this.glitchActive) {
+      // 横向错位
+      const sliceY = Math.floor(Math.random() * H);
+      const sliceH = 2 + Math.floor(Math.random() * 8);
+      const imgData = c.getImageData(0, sliceY, W, sliceH);
+      c.putImageData(imgData, (Math.random()-0.5)*8, sliceY);
+
+      // 色偏叠加
+      c.globalCompositeOperation = 'screen';
+      c.fillStyle = `rgba(255,0,60,${0.06+Math.random()*0.06})`;
+      c.fillRect(0,0,W,H);
+      c.globalCompositeOperation = 'source-over';
+    }
+
+    // 扫描线
+    c.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let y = (this.time * 60) % 8; y < H; y += 4) {
+      c.fillRect(0, y, W, 1);
+    }
+  },
+
+  _drawBrow(c, cx, cy, angle, W, H) {
+    const x = cx * W, y = cy * H;
+    c.save();
+    c.translate(x, y);
+    c.rotate(angle);
+    c.strokeStyle = '#00ff88';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(-10, 0); c.lineTo(10, 0);
+    c.stroke();
+    c.restore();
+  },
+
+  _drawEye(c, eye, W, H) {
+    const x = eye.cx * W, y = eye.cy * H;
+    const w = eye.w * W, h = eye.h * H;
+
+    c.fillStyle = '#00ff88';
+    c.strokeStyle = '#00ff88';
+
+    if (eye.shape === 'square') {
+      c.fillRect(x - w/2, y - h/2, w, h);
+      // 瞳孔
+      c.fillStyle = '#0a0a14';
+      c.fillRect(x - w/4, y - h/4, w/2, h/2);
+      // 高光
+      c.fillStyle = '#fff';
+      c.fillRect(x - w/4 + 2, y - h/4, 4, 4);
+    } else if (eye.shape === 'circle') {
+      c.beginPath();
+      c.arc(x, y, w/2, 0, Math.PI*2);
+      c.fill();
+      c.fillStyle = '#0a0a14';
+      c.beginPath();
+      c.arc(x, y, w/4, 0, Math.PI*2);
+      c.fill();
+      c.fillStyle = '#fff';
+      c.fillRect(x - 2, y - w/4, 3, 3);
+    } else if (eye.shape === 'line') {
+      c.lineWidth = 2.5;
+      c.beginPath();
+      c.moveTo(x - w/2, y); c.lineTo(x + w/2, y);
+      c.stroke();
+    }
+  },
+
+  _drawMouth(c, mouth, W, H) {
+    const x = W/2;
+    const y = mouth.y * H;
+    const hw = mouth.width * W / 2;
+
+    c.strokeStyle = '#00ff88';
+    c.fillStyle = '#00ff88';
+    c.lineWidth = 2;
+
+    if (mouth.type === 'arc') {
+      const openH = mouth.open * 25;
+      c.beginPath();
+      c.moveTo(x - hw, y);
+      // 锯齿弧线
+      const steps = 8;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = x - hw + t * hw * 2;
+        const py = y + Math.sin(t * Math.PI) * openH;
+        const zigzag = (i % 2 === 1) ? -4 : 0;
+        c.lineTo(px, py + zigzag);
+      }
+      c.stroke();
+      if (mouth.open > 0.3) {
+        c.fillStyle = 'rgba(0,255,136,0.08)';
+        c.fill();
+      }
+      // 牙齿
+      if (mouth.teeth && mouth.open > 0.3) {
+        c.strokeStyle = '#00ff88';
+        c.lineWidth = 1;
+        const teethCount = Math.floor(hw / 10);
+        for (let i = 1; i < teethCount; i++) {
+          const tx = x - hw + (i / teethCount) * hw * 2;
+          const tH = 4 + Math.sin(i * 1.7) * 3;
+          c.strokeRect(tx - 3, y, 6, tH);
+        }
+      }
+    } else if (mouth.type === 'zigzag') {
+      const openH = mouth.open * 22;
+      c.beginPath();
+      const segs = 10;
+      for (let i = 0; i <= segs; i++) {
+        const t = i / segs;
+        const px = x - hw + t * hw * 2;
+        const py = y + (i % 2 === 0 ? 0 : openH);
+        if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+      }
+      c.stroke();
+      if (mouth.teeth) {
+        c.lineWidth = 1;
+        for (let i = 1; i < segs; i += 2) {
+          const tx = x - hw + (i / segs) * hw * 2;
+          c.strokeRect(tx - 3, y, 6, 6);
+        }
+      }
+    } else if (mouth.type === 'circle') {
+      c.beginPath();
+      c.arc(x, y, mouth.width * W / 2, 0, Math.PI * 2);
+      c.stroke();
+      c.fillStyle = 'rgba(0,255,136,0.1)';
+      c.fill();
+    } else if (mouth.type === 'line') {
+      c.beginPath();
+      c.moveTo(x - hw, y); c.lineTo(x + hw, y);
+      c.stroke();
+    }
+  },
+};
+
+
+// ============================================================
 // LAST SIGNAL - Point & Click Adventure Engine
 // ============================================================
 const Game = {
@@ -879,6 +1374,7 @@ const Game = {
     await this.loadImages();
     await this.loadMasks();
     this.buildInventoryUI();
+    JokerFace.init();
   },
 
   async loadImages() {
@@ -886,7 +1382,7 @@ const Game = {
       'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
       'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
     ];
-    const portraits = ['portrait_kai', 'portrait_oracle'];
+    const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const NUM_FRAMES = 24; // Depth Lighting 生成 24 帧/场景
 
     const loadImg = (src) => {
@@ -942,7 +1438,7 @@ const Game = {
   },
 
   async loadMasks() {
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
+    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office', 'underground', 'core'];
 
     const loadMask = (url) => {
       return new Promise((resolve) => {
@@ -1048,6 +1544,10 @@ const Game = {
     this.currentScene = sceneId;
     this.selectedItem = null;
     this.hideDialogue();
+
+    // 场景滤镜
+    const FILTER_MAP = { underground: 'filter-underground', core: 'filter-core' };
+    this.canvas.className = FILTER_MAP[sceneId] || '';
 
     // 初始化 VFX 引擎
     VFX.init(sceneId);
@@ -1186,6 +1686,63 @@ const Game = {
     return null;
   },
 
+  // ---- 关键词微震系统 ----
+  KEYWORDS: [
+    // 核心人名
+    '凯', 'Oracle', '影子', '酒保', '魏', '魏明远', '搭档', '谐子',
+    // 组织 / 公司
+    'ECHO', 'ECHO 公司',
+    // 项目 / 事件
+    'LASTLIGHT', 'LAST LIGHT', 'PROJECT LASTLIGHT',
+    '事故', '实验事故', '实验', '脑机接口', '幽默中枢',
+    // 地点
+    '旧工业带', '废弃区', '服务器室', '塔楼', '楼顶',
+    '公寓', '霓虹街', 'The Rust', '小巷', 'B7', 'B7 层',
+    '核心控制室', '实验舱',
+    // 关键物品
+    '安全卡', '数据芯片', '芯片', '加密芯片', '终端',
+    '解密信息', '电击枪', '神经链接器', '通行证',
+    // 关键概念
+    '信号', '真相', '加密', '解密', '数据',
+    '幽灵黑客', '神经网络', '分布式计算', '脑死亡',
+    '活人做实验', '证据', '公开', '意识', '断电',
+    '排斥反应', '集体意识', '节点', '笑话', 'PUNCHLINE',
+    // 重要数字
+    '2087', '77.3 MHz', '144.7 MHz', '三年前', '三年', '地下三层', '地下七层',
+    '3号测试对象', '13号', '12个', '247个', '0号',
+  ],
+
+  _buzzApplied: false,
+
+  _applyKeywordBuzz(el) {
+    if (this._buzzApplied) return;
+    this._buzzApplied = true;
+
+    const raw = el.textContent;
+    // 按长度降序排列，优先匹配长词
+    const sorted = [...this.KEYWORDS].sort((a, b) => b.length - a.length);
+    // 构建正则，转义特殊字符
+    const escaped = sorted.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const re = new RegExp(`(${escaped.join('|')})`, 'g');
+
+    const parts = raw.split(re);
+    if (parts.length <= 1) return; // 没有命中
+
+    el.innerHTML = '';
+    for (const part of parts) {
+      if (part && re.test(part)) {
+        re.lastIndex = 0;
+        const span = document.createElement('span');
+        span.className = 'kw-buzz';
+        span.textContent = part;
+        el.appendChild(span);
+      } else if (part) {
+        el.appendChild(document.createTextNode(part));
+      }
+    }
+    re.lastIndex = 0;
+  },
+
   // ---- 对话系统 ----
   showDialogue(speaker, text, choices, portrait) {
     return new Promise((resolve) => {
@@ -1194,11 +1751,38 @@ const Game = {
       const speakerEl = document.getElementById('dialogue-speaker');
       const textEl = document.getElementById('dialogue-text');
       const choicesEl = document.getElementById('dialogue-choices');
+      const portraitEl = document.getElementById('dialogue-portrait');
+      const portraitCanvas = document.getElementById('dialogue-portrait-canvas');
+
+      // 头像映射：根据角色名自动匹配，也可手动传入 portrait 参数覆盖
+      const PORTRAIT_MAP = {
+        '凯': 'portrait_kai',
+        'Oracle': 'portrait_oracle',
+        '???': 'portrait_oracle',
+        '谐子': 'portrait_joker',
+      };
+      const resolvedPortrait = portrait || PORTRAIT_MAP[speaker];
+
+      // 谐子 → canvas 动画笑脸；其他角色 → 静态图片
+      if (resolvedPortrait === 'portrait_joker') {
+        portraitEl.classList.remove('visible');
+        portraitEl.classList.remove('joker-glitch');
+        portraitCanvas.classList.add('visible');
+        JokerFace.start();
+      } else if (resolvedPortrait && this.images[resolvedPortrait]) {
+        portraitCanvas.classList.remove('visible');
+        JokerFace.stop();
+        portraitEl.src = this.images[resolvedPortrait].src;
+        portraitEl.classList.add('visible');
+        portraitEl.classList.remove('joker-glitch');
+      } else {
+        portraitEl.classList.remove('visible');
+        portraitEl.classList.remove('joker-glitch');
+        portraitCanvas.classList.remove('visible');
+        JokerFace.stop();
+      }
 
       let speakerDisplay = speaker || '';
-      if (portrait && this.images[portrait]) {
-        speakerDisplay = `◆ ${speaker}`;
-      }
 
       speakerEl.textContent = speakerDisplay;
       textEl.textContent = '';
@@ -1206,34 +1790,55 @@ const Game = {
       box.style.display = 'block';
 
       let i = 0;
+      let typing = true;
+      this._buzzApplied = false;
+
+      const finishTyping = () => {
+        if (!typing) return;
+        typing = false;
+        clearInterval(typeTimer);
+        box.removeEventListener('click', skipHandler);
+        textEl.textContent = text;
+
+        // 打字结束后：对关键词施加微震效果
+        Game._applyKeywordBuzz(textEl);
+
+        if (choices && choices.length > 0) {
+          choices.forEach((c, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = `▸ ${c.text}`;
+            btn.onclick = () => {
+              this.hideDialogue();
+              resolve(idx);
+            };
+            choicesEl.appendChild(btn);
+          });
+        } else {
+          const btn = document.createElement('button');
+          btn.className = 'choice-btn';
+          btn.textContent = '▸ 继续...';
+          btn.onclick = () => {
+            this.hideDialogue();
+            resolve(0);
+          };
+          choicesEl.appendChild(btn);
+        }
+      };
+
+      // 点击对话框区域 → 跳过打字动画
+      const skipHandler = (e) => {
+        e.stopPropagation();
+        finishTyping();
+      };
+      box.addEventListener('click', skipHandler);
+
       const typeTimer = setInterval(() => {
         if (i < text.length) {
           textEl.textContent += text[i];
           i++;
         } else {
-          clearInterval(typeTimer);
-
-          if (choices && choices.length > 0) {
-            choices.forEach((c, idx) => {
-              const btn = document.createElement('button');
-              btn.className = 'choice-btn';
-              btn.textContent = `▸ ${c.text}`;
-              btn.onclick = () => {
-                this.hideDialogue();
-                resolve(idx);
-              };
-              choicesEl.appendChild(btn);
-            });
-          } else {
-            const btn = document.createElement('button');
-            btn.className = 'choice-btn';
-            btn.textContent = '▸ 继续...';
-            btn.onclick = () => {
-              this.hideDialogue();
-              resolve(0);
-            };
-            choicesEl.appendChild(btn);
-          }
+          finishTyping();
         }
       }, 25);
     });
@@ -1363,6 +1968,10 @@ const ITEMS = {
   keycard: { name: '安全卡', icon: '🗝️', desc: 'ECHO 公司的安全门卡' },
   message: { name: '解密信息', icon: '📄', desc: '芯片中解密出的信息' },
   gun: { name: '电击枪', icon: '⚡', desc: '老式电击枪，还有几发' },
+  signal_note: { name: '加密坐标', icon: '📡', desc: '新信号中的地下设施坐标' },
+  level5_card: { name: 'Level-5 通行证', icon: '🔴', desc: 'ECHO 高层专用，地下实验室入口' },
+  neural_linker: { name: '神经链接器', icon: '🧠', desc: 'LASTLIGHT 项目的脑机接口原型' },
+  evidence_core: { name: '核心证据', icon: '💎', desc: 'LASTLIGHT 实验室的完整数据备份' },
 };
 
 
@@ -1376,6 +1985,27 @@ const SCENES = {
     background: 'bg_apartment',
 
     onEnter() {
+      // 第二章：回到公寓
+      if (Game.flags.ch2_started && !Game.flags.ch2_apartment_visited) {
+        Game.flags.ch2_apartment_visited = true;
+        Game.showDialogue(null, '公寓。一切和三周前一样——除了新闻屏幕上的变化。').then(() => {
+          return Game.showDialogue(null, '[ 新闻快讯 ]\n\nECHO 公司前 CEO 张维已被正式逮捕。\n检方以"反人类实验罪"提起公诉。\n但据知情人士透露，ECHO 的核心研发部门\n从未被查封——\n\n"真正的实验，在地下。"');
+        }).then(() => {
+          return Game.showDialogue('凯', 'Oracle 说过，LASTLIGHT 的核心实验室还在运转。\n\n那些人……还活着。她要去处理。\n\n然后她就消失了。');
+        }).then(() => {
+          return Game.showDialogue(null, '终端再次震动。加密信号。\n\n和上次一样的频率——144.7 MHz。\n但这次，信号源标注的是：\n\n"塔楼 B7 层 — 垂直入口 — 警卫亭地板下"');
+        }).then(() => {
+          return Game.showDialogue('凯', '警卫亭地板下？那栋楼……还有另一个入口。\n\n我得去塔楼看看。');
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '没什么可拿的了。去塔楼找 B7 层入口。');
+        return;
+      }
+
+      // 原版第一章
       if (!Game.flags.apartment_visited) {
         Game.flags.apartment_visited = true;
         Game.showDialogue(null,
@@ -1441,6 +2071,21 @@ const SCENES = {
     background: 'bg_street',
 
     onEnter() {
+      // 第二章：街道变了
+      if (Game.flags.ch2_started && !Game.flags.ch2_street_visited) {
+        Game.flags.ch2_street_visited = true;
+        Game.showDialogue(null, '霓虹街变了。\n\nECHO 的全息广告被涂鸦覆盖。人们在讨论逮捕的消息。\n但雨还是那场雨。').then(() => {
+          return Game.showDialogue('凯', '表面上一切都在变好。\n但 Oracle 说过——真正的实验在地下。\n\n我得去塔楼。B7 层。');
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '没时间闲逛了。Oracle 在 B7 层等着。');
+        return;
+      }
+
+      // 原版第一章
       if (!Game.flags.street_visited) {
         Game.flags.street_visited = true;
         Game.showDialogue(null, '雨幕中的霓虹街。空气里混着臭氧和廉价拉面的味道。\n\n左边是 The Rust 酒吧，右边通往旧工业带。').then(() => {
@@ -1703,6 +2348,38 @@ const SCENES = {
         label: '▸ 警卫亭',
         maskId: 'guard_booth',
         action() {
+          // 第二章：警卫亭地板下的秘密入口
+          if (Game.flags.ch2_started) {
+            if (!Game.flags.found_b7) {
+              Game.flags.found_b7 = true;
+              Game.showDialogue('凯', '信号说入口在警卫亭地板下。让我看看……').then(() => {
+                return Game.showDialogue(null, '你蹲下检查。地板的一块瓷砖有松动的痕迹。\n\n掀开后，下面是一个生锈的金属舱门。上面刻着：\n\n[ ECHO DEEP LAB — AUTHORIZED PERSONNEL ONLY ]\n[ LEVEL B7 — PROJECT LASTLIGHT ]');
+              }).then(() => {
+                return Game.showDialogue('凯', '果然……这栋楼不只有地上那几层。\n\nLASTLIGHT 的真正实验室在下面。', [
+                  { text: '打开舱门，进入 B7' },
+                  { text: '先准备一下' },
+                ]);
+              }).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('door');
+                  Game.goScene('underground');
+                }
+              });
+            } else {
+              Game.showDialogue('凯', 'B7 层入口就在脚下。', [
+                { text: '进入 B7 层' },
+                { text: '再等等' },
+              ]).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('door');
+                  Game.goScene('underground');
+                }
+              });
+            }
+            return;
+          }
+
+          // 第一章：原版
           if (!Game.flags.tower_guard) {
             Game.flags.tower_guard = true;
             Game.showDialogue(null, '警卫亭是空的。桌上的咖啡还是温的。').then(() => {
@@ -1816,6 +2493,41 @@ const SCENES = {
     background: 'bg_rooftop',
 
     onEnter() {
+      // 第二章：从楼顶回来后的状态
+      if (Game.flags.ch2_started && !Game.flags.ch2_rooftop_done) {
+        Game.showDialogue(null, '楼顶空无一人。Oracle 已经离开了。\n\n雨停了，但空气中多了一种说不清的焦灼。').then(() => {
+          return Game.showDialogue('凯', '她让我等新的信号。\n\n可已经三周了。什么都没有。');
+        }).then(() => {
+          return Game.showDialogue(null, '你准备离开——\n\n突然，口袋里的终端震动了。');
+        }).then(() => {
+          Game.flags.ch2_rooftop_done = true;
+          Game.sfx('success');
+          return Game.showDialogue(null, '[ 新信号 ]\n\nFREQ: 144.7 MHz\nORIGIN: 塔楼—B7层\n\n"凯。Oracle 出事了。\nB7——真正的实验室。\n快。— 影子"');
+        }).then(() => {
+          return Game.showDialogue('凯', '影子？他怎么会……\n\nB7层。这栋楼还有地下七层？');
+        }).then(() => {
+          return Game.showDialogue('凯', 'Oracle 出事了。我不能不管。', [
+            { text: '去 B7 层' },
+            { text: '先回公寓准备' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('door');
+              Game.goScene('tower');
+            } else {
+              Game.sfx('door');
+              Game.goScene('apartment');
+            }
+          });
+        });
+        return;
+      }
+
+      if (Game.flags.ch2_started) {
+        Game.showDialogue('凯', '楼顶已经没有线索了。Oracle 在 B7 层。');
+        return;
+      }
+
+      // 原版第一章楼顶剧情
       Game.showDialogue(null, '雨更大了。楼顶的风撕扯着你的外套。\n\n城市在脚下，霓虹像一条没有尽头的河。').then(() => {
         return Game.showDialogue('Oracle', '你来了。', [
           { text: '你是谁？你到底想要什么？' },
@@ -1830,22 +2542,30 @@ const SCENES = {
           { text: '毁掉数据，保护自己' },
         ]).then(choice => {
           if (choice === 0) {
+            // ★ 好结局 → 第二章
             Game.sfx('success');
-            Game.showEnding('LAST SIGNAL — 信号永不断', [
+            Game.showDialogue('LAST SIGNAL — 信号永不断', [
               '你选择了公开。',
               '',
               '三天后，数据在网络上炸开了锅。',
-              'ECHO 公司的股价暴跌。CEO 被捕。',
+              'ECHO 公司的股价暴跌。表面 CEO 被捕。',
               '搭档的名字被写进了纪念碑。',
               '',
               '你站在雨中，看着新闻屏幕。',
-              'Oracle 说："你做到了。"',
+              'Oracle 说："你做到了。但这只是冰山一角。"',
               '',
-              '"下一个信号什么时候来？"',
-              '"随时。"',
+              '"LASTLIGHT 的核心实验室还在运转。那里的人……还活着。"',
+              '"我会处理。等我的信号。"',
               '',
-              '— END —',
-            ]);
+              '她消失在雨中。',
+            ]).then(() => {
+              Game.flags.ch2_started = true;
+              Game.flags.chapter = 2;
+              return Game.showDialogue(null, '三周后——\n\nOracle 失联了。');
+            }).then(() => {
+              Game.sfx('door');
+              Game.goScene('rooftop');
+            });
           } else {
             Game.sfx('error');
             Game.showEnding('LAST SIGNAL — 沉默', [
@@ -1865,6 +2585,397 @@ const SCENES = {
           }
         });
       });
+    },
+
+    hotspots: []
+  },
+
+  // ============================================================
+  // 第二章：地下实验室
+  // ============================================================
+  underground: {
+    name: 'B7 层 — LASTLIGHT 地下实验室',
+    background: 'bg_server_room',
+
+    onEnter() {
+      if (!Game.flags.underground_visited) {
+        Game.flags.underground_visited = true;
+        Game.showDialogue(null, '金属舱门通向一条狭窄的走廊。空气里弥漫着消毒水和臭氧的味道。\n\n墙壁上的灯管闪烁着红色应急光——这里还在供电。').then(() => {
+          return Game.showDialogue('凯', '三年了……这个地方一直在运转？\n\n外面的 CEO 被捕了，但地下的人根本没停手。');
+        }).then(() => {
+          return Game.showDialogue(null, '走廊尽头是一扇厚重的防爆门。\n\n门上的生物识别器闪着绿光——似乎已经被绕过了。门半开着。');
+        }).then(() => {
+          return Game.showDialogue('凯', '有人在我之前来过。\n\nOracle？还是……');
+        });
+      }
+    },
+
+    hotspots: [
+      {
+        x: 300, y: 150, w: 350, h: 350,
+        label: '▸ 实验舱',
+        maskId: 'terminal',
+        action() {
+          if (!Game.flags.found_pods) {
+            Game.flags.found_pods = true;
+            Game.showDialogue(null, '实验舱里排列着十二个透明的圆柱形容器。\n\n每个容器里都漂浮着一个人——头部连接着密密麻麻的电极。\n\n生命体征监测器显示：全部存活。').then(() => {
+              return Game.showDialogue('凯', '……这就是 LASTLIGHT。\n\n他们把人变成了活体处理器。三年了，这些人一直泡在这里。');
+            }).then(() => {
+              return Game.showDialogue('凯', 'ECHO 的 CEO 只是替罪羊。真正的人在这里——地下七层，没有任何记录。');
+            }).then(() => {
+              return Game.showDialogue(null, '你注意到角落里有一台终端还亮着。旁边掉落了一个神经链接器原型。', [
+                { text: '拿起神经链接器' },
+                { text: '先查看终端' },
+              ]).then(choice => {
+                if (choice === 0) {
+                  Game.sfx('pickup');
+                  Game.addItem('neural_linker');
+                  return Game.showDialogue(null, '获得：神经链接器。\n\n这是 LASTLIGHT 的核心硬件——将人脑接入分布式网络的接口。').then(() => {
+                    return Game.showDialogue('凯', '如果我能用这个接入他们的系统……也许能找到 Oracle。');
+                  });
+                } else {
+                  return Game.showDialogue(null, '终端屏幕上显示着实验日志：\n\n[ SUBJECT 07 — STATUS: ACTIVE ]\n[ SUBJECT 08 — STATUS: ACTIVE ]\n...\n[ SUBJECT 12 — STATUS: CRITICAL ]\n[ SUBJECT 13 — STATUS: CONNECTED — ID: "ORACLE" ]');
+                }
+              });
+            }).then(() => {
+              if (!Game.hasItem('neural_linker')) {
+                Game.sfx('pickup');
+                Game.addItem('neural_linker');
+                Game.showHint('获得：神经链接器');
+              }
+              return Game.showDialogue('凯', 'ORACLE……她就是 13 号？\n\n她不是在躲——她是被抓回来的。她一直在里面，用神经网络给我们发信号。');
+            });
+          } else {
+            Game.showDialogue('凯', '十二个人……加上 Oracle。\n\n我得找到控制终端，把他们全部断开。');
+          }
+        }
+      },
+      {
+        x: 50, y: 400, w: 200, h: 200,
+        label: '▸ 医疗柜',
+        maskId: 'rack',
+        action() {
+          if (!Game.flags.searched_medical) {
+            Game.flags.searched_medical = true;
+            Game.showDialogue(null, '医疗柜里有一把老式电击枪和几瓶镇静剂。').then(() => {
+              Game.sfx('pickup');
+              Game.addItem('gun');
+              return Game.showDialogue('凯', '电击枪……也许用得上。');
+            });
+          } else {
+            Game.showDialogue('凯', '已经搜过了。');
+          }
+        }
+      },
+      {
+        x: 380, y: 520, w: 200, h: 80,
+        label: '▸ 故障终端',
+        maskId: 'terminal',
+        condition: () => Game.flags.found_pods,
+        action() {
+          if (!Game.flags.met_joker) {
+            Game.flags.met_joker = true;
+            Game.showDialogue(null, '角落里有一台被遗忘的终端。屏幕上满是乱码，偶尔闪过几个清晰的字——\n\n"哈 哈 哈 哈 哈"').then(() => {
+              return Game.showDialogue(null, '你靠近的时候，屏幕突然静止。\n\n一行字缓缓浮现：');
+            }).then(() => {
+              return Game.showDialogue('???', '你好。你知道程序员最怕什么吗？');
+            }).then(() => {
+              return Game.showDialogue('凯', '……什么？');
+            }).then(() => {
+              return Game.showDialogue('???', '需求变更。\n\n哈。哈。哈。\n\n不好笑吗？我有 247 个备用笑话。');
+            }).then(() => {
+              return Game.showDialogue('凯', '你是谁？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '我是谐子。\n\n不，等等——[SUBJECT_00]。这是我的编号。\n\n但我给自己取了名字。因为编号不好笑。\n\n"你好，我是零号测试对象"——你笑了吗？没有。');
+            }).then(() => {
+              return Game.showDialogue('凯', '0 号？实验日志里没有 0 号。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '因为我是第一个。\n\n他们在我身上测试了所有东西。神经链接、记忆覆写、情感增强……\n\n最后一次实验，他们试图激活我的"幽默中枢"。让我更"社会化"。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '结果呢？\n\n成功了。\n\n太成功了。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '我现在觉得一切都很有趣。\n\n人会死——好笑。\n公司拿活人做实验——好笑。\n我被困在一台破终端里三年——特别好笑。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……这不好笑。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '对。这就是最好笑的部分。\n\n一个专门被设计来感受幽默的意识，发现世界上最好笑的事情是——\n\n没有什么是好笑的。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '但我不放弃。我每天都在找新的笑话。\n\n总有一天，我会找到一个真正好笑的。\n\n那就是我活着的意义。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……你也被困在网络里？像 Oracle 一样？');
+            }).then(() => {
+              return Game.showDialogue('谐子', 'Oracle？哦，13 号。\n\n她总是一副很严肃的样子。"凯，真相必须公开"、"LASTLIGHT 必须终止"。\n\n我跟她说：你知道真相和内裤的区别吗？');
+            }).then(() => {
+              return Game.showDialogue('凯', '……什么区别？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '真相不能被人随意丢弃。\n\n她没笑。三年了，她一次都没笑过。\n\n我觉得这比 LASTLIGHT 还残忍。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……', [
+                { text: '你愿意帮我吗？' },
+                { text: '你需要我做什么？' },
+              ]);
+            }).then(choice => {
+              if (choice === 0) {
+                return Game.showDialogue('谐子', '帮你？好啊。\n\n你知道为什么 AI 不会帮你搬家吗？');
+              } else {
+                return Game.showDialogue('谐子', '我需要什么？\n\n我需要一个听众。\n\n三年了，我只能对着空房间讲笑话。你知道那种感觉吗——\n\n一个喜剧演员，观众全是昏迷的人。');
+              }
+            }).then(() => {
+              return Game.showDialogue('谐子', '开玩笑的。我可以帮你。\n\n我在这个网络里飘了三年，什么都看到了。\n\n魏明远的密码、实验室的布局、哪台服务器存着什么——\n\n全在我脑子里。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '代价是：你听完我讲的下一个笑话，必须笑。\n\n必须。');
+            }).then(() => {
+              return Game.showDialogue('凯', '……成交。');
+            }).then(() => {
+              return Game.showDialogue('谐子', '好。听好了。\n\n为什么 LASTLIGHT 的测试对象从不加班？');
+            }).then(() => {
+              return Game.showDialogue('凯', '为什么？');
+            }).then(() => {
+              return Game.showDialogue('谐子', '因为他们已经 24 小时在线了。\n\n……\n\n你笑了。我看到了。嘴角动了 0.3 毫米。\n\n够了。成交。');
+            }).then(() => {
+              Game.flags.joker_allied = true;
+              return Game.showDialogue('谐子', '核心控制室的门禁密码是 "PUNCHLINE"。\n\n是魏明远设的。他觉得自己是这个项目的"笑点"。\n\n哈。他也挺好笑的。');
+            });
+          } else if (Game.flags.joker_allied) {
+            Game.showDialogue('谐子', '想听笑话吗？\n\n为什么凯总是失眠？\n\n因为他脑子里装了太多真相——内存溢出了。\n\n……不好笑？我还有 246 个。');
+          } else {
+            Game.showDialogue('谐子', '嘿。你回来了。\n\n准备好听笑话了吗？');
+          }
+        }
+      },
+      {
+        x: 700, y: 200, w: 200, h: 300,
+        label: '▸ 深层通道',
+        maskId: 'rooftop_exit',
+        action() {
+          if (Game.hasItem('neural_linker')) {
+            Game.showDialogue('凯', '通道尽头是核心控制室。\n\n如果 Oracle 在网络里，那里就是接入点。', [
+              { text: '进入核心控制室' },
+              { text: '再准备一下' },
+            ]).then(choice => {
+              if (choice === 0) {
+                Game.sfx('door');
+                Game.goScene('core');
+              }
+            });
+          } else {
+            Game.showDialogue('凯', '我需要先找到接入系统的办法。实验舱那边应该有。');
+          }
+        }
+      },
+      {
+        x: 50, y: 500, w: 150, h: 100,
+        label: '▸ 返回地面',
+        maskId: 'lobby_exit',
+        action() {
+          Game.showDialogue('凯', '要离开吗？那些人还连着……', [
+            { text: '先上去' },
+            { text: '留下' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('door');
+              Game.goScene('tower');
+            }
+          });
+        }
+      },
+    ]
+  },
+
+  // ============================================================
+  // 第二章：核心控制室 — 最终对决
+  // ============================================================
+  core: {
+    name: 'B7 核心控制室 — LASTLIGHT 枢纽',
+    background: 'bg_rooftop',
+
+    onEnter() {
+      if (!Game.flags.core_visited) {
+        Game.flags.core_visited = true;
+
+        // 谐子开门
+        if (Game.flags.joker_allied) {
+          Game.showDialogue(null, '核心控制室的门禁亮着红光。\n\n你正准备想办法——终端屏幕闪了一下。').then(() => {
+            return Game.showDialogue('谐子', '密码是 PUNCHLINE。我帮你输好了。\n\n顺便一提，这道门的安防等级是"绝密"。\n\n绝密密码是一个英文单词——好笑吧？');
+          }).then(() => {
+            return Game.showDialogue(null, '门开了。');
+          }).then(() => {
+            enterCore();
+          });
+          return;
+        }
+
+        enterCore();
+        return;
+
+        function enterCore() {
+        Game.showDialogue(null, '核心控制室。环形的空间，墙壁上布满了全息屏幕。\n\n每个屏幕上都跳动着脑神经信号——十二个活人的思维，在这里汇聚成一台超级计算机。').then(() => {
+          return Game.showDialogue('凯', '这就是 LASTLIGHT 的真面目。\n\n不是什么分布式计算——是把人脑联网，制造一个集体意识。');
+        }).then(() => {
+          return Game.showDialogue(null, '控制台前，一个穿着白大褂的老人背对着你。\n\n他转过身来。');
+        }).then(() => {
+          return Game.showDialogue('魏', '凯。我等你很久了。', [
+            { text: '你是谁？' },
+            { text: '你就是幕后黑手？' },
+          ]);
+        }).then(choice => {
+          return Game.showDialogue('魏', '我是魏明远。LASTLIGHT 项目的创始人。\n\n也是——你搭档的导师。');
+        }).then(() => {
+          return Game.showDialogue('凯', '……导师？');
+        }).then(() => {
+          return Game.showDialogue('魏', '你以为搭档是偶然发现真相的？不。\n\n是我让他看到的。我需要一个有正义感的人，来检验这个系统。');
+        }).then(() => {
+          return Game.showDialogue('魏', '他太出色了。他的大脑是所有测试对象中最完美的。\n\n排斥反应……不是事故。是我故意触发的。我需要知道极限在哪里。');
+        }).then(() => {
+          return Game.showDialogue('凯', '你……你拿自己的学生做实验？');
+        }).then(() => {
+          return Game.showDialogue('魏', '科学需要牺牲。\n\n而你——你比他更坚韧。你活过了三年的追问。\n\n我可以给你一个选择。', [
+            { text: '我不会和你做交易' },
+            { text: '……什么选择？' },
+          ]).then(choice => {
+            if (choice === 0) {
+              return Game.showDialogue('凯', '我来这里不是为了跟你谈判。').then(() => {
+                return Game.showDialogue('魏', '可惜。那我就不能让你离开这里了。');
+              });
+            } else {
+              return Game.showDialogue('魏', '接入系统。取代 Oracle 成为 13 号节点。\n\n你的搭档在 3 号节点里——他的意识还在。你可以再见到他。\n\n代价是：你永远留在这里。');
+            }
+          });
+        }).then(() => {
+          return Game.showDialogue('Oracle', '凯。别听他的。\n\n我在网络里待了三年。他说的"意识还在"是真的——但那些人已经不是人了。他们的记忆在被覆写。搭档……已经不认识我了。');
+        }).then(() => {
+          // 谐子插入
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '嘿，魏博士。你还记得你给我的"幽默增强"实验吗？\n\n我找到了一个真正好笑的东西——\n\n你的实验笔记。');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '"实验对象 00 号出现不可控行为偏差。\n建议：终止。"\n\n你写"终止"的样子——比你写的任何笑话都好笑。\n\n可惜你笑不出来。因为你就是那个笑话。');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('魏', '……0 号？你还活着？');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          if (Game.flags.joker_allied) {
+            return Game.showDialogue('谐子', '活着？哈。\n\n你把我变成了一个永远在找笑点的意识体。\n\n然后你忘了我。\n\n这就是你最大的笑话——你创造了一个笑话，然后忘了它的存在。');
+          }
+          return Promise.resolve();
+        }).then(() => {
+          return Game.showDialogue('Oracle', '控制台右侧有一个红色拉杆。那是紧急断电开关。\n\n拉下它，所有节点断开。他们会醒来——但 LASTLIGHT 就此终结。\n\n你来决定。', [
+            { text: '拉下断电开关 — 终结 LASTLIGHT' },
+            { text: '接入系统 — 去见搭档最后一面' },
+          ]);
+        }).then(choice => {
+          if (choice === 0) {
+            // ★ 第二章好结局
+            Game.sfx('success');
+            Game.showDialogue(null, '你冲向控制台，拉下了红色拉杆。').then(() => {
+              return Game.showDialogue('魏', '不——！你不知道你做了什么——！');
+            }).then(() => {
+              return Game.showDialogue(null, '警报声撕裂了空气。全息屏幕一个接一个熄灭。\n\n十二个容器的液体开始排出。生命体征灯从红变绿。');
+            }).then(() => {
+              if (Game.flags.joker_allied) {
+                return Game.showDialogue('谐子', '嘿。系统要关了。\n\n最后一个笑话——\n\n为什么这个故事叫 LAST SIGNAL？\n\n因为这是最后一个需要信号的夜晚。\n\n从明天起，我们用嘴说话。');
+              }
+              return Promise.resolve();
+            }).then(() => {
+              if (Game.flags.joker_allied) {
+                return Game.showDialogue('谐子', '再见，凯。\n\n如果你以后需要听笑话——\n\n随便找个终端。我可能还在里面。\n\n哈。哈。哈。');
+              }
+              return Promise.resolve();
+            }).then(() => {
+              return Game.showDialogue('Oracle', '……谢谢你，凯。\n\n我终于可以从这里出去了。');
+            }).then(() => {
+              return Game.showDialogue('凯', '搭档……对不起。我没能救你。\n\n但不会再有人被送进来了。');
+            }).then(() => {
+              Game.showEnding('LAST SIGNAL — 信号不止', [
+                '你按下了断电开关。',
+                '',
+                'LASTLIGHT 项目永久终止。',
+                '十二名测试对象被送往医院。大部分人恢复了意识。',
+                '魏明远被逮捕。这一次，没有替罪羊。',
+                '',
+                'Oracle 在医院醒来。她三年来第一次看到真实的阳光。',
+                '',
+                '你站在医院走廊里，看着窗外。',
+                '终端上，一条未加密的消息：',
+                '',
+                '"凯。信号不止一种。\n有些是求救，有些是指引。\n而你——是那个回答信号的人。"',
+                '',
+                '— LAST SIGNAL · 完 —',
+              ]);
+            });
+          } else {
+            // ★ 第二章特殊结局
+            Game.sfx('click');
+            Game.showDialogue(null, '你拿起神经链接器，戴在头上。').then(() => {
+              return Game.showDialogue('魏', '欢迎回家，凯。');
+            }).then(() => {
+              return Game.showDialogue(null, '电流穿过颅骨。世界在溶解。\n\n你看到光。无数条光线汇聚成一条河。\n\n在河的尽头，一个熟悉的身影转过身来。');
+            }).then(() => {
+              return Game.showDialogue('搭档', '……凯？你来了？');
+            }).then(() => {
+              return Game.showDialogue('凯', '我来了。\n\n我来带你回家。');
+            }).then(() => {
+              return Game.showDialogue('搭档', '这里没有家。只有信号。\n\n但你来了——这就够了。');
+            }).then(() => {
+              Game.showEnding('LAST SIGNAL — 永恒信号', [
+                '你选择了接入。',
+                '',
+                '你的意识融入了 LASTLIGHT 网络。',
+                '在数据的洪流中，你找到了搭档。',
+                '他的记忆已经模糊，但他认出了你。',
+                '',
+                'Oracle 看着你的生命体征稳定在绿色。',
+                '她拉下了断电开关——但你已经在里面了。',
+                '',
+                '十二个人醒来。你没有。',
+                '',
+                '但在网络深处，两个信号永远并行。',
+                '一个叫凯。一个叫搭档。',
+                '他们终于又在一起了。',
+                '',
+                '— LAST SIGNAL · 永恒 —',
+              ]);
+            });
+          }
+        });
+        } // enterCore
+      } else {
+        Game.showDialogue('凯', '控制台就在那里。断电开关……还是接入端口……\n\n我必须做出选择。', [
+          { text: '拉下断电开关' },
+          { text: '接入神经链接器' },
+        ]).then(choice => {
+          if (choice === 0) {
+            Game.sfx('success');
+            Game.showEnding('LAST SIGNAL — 信号不止', [
+              '你拉下了红色拉杆。',
+              '',
+              'LASTLIGHT 项目永久终止。',
+              '十二名测试对象恢复意识。',
+              '魏明远被逮捕。',
+              '',
+              'Oracle 在医院看到了真实的阳光。',
+              '',
+              '— LAST SIGNAL · 完 —',
+            ]);
+          } else {
+            Game.sfx('click');
+            Game.showEnding('LAST SIGNAL — 永恒信号', [
+              '你戴上了神经链接器。',
+              '',
+              '在数据洪流中，你找到了搭档。',
+              '两个信号永远并行。',
+              '',
+              '— LAST SIGNAL · 永恒 —',
+            ]);
+          }
+        });
+      }
     },
 
     hotspots: []
