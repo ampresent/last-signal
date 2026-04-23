@@ -160,6 +160,27 @@ body {
 
 #status-bar .ok { color: var(--accent); }
 
+#shortcut-hints {
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+#shortcut-hints kbd {
+  display: inline-block;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+
 #save-status {
   margin-left: auto;
   font-size: 10px;
@@ -389,6 +410,11 @@ input[type="range"]::-moz-range-thumb {
   min-width: 36px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Log slider gradient backgrounds */
+.log-slider input[type="range"] {
+  background: linear-gradient(to right, #0a0a14 0%, #1a1a3e 40%, #00ff8844 100%);
 }
 
 /* Collapsible property groups */
@@ -627,7 +653,7 @@ input[type="range"]::-moz-range-thumb {
 
 .save-modal-box .close-btn:hover { background: var(--bg-hover); }
 
-/* ── Keyboard shortcut hint ─────────────────────────────────────── */
+/* ── Keyboard shortcut hint (bottom-right corner) ───────────────── */
 #shortcuts-hint {
   position: fixed;
   bottom: 8px;
@@ -643,6 +669,13 @@ input[type="range"]::-moz-range-thumb {
   padding: 1px 4px;
   border-radius: 2px;
   font-family: inherit;
+}
+
+/* ── Eyedropper button ──────────────────────────────────────────── */
+#btn-eyedropper.active {
+  background: rgba(255,170,34,0.2);
+  border-color: var(--warn);
+  color: var(--warn);
 }
 
 /* ── Confirm dialog ─────────────────────────────────────────────── */
@@ -732,7 +765,10 @@ input[type="range"]::-moz-range-thumb {
 
     <div id="status-bar">
       <span class="ok">●</span>
-      <span id="status-text">光照引擎就绪 — 选择场景开始编辑</span>
+      <span id="status-text">光照引擎就绪</span>
+      <span id="shortcut-hints">
+        <kbd>Space</kbd> 播放  <kbd>Del</kbd> 删除  <kbd>R</kbd> 随机  <kbd>Shift+拖拽</kbd> Z轴  <kbd>I</kbd> 吸色
+      </span>
       <span id="save-status"></span>
     </div>
   </div>
@@ -875,6 +911,10 @@ input[type="range"]::-moz-range-thumb {
                 <span class="prop-label">HEX</span>
                 <input class="hex-input" id="p-hex" type="text" value="#ffffff" maxlength="7">
               </div>
+              <div class="prop-row" style="margin-top:4px">
+                <span class="prop-label"></span>
+                <button class="tb-btn" id="btn-eyedropper" title="从画布吸色 (I)">🎨 吸色</button>
+              </div>
               <div class="color-presets" id="color-presets"></div>
             </div>
           </div>
@@ -887,7 +927,7 @@ input[type="range"]::-moz-range-thumb {
             <div class="prop-group-body" id="group-intensity">
               <div class="prop-row">
                 <span class="prop-label">强度</span>
-                <div class="slider-wrap">
+                <div class="slider-wrap log-slider">
                   <input type="range" id="p-intensity" min="0" max="1" step="0.005">
                   <span class="slider-val" id="p-intensity-val">0.300</span>
                 </div>
@@ -917,6 +957,8 @@ input[type="range"]::-moz-range-thumb {
                   <option value="flicker">闪烁</option>
                   <option value="car_sweep">车灯扫过</option>
                   <option value="lightning">闪电</option>
+                  <option value="drift">漂移 (非周期)</option>
+                  <option value="burst">闪光 (非周期)</option>
                 </select>
               </div>
               <div class="prop-row">
@@ -928,14 +970,14 @@ input[type="range"]::-moz-range-thumb {
               </div>
               <div class="prop-row">
                 <span class="prop-label">最小</span>
-                <div class="slider-wrap">
+                <div class="slider-wrap log-slider">
                   <input type="range" id="p-phase-min" min="0" max="1" step="0.005">
                   <span class="slider-val" id="p-phase-min-val">0.100</span>
                 </div>
               </div>
               <div class="prop-row">
                 <span class="prop-label">最大</span>
-                <div class="slider-wrap">
+                <div class="slider-wrap log-slider">
                   <input type="range" id="p-phase-max" min="0" max="1" step="0.005">
                   <span class="slider-val" id="p-phase-max-val">0.400</span>
                 </div>
@@ -970,7 +1012,9 @@ input[type="range"]::-moz-range-thumb {
                 </div>
                 <div class="adsr-param">
                   <label>Sustain</label>
-                  <input type="range" id="p-adsr-s" min="0" max="1" step="0.01" value="1">
+                  <div class="log-slider">
+                    <input type="range" id="p-adsr-s" min="0" max="1" step="0.01" value="1">
+                  </div>
                   <div class="val" id="p-adsr-s-val">1.00</div>
                 </div>
                 <div class="adsr-param">
@@ -1046,12 +1090,11 @@ input[type="range"]::-moz-range-thumb {
 
 const GITHUB_REPO = 'ampresent/last-signal';
 function getGitHubToken() {
-  let t = localStorage.getItem('gh_token');
-  if (!t) {
-    t = prompt('输入 GitHub Personal Access Token:');
-    if (t) localStorage.setItem('gh_token', t);
-  }
-  return t || '';
+  return localStorage.getItem('gh_token') || '';
+}
+function setGitHubToken(t) {
+  if (t) localStorage.setItem('gh_token', t);
+  else localStorage.removeItem('gh_token');
 }
 const CONFIG_PATH = 'lighting-config.json';
 
@@ -1106,6 +1149,15 @@ function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function fmt(v, d = 3) { return Number(v).toFixed(d); }
 
+// ── Logarithmic Slider Mapping ─────────────────────────────────────
+// pos: slider position 0-1, returns actual value
+function logSliderToVal(pos) {
+  return Math.pow(pos, 2.2);
+}
+function valToLogSlider(val) {
+  return Math.pow(val, 1/2.2);
+}
+
 // ── Confirm Dialog ─────────────────────────────────────────────────
 
 function showConfirm(msg) {
@@ -1138,6 +1190,9 @@ const Editor = {
   playing: true,
   mouseUV: { x: 0, y: 0 },
   dragging: false,
+  dragAxis: null, // null = free, 'x', 'y', 'z'
+  gizmoHoverAxis: null, // null, 'x', 'y', 'z'
+  eyedropperMode: false,
   _suppressUpdate: false,
   _adsrAnimFrame: null,
 
@@ -1188,10 +1243,13 @@ const Editor = {
     const canvas = document.getElementById('lighting-canvas');
     canvas.addEventListener('mousedown', (e) => this._onCanvasMouseDown(e));
     canvas.addEventListener('mousemove', (e) => this._onCanvasMouseMove(e));
-    canvas.addEventListener('mouseup', () => { this.dragging = false; });
+    canvas.addEventListener('mouseup', (e) => this._onCanvasMouseUp(e));
     canvas.addEventListener('mouseleave', () => {
       document.getElementById('coord-overlay').style.display = 'none';
       this.dragging = false;
+      this.dragAxis = null;
+      this.gizmoHoverAxis = null;
+      canvas.style.cursor = this.eyedropperMode ? 'crosshair' : 'crosshair';
     });
 
     // Toolbar
@@ -1205,6 +1263,9 @@ const Editor = {
     document.getElementById('btn-export').addEventListener('click', () => this.exportFrame());
     document.getElementById('btn-reset-scene').addEventListener('click', () => this.resetScene());
     document.getElementById('btn-randomize').addEventListener('click', () => this.randomizeSelected());
+
+    // Eyedropper
+    document.getElementById('btn-eyedropper').addEventListener('click', () => this.toggleEyedropper());
 
     // Save modal close
     document.getElementById('save-modal-close').addEventListener('click', () => {
@@ -1315,24 +1376,33 @@ const Editor = {
     const el = document.getElementById(id);
     const valEl = document.getElementById(id + '-val');
     if (!el || !valEl) return;
-    const v = parseFloat(el.value);
+    const rawV = parseFloat(el.value);
+
+    // Log-scale sliders: display the log-mapped actual value
+    const logSliders = ['p-intensity', 'p-phase-min', 'p-phase-max', 'p-adsr-s'];
+    const isLog = logSliders.includes(id);
 
     if (id === 'p-radius') {
-      valEl.textContent = Math.round(v);
+      valEl.textContent = Math.round(rawV);
     } else if (id === 'p-phase-speed' || id === 'p-phase-offset' || id.startsWith('p-d')) {
-      valEl.textContent = fmt(v, 2);
+      valEl.textContent = fmt(rawV, 2);
     } else if (id.startsWith('p-adsr-')) {
       if (id === 'p-adsr-s') {
-        valEl.textContent = fmt(v, 2);
+        const displayV = isLog ? logSliderToVal(rawV) : rawV;
+        valEl.textContent = fmt(displayV, 2);
       } else if (id === 'p-adsr-period') {
-        valEl.textContent = fmt(v, 1) + 's';
+        valEl.textContent = fmt(rawV, 1) + 's';
       } else {
-        valEl.textContent = fmt(v, 2) + 's';
+        valEl.textContent = fmt(rawV, 2) + 's';
       }
     } else if (id.startsWith('p-cr') || id.startsWith('p-cg') || id.startsWith('p-cb')) {
-      valEl.textContent = Math.round(v);
+      valEl.textContent = Math.round(rawV);
+    } else if (isLog) {
+      // Log-scale: show the actual mapped value
+      const actualV = logSliderToVal(rawV);
+      valEl.textContent = fmt(actualV, 3);
     } else {
-      valEl.textContent = fmt(v, 3);
+      valEl.textContent = fmt(rawV, 3);
     }
   },
 
@@ -1456,27 +1526,28 @@ const Editor = {
     const b = parseInt(document.getElementById('p-cb').value) / 255;
     light.color = [r, g, b];
 
-    light.intensity = parseFloat(document.getElementById('p-intensity').value) || 0;
+    // Intensity: log-scale mapping
+    light.intensity = logSliderToVal(parseFloat(document.getElementById('p-intensity').value) || 0);
     light.radius = parseFloat(document.getElementById('p-radius').value) || 150;
 
     // Reset cached base intensity for ADSR
     const engineLight = this.engine.getLight(this.selectedLightId);
     if (engineLight) engineLight._baseIntensity = light.intensity;
 
-    // Phase
+    // Phase: log-scale for min/max
     light.phase = {
       type: document.getElementById('p-phase-type').value,
       speed: parseFloat(document.getElementById('p-phase-speed').value) || 1,
-      min: parseFloat(document.getElementById('p-phase-min').value) || 0,
-      max: parseFloat(document.getElementById('p-phase-max').value) || 1,
+      min: logSliderToVal(parseFloat(document.getElementById('p-phase-min').value) || 0),
+      max: logSliderToVal(parseFloat(document.getElementById('p-phase-max').value) || 0),
       offset: parseFloat(document.getElementById('p-phase-offset').value) || 0
     };
 
-    // ADSR
+    // ADSR: sustain uses log scale
     light.adsr = {
       attack: parseFloat(document.getElementById('p-adsr-a').value) || 0,
       decay: parseFloat(document.getElementById('p-adsr-d').value) || 0,
-      sustain: parseFloat(document.getElementById('p-adsr-s').value) || 1,
+      sustain: logSliderToVal(parseFloat(document.getElementById('p-adsr-s').value) || 0),
       release: parseFloat(document.getElementById('p-adsr-r').value) || 0,
       period: parseFloat(document.getElementById('p-adsr-period').value) || 4
     };
@@ -1537,29 +1608,29 @@ const Editor = {
     this._updateSliderDisplay('p-cb');
     this._syncColorFromSliders();
 
-    // Intensity & radius
-    document.getElementById('p-intensity').value = light.intensity ?? 0.3;
+    // Intensity & radius — log-scale for intensity
+    document.getElementById('p-intensity').value = valToLogSlider(light.intensity ?? 0.3);
     document.getElementById('p-radius').value = light.radius ?? 150;
     this._updateSliderDisplay('p-intensity');
     this._updateSliderDisplay('p-radius');
 
-    // Phase
+    // Phase — log-scale for min/max
     const phase = light.phase || {};
     document.getElementById('p-phase-type').value = phase.type || 'steady';
     document.getElementById('p-phase-speed').value = phase.speed ?? 1;
-    document.getElementById('p-phase-min').value = phase.min ?? 0;
-    document.getElementById('p-phase-max').value = phase.max ?? 1;
+    document.getElementById('p-phase-min').value = valToLogSlider(phase.min ?? 0);
+    document.getElementById('p-phase-max').value = valToLogSlider(phase.max ?? 1);
     document.getElementById('p-phase-offset').value = phase.offset ?? 0;
     this._updateSliderDisplay('p-phase-speed');
     this._updateSliderDisplay('p-phase-min');
     this._updateSliderDisplay('p-phase-max');
     this._updateSliderDisplay('p-phase-offset');
 
-    // ADSR
+    // ADSR — log-scale for sustain
     const adsr = light.adsr || { attack: 0, decay: 0, sustain: 1, release: 0, period: 4 };
     document.getElementById('p-adsr-a').value = adsr.attack ?? 0;
     document.getElementById('p-adsr-d').value = adsr.decay ?? 0;
-    document.getElementById('p-adsr-s').value = adsr.sustain ?? 1;
+    document.getElementById('p-adsr-s').value = valToLogSlider(adsr.sustain ?? 1);
     document.getElementById('p-adsr-r').value = adsr.release ?? 0;
     document.getElementById('p-adsr-period').value = adsr.period ?? 4;
     this._updateSliderDisplay('p-adsr-a');
@@ -1590,7 +1661,7 @@ const Editor = {
 
     const a = parseFloat(document.getElementById('p-adsr-a').value) || 0;
     const d = parseFloat(document.getElementById('p-adsr-d').value) || 0;
-    const s = parseFloat(document.getElementById('p-adsr-s').value) || 1;
+    const s = logSliderToVal(parseFloat(document.getElementById('p-adsr-s').value) || 0);
     const r = parseFloat(document.getElementById('p-adsr-r').value) || 0;
     const period = parseFloat(document.getElementById('p-adsr-period').value) || 4;
 
@@ -1715,6 +1786,41 @@ const Editor = {
     }
   },
 
+  // ── Eyedropper ──────────────────────────────────────────────────
+
+  toggleEyedropper() {
+    this.eyedropperMode = !this.eyedropperMode;
+    const btn = document.getElementById('btn-eyedropper');
+    const canvas = document.getElementById('lighting-canvas');
+    if (this.eyedropperMode) {
+      btn.classList.add('active');
+      canvas.style.cursor = 'crosshair';
+      this._toast('吸色模式：点击画布取色，按 Esc 退出');
+    } else {
+      btn.classList.remove('active');
+      canvas.style.cursor = 'crosshair';
+    }
+  },
+
+  _sampleColorAtPixel(clientX, clientY) {
+    const canvas = document.getElementById('lighting-canvas');
+    const rect = canvas.getBoundingClientRect();
+    // Pixel position on the 960x640 canvas
+    const px = Math.round((clientX - rect.left) * (960 / rect.width));
+    const py = Math.round((clientY - rect.top) * (640 / rect.height));
+
+    // Use WebGL readPixels
+    const gl = this.engine.gl;
+    const pixel = new Uint8Array(4);
+    // WebGL readPixels reads from bottom-left, so flip Y
+    gl.readPixels(px, 640 - py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+    const r = pixel[0] / 255;
+    const g = pixel[1] / 255;
+    const b = pixel[2] / 255;
+    return [r, g, b];
+  },
+
   // ── Canvas Interaction ──────────────────────────────────────────
 
   _getCanvasUV(e) {
@@ -1724,10 +1830,96 @@ const Editor = {
     return { x: clamp(x, 0, 1), y: clamp(y, 0, 1) };
   },
 
+  _getCanvasPixel(e) {
+    const rect = e.target.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (960 / rect.width);
+    const py = (e.clientY - rect.top) * (640 / rect.height);
+    return { px, py };
+  },
+
+  // ── Gizmo Helpers ───────────────────────────────────────────────
+
+  _getGizmoPositions(light) {
+    const cx = (light.x || 0.5) * 960;
+    const cy = (light.y || 0.5) * 640;
+    const gizmoLen = 40;
+    return {
+      cx, cy,
+      xEnd: { x: cx + gizmoLen, y: cy },         // Red arrow → right
+      yEnd: { x: cx, y: cy - gizmoLen },          // Green arrow → up
+      zEnd: { x: cx + gizmoLen * 0.6, y: cy + gizmoLen * 0.6 } // Blue → down-right
+    };
+  },
+
+  _checkGizmoHover(px, py, light) {
+    if (!light || light.type !== 'point') return null;
+    const g = this._getGizmoPositions(light);
+    const threshold = 10;
+
+    const distX = Math.sqrt((px - g.xEnd.x) ** 2 + (py - g.xEnd.y) ** 2);
+    const distY = Math.sqrt((px - g.yEnd.x) ** 2 + (py - g.yEnd.y) ** 2);
+    const distZ = Math.sqrt((px - g.zEnd.x) ** 2 + (py - g.zEnd.y) ** 2);
+
+    if (distX < threshold) return 'x';
+    if (distY < threshold) return 'y';
+    if (distZ < threshold) return 'z';
+    return null;
+  },
+
   _onCanvasMouseDown(e) {
     if (!this.currentScene) return;
+
+    // Eyedropper mode
+    if (this.eyedropperMode) {
+      const [r, g, b] = this._sampleColorAtPixel(e.clientX, e.clientY);
+      if (this.selectedLightId) {
+        const scene = this.config.scenes[this.currentScene];
+        const light = scene.lights.find(l => l.id === this.selectedLightId);
+        if (light) {
+          light.color = [r, g, b];
+          this.engine.updateLight(light.id, light);
+          this._updatePropsPanel();
+          this._updateLightList();
+        }
+      }
+      const hex = rgbToHex(r, g, b);
+      this._toast(`🎨 已取色: ${hex}`);
+      this.eyedropperMode = false;
+      document.getElementById('btn-eyedropper').classList.remove('active');
+      document.getElementById('lighting-canvas').style.cursor = 'crosshair';
+      return;
+    }
+
     const uv = this._getCanvasUV(e);
+    const { px, py } = this._getCanvasPixel(e);
     const scene = this.config.scenes[this.currentScene];
+
+    // Check gizmo handle click first (if a point light is selected)
+    if (this.selectedLightId) {
+      const selectedLight = scene.lights.find(l => l.id === this.selectedLightId);
+      if (selectedLight && selectedLight.type === 'point') {
+        const hoverAxis = this._checkGizmoHover(px, py, selectedLight);
+        if (hoverAxis) {
+          this.dragging = true;
+          this.dragAxis = hoverAxis;
+          this._dragStartUV = { ...uv };
+          this._dragStartLight = { x: selectedLight.x, y: selectedLight.y, depth: selectedLight.depth || 0.3 };
+          return;
+        }
+      }
+    }
+
+    // Shift+drag = Z axis mode
+    if (e.shiftKey && this.selectedLightId) {
+      const selectedLight = scene.lights.find(l => l.id === this.selectedLightId);
+      if (selectedLight && selectedLight.type === 'point') {
+        this.dragging = true;
+        this.dragAxis = 'z';
+        this._dragStartUV = { ...uv };
+        this._dragStartLight = { x: selectedLight.x, y: selectedLight.y, depth: selectedLight.depth || 0.3 };
+        return;
+      }
+    }
 
     // Find closest point light
     let closest = null;
@@ -1746,11 +1938,15 @@ const Editor = {
     if (closest) {
       this.selectLight(closest.id);
       this.dragging = true;
+      this.dragAxis = null; // free drag
+      this._dragStartUV = { ...uv };
+      this._dragStartLight = { x: closest.x, y: closest.y, depth: closest.depth || 0.3 };
     }
   },
 
   _onCanvasMouseMove(e) {
     const uv = this._getCanvasUV(e);
+    const { px, py } = this._getCanvasPixel(e);
     this.mouseUV = uv;
 
     // Coordinate overlay
@@ -1758,27 +1954,72 @@ const Editor = {
     overlay.style.display = 'block';
     overlay.textContent = `x: ${uv.x.toFixed(3)}  y: ${uv.y.toFixed(3)}`;
 
+    const canvas = document.getElementById('lighting-canvas');
+
+    // Gizmo hover detection
+    if (!this.dragging && this.selectedLightId && this.currentScene) {
+      const scene = this.config.scenes[this.currentScene];
+      const selectedLight = scene.lights.find(l => l.id === this.selectedLightId);
+      const hoverAxis = this._checkGizmoHover(px, py, selectedLight);
+      this.gizmoHoverAxis = hoverAxis;
+
+      if (hoverAxis) {
+        canvas.style.cursor = 'grab';
+      } else if (this.eyedropperMode) {
+        canvas.style.cursor = 'crosshair';
+      } else {
+        canvas.style.cursor = 'crosshair';
+      }
+    }
+
     // Drag selected point light
-    if (this.dragging && this.selectedLightId) {
+    if (this.dragging && this.selectedLightId && this._dragStartUV && this._dragStartLight) {
       const scene = this.config.scenes[this.currentScene];
       const light = scene.lights.find(l => l.id === this.selectedLightId);
       if (light && light.type === 'point') {
-        light.x = uv.x;
-        light.y = uv.y;
+        const dx = uv.x - this._dragStartUV.x;
+        const dy = uv.y - this._dragStartUV.y;
+
+        if (this.dragAxis === 'x') {
+          light.x = clamp(this._dragStartLight.x + dx, 0, 1);
+          // Y stays the same
+        } else if (this.dragAxis === 'y') {
+          light.y = clamp(this._dragStartLight.y + dy, 0, 1);
+          // X stays the same
+        } else if (this.dragAxis === 'z') {
+          // Z axis: mouse Y movement controls depth
+          // Moving mouse up = deeper (lower z), down = closer (higher z)
+          light.depth = clamp(this._dragStartLight.depth - dy, 0, 1);
+          // X and Y stay the same
+        } else {
+          // Free X+Y drag
+          light.x = uv.x;
+          light.y = uv.y;
+        }
+
         this.engine.updateLight(light.id, light);
 
         // Update sliders without triggering change
         this._suppressUpdate = true;
         document.getElementById('p-x').value = light.x;
         document.getElementById('p-y').value = light.y;
+        document.getElementById('p-depth').value = light.depth ?? 0.3;
         this._updateSliderDisplay('p-x');
         this._updateSliderDisplay('p-y');
+        this._updateSliderDisplay('p-depth');
         this._suppressUpdate = false;
       }
     }
   },
 
-  // ── Marker Overlay ──────────────────────────────────────────────
+  _onCanvasMouseUp(e) {
+    this.dragging = false;
+    this.dragAxis = null;
+    this._dragStartUV = null;
+    this._dragStartLight = null;
+  },
+
+  // ── Marker Overlay & Gizmo Drawing ──────────────────────────────
 
   _drawMarkers() {
     const canvas = document.getElementById('marker-overlay');
@@ -1848,7 +2089,77 @@ const Editor = {
         ctx.fillStyle = '#444';
         ctx.fillText(`z:${(light.depth || 0.3).toFixed(2)}`, px + 12, py + 2);
       }
+
+      // ── 3D Gizmo for selected point light ──
+      if (isSelected) {
+        this._drawGizmo(ctx, light);
+      }
     }
+  },
+
+  _drawGizmo(ctx, light) {
+    const g = this._getGizmoPositions(light);
+    const gizmoLen = 40;
+    const hover = this.gizmoHoverAxis;
+    const drag = this.dragAxis;
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+
+    // Helper to draw an arrow
+    const drawArrow = (fromX, fromY, toX, toY, color, label, axisKey) => {
+      const isActive = (hover === axisKey || drag === axisKey);
+      const lineWidth = isActive ? 3 : 1.5;
+      const alpha = isActive ? 1.0 : 0.7;
+
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = lineWidth;
+
+      // Line
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+
+      // Arrowhead
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      const headLen = isActive ? 10 : 8;
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headLen * Math.cos(angle - 0.4), toY - headLen * Math.sin(angle - 0.4));
+      ctx.lineTo(toX - headLen * Math.cos(angle + 0.4), toY - headLen * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+
+      // Label
+      ctx.globalAlpha = isActive ? 1.0 : 0.6;
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.fillText(label, toX + 6, toY + 4);
+    };
+
+    // Red arrow → X axis (horizontal right)
+    drawArrow(g.cx, g.cy, g.xEnd.x, g.xEnd.y, '#ff4444', 'X', 'x');
+
+    // Green arrow → Y axis (vertical up)
+    drawArrow(g.cx, g.cy, g.yEnd.x, g.yEnd.y, '#44ff44', 'Y', 'y');
+
+    // Blue arrow → Z axis (diagonal down-right)
+    drawArrow(g.cx, g.cy, g.zEnd.x, g.zEnd.y, '#4488ff', 'Z', 'z');
+
+    // Center diamond
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(g.cx, g.cy - 4);
+    ctx.lineTo(g.cx + 4, g.cy);
+    ctx.lineTo(g.cx, g.cy + 4);
+    ctx.lineTo(g.cx - 4, g.cy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   },
 
   // ── Randomization ───────────────────────────────────────────────
@@ -1860,11 +2171,11 @@ const Editor = {
     if (!light) return;
 
     light.color = pickRandom(PLEASING_PALETTE);
-    light.intensity = rand(0.05, 0.5);
+    light.intensity = logSliderToVal(rand(0.1, 0.7)); // log-distributed
     light.phase = light.phase || {};
     light.phase.speed = rand(0.5, 3.0);
-    light.phase.min = rand(0.02, 0.2);
-    light.phase.max = rand(0.2, 0.6);
+    light.phase.min = logSliderToVal(rand(0.1, 0.5));
+    light.phase.max = logSliderToVal(rand(0.4, 0.9));
     if (light.type === 'point') {
       light.radius = rand(60, 300);
     }
@@ -1889,11 +2200,11 @@ const Editor = {
     const scene = this.config.scenes[this.currentScene];
     for (const light of scene.lights) {
       light.color = pickRandom(PLEASING_PALETTE);
-      light.intensity = rand(0.05, 0.5);
+      light.intensity = logSliderToVal(rand(0.1, 0.7)); // log-distributed
       light.phase = light.phase || {};
       light.phase.speed = rand(0.5, 3.0);
-      light.phase.min = rand(0.02, 0.2);
-      light.phase.max = rand(0.2, 0.6);
+      light.phase.min = logSliderToVal(rand(0.1, 0.5));
+      light.phase.max = logSliderToVal(rand(0.4, 0.9));
       if (light.type === 'point') {
         light.radius = rand(60, 300);
       }
@@ -1930,6 +2241,19 @@ const Editor = {
         if (this.selectedLightId) {
           e.preventDefault();
           this.randomizeSelected();
+        }
+        break;
+      case 'i':
+      case 'I':
+        e.preventDefault();
+        this.toggleEyedropper();
+        break;
+      case 'Escape':
+        if (this.eyedropperMode) {
+          this.eyedropperMode = false;
+          document.getElementById('btn-eyedropper').classList.remove('active');
+          document.getElementById('lighting-canvas').style.cursor = 'crosshair';
+          this._toast('吸色模式已退出');
         }
         break;
       case 's':
@@ -1988,6 +2312,40 @@ const Editor = {
   // ── GitHub Save ─────────────────────────────────────────────────
 
   async saveToGithub() {
+    const json = JSON.stringify(this.config, null, 2);
+    const dateStr = new Date().toLocaleString('zh-CN');
+    const ts = Date.now();
+    const branchName = `lighting-edit-${ts}`;
+
+    // ── Try GitHub API first ──
+    let token = getGitHubToken();
+    if (!token) {
+      // Ask once — if cancelled, go straight to download
+      const input = prompt('输入 GitHub Token 以自动创建 PR（留空则下载文件）:');
+      if (input) { setGitHubToken(input); token = input; }
+    }
+    if (token) {
+      try {
+        await this._saveViaApi(token, branchName, dateStr, json);
+        return;
+      } catch (err) {
+        console.warn('GitHub API save failed, falling back to download:', err.message);
+        // If it's a CORS/network error, fall through to download
+        if (err.message.includes('Failed to fetch') || err.message.includes('CORS') || err.message.includes('NetworkError')) {
+          // Fall through to download
+        } else {
+          // API error (auth, etc) — show in modal
+          this._showSaveError(err.message);
+          return;
+        }
+      }
+    }
+
+    // ── Fallback: download config + show gh CLI instructions ──
+    this._saveAsDownload(json, branchName, dateStr);
+  },
+
+  async _saveViaApi(token, branchName, dateStr, json) {
     const modal = document.getElementById('save-modal');
     const steps = document.getElementById('save-steps');
     const result = document.getElementById('save-result');
@@ -1996,121 +2354,140 @@ const Editor = {
     modal.classList.add('visible');
     result.style.display = 'none';
 
-    // Reset steps
     for (const step of steps.querySelectorAll('.save-step')) {
       step.className = 'save-step pending';
       step.querySelector('.icon').textContent = '○';
     }
 
-    const ts = Date.now();
-    const branchName = `lighting-edit-${ts}`;
-    const dateStr = new Date().toLocaleString('zh-CN');
-    const json = JSON.stringify(this.config, null, 2);
     const content = btoa(unescape(encodeURIComponent(json)));
-
-    const token = getGitHubToken();
-    if (!token) { this._toast('需要 GitHub Token 才能保存', true); return; }
     const headers = {
       'Authorization': `token ${token}`,
       'Accept': 'application/vnd.github.v3+json',
       'Content-Type': 'application/json'
     };
 
-    try {
-      // Step 1: Get default branch & its HEAD sha
-      this._setSaveStep('branch', 'running');
-      const repoResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers });
-      if (!repoResp.ok) throw new Error(`获取仓库信息失败: ${repoResp.status}`);
-      const repoData = await repoResp.json();
-      const defaultBranch = repoData.default_branch || 'main';
+    // Step 1: Get default branch & HEAD sha
+    this._setSaveStep('branch', 'running');
+    const repoResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers });
+    if (!repoResp.ok) throw new Error(`获取仓库信息失败: ${repoResp.status}`);
+    const repoData = await repoResp.json();
+    const defaultBranch = repoData.default_branch || 'main';
 
-      const refResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/refs/heads/${defaultBranch}`, { headers });
-      if (!refResp.ok) throw new Error(`获取分支引用失败: ${refResp.status}`);
-      const refData = await refResp.json();
-      const sha = refData.object.sha;
+    const refResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/refs/heads/${defaultBranch}`, { headers });
+    if (!refResp.ok) throw new Error(`获取分支引用失败: ${refResp.status}`);
+    const refData = await refResp.json();
+    const sha = refData.object.sha;
 
-      // Create branch
-      const createBranchResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/refs`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          ref: `refs/heads/${branchName}`,
-          sha: sha
-        })
-      });
-      if (!createBranchResp.ok) {
-        const errBody = await createBranchResp.json();
-        throw new Error(`创建分支失败: ${errBody.message || createBranchResp.status}`);
-      }
-      this._setSaveStep('branch', 'done');
-
-      // Step 2: Commit the file
-      this._setSaveStep('commit', 'running');
-
-      // Get existing file SHA on the new branch
-      let fileSha = null;
-      const getFileResp = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONFIG_PATH}?ref=${branchName}`,
-        { headers }
-      );
-      if (getFileResp.ok) {
-        const fileData = await getFileResp.json();
-        fileSha = fileData.sha;
-      }
-
-      const commitBody = {
-        message: `Update lighting config — ${dateStr}`,
-        content: content,
-        branch: branchName
-      };
-      if (fileSha) commitBody.sha = fileSha;
-
-      const commitResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${CONFIG_PATH}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(commitBody)
-      });
-      if (!commitResp.ok) {
-        const errBody = await commitResp.json();
-        throw new Error(`提交失败: ${errBody.message || commitResp.status}`);
-      }
-      this._setSaveStep('commit', 'done');
-
-      // Step 3: Create PR
-      this._setSaveStep('pr', 'running');
-      const prResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/pulls`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          title: `Lighting config update — ${dateStr}`,
-          head: branchName,
-          base: defaultBranch,
-          body: `自动创建的光照配置更新。\n\n- 场景数: ${Object.keys(this.config.scenes).length}\n- 总光源数: ${Object.values(this.config.scenes).reduce((sum, s) => sum + s.lights.length, 0)}\n- 时间: ${dateStr}`
-        })
-      });
-      if (!prResp.ok) {
-        const errBody = await prResp.json();
-        throw new Error(`创建 PR 失败: ${errBody.message || prResp.status}`);
-      }
-      const prData = await prResp.json();
-
-      this._setSaveStep('pr', 'done');
-
-      // Show PR link
-      prLink.href = prData.html_url;
-      prLink.textContent = `✅ PR 已创建: ${prData.title}`;
-      result.style.display = 'block';
-
-      this._toast('✅ PR 已创建成功！');
-    } catch (err) {
-      console.error('Save failed:', err);
-      // Mark current running step as error
-      for (const step of steps.querySelectorAll('.save-step.running')) {
-        step.className = 'save-step error';
-        step.querySelector('.icon').textContent = '✗';
-      }
-      this._toast(`保存失败: ${err.message}`, true);
+    const createBranchResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/refs`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha })
+    });
+    if (!createBranchResp.ok) {
+      const errBody = await createBranchResp.json();
+      throw new Error(`创建分支失败: ${errBody.message || createBranchResp.status}`);
     }
+    this._setSaveStep('branch', 'done');
+
+    // Step 2: Commit file
+    this._setSaveStep('commit', 'running');
+    let fileSha = null;
+    const getFileResp = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/contents/${CONFIG_PATH}?ref=${branchName}`, { headers }
+    );
+    if (getFileResp.ok) {
+      const fileData = await getFileResp.json();
+      fileSha = fileData.sha;
+    }
+
+    const commitBody = { message: `Update lighting config — ${dateStr}`, content, branch: branchName };
+    if (fileSha) commitBody.sha = fileSha;
+
+    const commitResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${CONFIG_PATH}`, {
+      method: 'PUT', headers, body: JSON.stringify(commitBody)
+    });
+    if (!commitResp.ok) {
+      const errBody = await commitResp.json();
+      throw new Error(`提交失败: ${errBody.message || commitResp.status}`);
+    }
+    this._setSaveStep('commit', 'done');
+
+    // Step 3: Create PR
+    this._setSaveStep('pr', 'running');
+    const prResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/pulls`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        title: `Lighting config update — ${dateStr}`,
+        head: branchName, base: defaultBranch,
+        body: `自动创建的光照配置更新。\n\n- 场景数: ${Object.keys(this.config.scenes).length}\n- 总光源数: ${Object.values(this.config.scenes).reduce((sum, s) => sum + s.lights.length, 0)}\n- 时间: ${dateStr}`
+      })
+    });
+    if (!prResp.ok) {
+      const errBody = await prResp.json();
+      throw new Error(`创建 PR 失败: ${errBody.message || prResp.status}`);
+    }
+    const prData = await prResp.json();
+    this._setSaveStep('pr', 'done');
+
+    prLink.href = prData.html_url;
+    prLink.textContent = `✅ PR 已创建: ${prData.title}`;
+    result.style.display = 'block';
+    this._toast('✅ PR 已创建成功！');
+  },
+
+  _saveAsDownload(json, branchName, dateStr) {
+    // Download config file
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lighting-config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Show modal with gh CLI instructions
+    const modal = document.getElementById('save-modal');
+    const steps = document.getElementById('save-steps');
+    const result = document.getElementById('save-result');
+    const prLink = document.getElementById('save-pr-link');
+
+    modal.classList.add('visible');
+    result.style.display = 'none';
+
+    // Update steps to show download-only flow
+    steps.innerHTML = `
+      <div class="save-step done"><span class="icon">✓</span> 配置文件已下载</div>
+      <div class="save-step pending"><span class="icon" style="color:var(--warn)">ℹ</span> GitHub API 跨域受限，请在本地使用以下命令：</div>
+    `;
+
+    // Show gh CLI instructions
+    result.style.display = 'block';
+    prLink.href = '#';
+    prLink.style.cursor = 'default';
+    prLink.innerHTML = `
+      <div style="background:var(--bg-deep);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:10px;line-height:1.6;white-space:pre;font-family:monospace;color:var(--text);text-align:left">
+<span style="color:var(--text-muted)"># 将下载的 lighting-config.json 放到项目根目录后执行：</span>
+git checkout -b ${branchName}
+git add lighting-config.json
+git commit -m "lighting config update — ${dateStr}"
+git push -u origin ${branchName}
+gh pr create --title "Lighting config update" --body "自动创建的光照配置更新"</div>
+    `;
+
+    this._toast('📥 配置已下载 — 请在本地用 gh CLI 创建 PR');
+  },
+
+  _showSaveError(msg) {
+    const modal = document.getElementById('save-modal');
+    const steps = document.getElementById('save-steps');
+    const result = document.getElementById('save-result');
+    const prLink = document.getElementById('save-pr-link');
+
+    modal.classList.add('visible');
+    result.style.display = 'none';
+
+    steps.innerHTML = `
+      <div class="save-step error"><span class="icon">✗</span> ${msg}</div>
+    `;
   },
 
   _setSaveStep(stepName, state) {
