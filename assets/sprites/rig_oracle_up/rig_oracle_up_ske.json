@@ -26,8 +26,8 @@
           "parent": "root",
           "length": 0,
           "transform": {
-            "x": -0.5,
-            "y": -68.0,
+            "x": 0.0,
+            "y": -11.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -37,10 +37,10 @@
         {
           "name": "spine",
           "parent": "hip",
-          "length": 35.0,
+          "length": 53.0,
           "transform": {
-            "x": -0.5,
-            "y": -33.0,
+            "x": 0.0,
+            "y": 42.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -50,10 +50,10 @@
         {
           "name": "head",
           "parent": "spine",
-          "length": 58.0,
+          "length": 11.5,
           "transform": {
-            "x": 0.0,
-            "y": 60.0,
+            "x": -2.5,
+            "y": 106.5,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -63,10 +63,10 @@
         {
           "name": "left_upper_arm",
           "parent": "spine",
-          "length": 37.2,
+          "length": 40.3,
           "transform": {
-            "x": -31.0,
-            "y": -8.5,
+            "x": -33.6,
+            "y": 79.1,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -76,10 +76,10 @@
         {
           "name": "left_lower_arm",
           "parent": "left_upper_arm",
-          "length": 28.0,
+          "length": 50.5,
           "transform": {
-            "x": -59.0,
-            "y": -33.0,
+            "x": -41.0,
+            "y": 39.5,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -89,10 +89,10 @@
         {
           "name": "right_upper_arm",
           "parent": "spine",
-          "length": 37.2,
+          "length": 40.3,
           "transform": {
-            "x": 29.9,
-            "y": -8.5,
+            "x": 33.6,
+            "y": 79.1,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -102,10 +102,10 @@
         {
           "name": "right_lower_arm",
           "parent": "right_upper_arm",
-          "length": 28.0,
+          "length": 50.5,
           "transform": {
-            "x": 58.0,
-            "y": -33.0,
+            "x": 41.0,
+            "y": 39.5,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -115,10 +115,10 @@
         {
           "name": "left_upper_leg",
           "parent": "hip",
-          "length": 24.5,
+          "length": 53.0,
           "transform": {
-            "x": -40.5,
-            "y": -68.0,
+            "x": -40.0,
+            "y": -11.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -128,10 +128,10 @@
         {
           "name": "left_lower_leg",
           "parent": "left_upper_leg",
-          "length": 24.5,
+          "length": 53.0,
           "transform": {
-            "x": -40.5,
-            "y": -92.5,
+            "x": -40.0,
+            "y": -64.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -141,10 +141,10 @@
         {
           "name": "right_upper_leg",
           "parent": "hip",
-          "length": 24.5,
+          "length": 53.0,
           "transform": {
-            "x": 21.5,
-            "y": -68.0,
+            "x": 22.0,
+            "y": -11.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,
@@ -154,10 +154,10 @@
         {
           "name": "right_lower_leg",
           "parent": "right_upper_leg",
-          "length": 24.5,
+          "length": 53.0,
           "transform": {
-            "x": 21.5,
-            "y": -92.5,
+            "x": 22.0,
+            "y": -64.0,
             "skX": 0,
             "skY": 0,
             "scX": 1,

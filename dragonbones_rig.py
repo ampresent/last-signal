@@ -122,37 +122,35 @@ def detect_body_parts(img_rgba):
     rxs = np.where(right_leg_mask.sum(axis=0) > 0)[0]
     right_leg_x2 = (right_leg_x1 + rxs.max()) if len(rxs) > 0 else torso_x2
 
-    # ── Arms: pixels outside torso envelope ──
+    # ── Arms: take strips from torso sides ──
+    # For pixel art characters, arms are usually integrated into the body
+    # silhouette.  We extract thin strips from the left/right edges of the
+    # torso region as arm segments.  If those strips have enough content,
+    # use them; otherwise fall back to zero-width stubs.
     arm_top = torso_top + int((torso_bottom - torso_top) * 0.05)
     arm_bottom = min(char_y2, torso_top + int((torso_bottom - torso_top) * 1.0))
+    arm_strip_w = max(8, int(torso_w * 0.15))  # ~15% of torso width per arm
 
-    # Left arm: any row pixel left of torso_x1 in arm region
-    left_arm_x1, left_arm_x2 = torso_x1, torso_x1
-    for y in range(arm_top, arm_bottom):
-        row_xs = np.where(mask[y, :torso_x1] > 0)[0]
-        if len(row_xs) > 0:
-            left_arm_x1 = min(left_arm_x1, row_xs.min()) if left_arm_x1 > 0 else row_xs.min()
-            left_arm_x2 = max(left_arm_x2, row_xs.max())
+    # Left arm strip
+    left_arm_x1 = max(0, torso_x1)
+    left_arm_x2 = min(torso_x1 + arm_strip_w, torso_x2)
+    left_arm_region = mask[arm_top:arm_bottom, left_arm_x1:left_arm_x2]
+    left_arm_content = np.sum(left_arm_region > 0)
 
-    # Right arm: any row pixel right of torso_x2
-    right_arm_x1, right_arm_x2 = torso_x2, torso_x2
-    for y in range(arm_top, arm_bottom):
-        row_xs = np.where(mask[y, torso_x2:] > 0)[0]
-        if len(row_xs) > 0:
-            right_arm_x1 = min(right_arm_x1, torso_x2 + row_xs.min()) if right_arm_x1 > torso_x2 else torso_x2 + row_xs.min()
-            right_arm_x2 = max(right_arm_x2, torso_x2 + row_xs.max())
+    # Right arm strip
+    right_arm_x1 = max(torso_x2 - arm_strip_w, torso_x1)
+    right_arm_x2 = min(w, torso_x2)
+    right_arm_region = mask[arm_top:arm_bottom, right_arm_x1:right_arm_x2]
+    right_arm_content = np.sum(right_arm_region > 0)
 
-    # Fallback if no arms detected
-    if left_arm_x2 <= left_arm_x1:
-        left_arm_x1 = torso_x1 - int(torso_w * 0.3)
-        left_arm_x2 = torso_x1
-    if right_arm_x2 <= right_arm_x1:
-        right_arm_x1 = torso_x2
-        right_arm_x2 = torso_x2 + int(torso_w * 0.3)
-
-    # Clamp
-    left_arm_x1 = max(0, left_arm_x1)
-    right_arm_x2 = min(w, right_arm_x2)
+    # If strips don't have enough content, shrink to minimal stubs
+    # (the walk animation will still work via torso rotation)
+    if left_arm_content < 10:
+        left_arm_x1 = torso_x1
+        left_arm_x2 = torso_x1 + max(4, arm_strip_w // 3)
+    if right_arm_content < 10:
+        right_arm_x1 = torso_x2 - max(4, arm_strip_w // 3)
+        right_arm_x2 = torso_x2
 
     parts = {
         "head":     (head_x1, head_top, head_x2 - head_x1, head_bottom - head_top),
@@ -680,7 +678,7 @@ def generate_sprite_sheet(img_path, parts, bones, walk_frames, direction, out_pa
         # Center in frame
         fx = (frame_w - cw) // 2
         fy = (frame_h - ch) // 2
-        sheet[fy:fy+ch, fx:fx+cw] = cropped
+        sheet[fy:fy+ch, fx+fi*frame_w:fx+fi*frame_w+cw] = cropped
 
     cv2.imwrite(str(out_path), sheet)
     return True
