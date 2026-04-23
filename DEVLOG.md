@@ -81,3 +81,65 @@
 5. 统一合成方式（按设计文档用 additive）
 6. 运行生成帧
 7. 验证 + push
+
+---
+
+## 2026-04-23 16:51 — 架构变更：本地模型 → HuggingFace Serverless Inference API
+
+### 变更原因
+用户要求不再本地部署 Depth Anything 模型，改为调用 HuggingFace Serverless Inference API。这样：
+- 无需下载 1.3GB 模型权重
+- 无需安装 torch/torchvision（省 ~182MB wheel + 编译时间）
+- 无需 R2 桶的模型存储
+- 无需 CPU 占用率限制（计算在远端）
+- 依赖大幅减少：只需 `requests`、`opencv-python-headless`、`numpy`
+
+### 发现的新问题
+
+#### 🔴 P0 — 架构变更相关
+
+##### 1. setup.sh 安装了大量不再需要的依赖
+- **现状**：setup.sh 安装 torch (182MB)、torchvision stub、s3cmd、R2 凭据
+- **改为 API 后**：只需 `requests`、`opencv-python-headless`、`numpy`
+- **修复**：重写 setup.sh，移除 torch/torchvision/s3cmd/R2 相关步骤
+
+##### 2. gen_apartment_lightning.py 整个模型加载逻辑需要重写
+- **现状**：3 级 fallback（official repo → transformers → timm），全部本地加载
+- **改为 API 后**：发送图片到 HF Inference API，接收深度图
+- **修复**：重写 `load_depth_model()` 和 `generate_depth_map()` 为 API 调用
+
+##### 3. CPU 占用率限制代码不再需要
+- **现状**：`CPU_LIMIT = 0.95`、`FRAME_SLEEP = 0.05`、`nice`/`chrt` 调度
+- **改为 API 后**：深度估计在远端，本地只有帧渲染（很快）
+- **修复**：移除 CPU 限制相关代码和文档
+
+##### 4. SETUP.md 中 R2 模型下载部分不再需要
+- **现状**：详细的 R2 模型下载说明（1.3GB）
+- **改为 API 后**：模型在 HuggingFace 端
+- **修复**：重写 SETUP.md，移除 R2 模型部分
+
+##### 5. 文件名拼写错误仍未修复
+- **现状**：`gen_apartment_lightning.py`（多一个 `n`）
+- **影响**：WORKFLOW.md、SETUP.md 引用 `lighting`，文件名是 `lightning`
+- **修复**：重命名文件
+
+#### 🟡 P1 — 需要确认
+
+##### 6. HuggingFace API Token
+- **问题**：调用 HF Serverless Inference API 需要 API Token
+- **现状**：项目中没有 HF Token 配置
+- **需要**：用户提供 HF Token，或确认使用免费无需 Token 的端点
+
+---
+
+## 修复计划（更新）
+
+1. ✅ Push DEVLOG（记录问题）
+2. 确认 HF API Token 需求
+3. 重写 setup.sh（移除 torch/s3cmd/R2，添加 requests）
+4. 重写 SETUP.md（API 方式说明）
+5. 重写 gen_apartment_lightning.py（API 调用 + 移除 CPU 限制）
+6. 修复文件名 typo
+7. 更新 docs（移除 CPU 限制说明）
+8. 运行生成帧
+9. 验证 + push
