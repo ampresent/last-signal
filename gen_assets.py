@@ -174,10 +174,10 @@ if __name__ == "__main__":
         import subprocess
         subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_anim_frames.py")])
     else:
-        # VFX 引擎模式：运行 AI img2img 帧生成
+        # Depth Lighting 模式：所有场景使用深度光照渲染
         print(f"\n{'='*50}")
-        print("🎬 生成 AI img2img 动画帧...")
+        print("🎬 生成 Depth Lighting 动画帧...")
         import subprocess
-        result = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_ai_frames.py")])
+        result = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_depth_lighting.py")])
         if result.returncode != 0:
-            print("⚠️ AI 帧生成失败，可运行 python3 gen_anim_frames.py 作为降级方案")
+            print("⚠️ Depth Lighting 帧生成失败，可运行 python3 gen_anim_frames.py 作为降级方案")
