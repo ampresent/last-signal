@@ -13,3 +13,6 @@ models/
 .git-credentials-file
 .github-token
 .s3cfg
+.git-credentials-file
+.github-token
+.s3cfg
