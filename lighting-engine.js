@@ -162,16 +162,40 @@ class LightingEngine {
             // ── Shadow ray march: detect occluders between pixel and light ──
             float shadow = shadowRayMarch(uv, lightUV, linearDepth, lightZ);
 
-            // ── Depth attenuation: gradual falloff behind the light plane ──
-            // Pixels in front of light (depth <= lightZ) get full light.
-            // Pixels behind light get smooth falloff instead of hard cutoff.
-            float depthAtten = 1.0;
+            // ── Geometry-based depth attenuation ──
+            // Light at depth lightZ, pixel at depth linearDepth.
+            // Compute the angle from light to pixel: if steep enough, light can reach.
+            // The "height" of light above the pixel's depth plane:
+            //   positive = light is farther (can shine down onto foreground)
+            //   negative = light is closer (pixel is behind light, hard to reach)
             float depthDiff = linearDepth - lightZ;
+            float horizDist = dist * max(uResolution.x, uResolution.y) / radius;
+            float depthAtten = 1.0;
+
             if (depthDiff > 0.0) {
-              // Smooth attenuation over a wider range (0.15 instead of 0.02)
-              // so foreground areas behind the light still receive some illumination
-              depthAtten = 1.0 - smoothstep(0.0, 0.15, depthDiff);
-              depthAtten = max(depthAtten, 0.05); // keep at least 5% so it never goes fully black
+              // Pixel is behind the light plane.
+              // Compute the elevation angle from pixel to light:
+              //   angle = atan(height_above, horizontal_distance)
+              // The deeper the pixel, the steeper the angle needed.
+              float heightAbove = depthDiff;
+              float horizPx = dist * max(uResolution.x, uResolution.y);
+              // Normalize: use radius as the reference distance scale
+              float r = max(uLightRadius[i], 1.0);
+              float angle = atan(heightAbove * r, horizPx + 1.0);
+              // Effective cone: light illuminates pixels within its cone angle.
+              // Cone angle depends on light radius — larger radius = wider cone.
+              // Base cone angle ~ 35 degrees (0.61 rad), scaled by radius
+              float coneAngle = 0.4 + 0.3 * clamp(r / 400.0, 0.0, 1.0);
+              // If angle is within cone → full light; outside → fade out
+              float angleDiff = angle - coneAngle;
+              if (angleDiff > 0.0) {
+                // Outside cone — fade over 0.3 rad (~17°)
+                depthAtten = 1.0 - smoothstep(0.0, 0.3, angleDiff);
+                depthAtten = max(depthAtten, 0.03);
+              }
+              // Also apply distance-based depth falloff
+              float distFade = 1.0 / (1.0 + heightAbove * heightAbove * 8.0);
+              depthAtten *= max(distFade, 0.1);
             }
 
             // Combine: depth attenuation + ray march shadow
