@@ -162,14 +162,20 @@ class LightingEngine {
             // ── Shadow ray march: detect occluders between pixel and light ──
             float shadow = shadowRayMarch(uv, lightUV, linearDepth, lightZ);
 
-            // ── Simple depth plane test: pixel behind light = no light ──
-            float depthOcclude = 1.0;
-            if (linearDepth > lightZ + 0.02) {
-              depthOcclude = 0.0;
+            // ── Depth attenuation: gradual falloff behind the light plane ──
+            // Pixels in front of light (depth <= lightZ) get full light.
+            // Pixels behind light get smooth falloff instead of hard cutoff.
+            float depthAtten = 1.0;
+            float depthDiff = linearDepth - lightZ;
+            if (depthDiff > 0.0) {
+              // Smooth attenuation over a wider range (0.15 instead of 0.02)
+              // so foreground areas behind the light still receive some illumination
+              depthAtten = 1.0 - smoothstep(0.0, 0.15, depthDiff);
+              depthAtten = max(depthAtten, 0.05); // keep at least 5% so it never goes fully black
             }
 
-            // Combine: hard depth test + ray march shadow
-            float occlusion = depthOcclude * shadow;
+            // Combine: depth attenuation + ray march shadow
+            float occlusion = depthAtten * shadow;
 
             // Inverse-square distance attenuation
             float atten = 1.0 / (1.0 + (dist / radius) * (dist / radius) * 10.0);
