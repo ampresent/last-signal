@@ -473,6 +473,7 @@
 const VFX = {
   // 全局状态
   raindrops: [],        // 雨滴粒子
+  splashes: [],         // 雨滴溅起粒子
   fogLayers: [],
   neonPulse: 0,         // 霓虹脉冲相位
   lightFlicker: 1.0,    // 全局亮度闪烁因子
@@ -593,6 +594,7 @@ const VFX = {
   init(sceneId) {
     const cfg = this.SCENE_CONFIG[sceneId] || this.SCENE_CONFIG.apartment;
     this.raindrops = [];
+    this.splashes = [];
     this.fogLayers = [];
     this.particles = [];
 
@@ -695,6 +697,11 @@ const VFX = {
       this._renderRain(ctx, dt, cfg.rain);
     }
 
+    // 1.5 雨滴溅起效果
+    if (this.splashes.length > 0) {
+      this._renderSplashes(ctx, dt);
+    }
+
     // 2. 雾气
     if (cfg.fog && cfg.fog.layers > 0) {
       this._renderFog(ctx, dt, cfg.fog);
@@ -736,11 +743,45 @@ const VFX = {
 
   // ---- 雨滴渲染 ----
   _renderRain(ctx, dt, rcfg) {
-    // 更新雨滴位置
+    // 更新雨滴位置 + 碰撞检测
+    const waterMask = Game.waterMasks[Game.currentScene];
     for (const drop of this.raindrops) {
       drop.y += drop.speed;
       drop.x += drop.wind;
-      if (drop.y > 660) { drop.y = -drop.length - Math.random() * 40; drop.x = Math.random() * 1000 - 20; }
+
+      let splashed = false;
+
+      // 1. 先检查是否落在 water mask 上
+      if (waterMask) {
+        const px = Math.floor(drop.x);
+        const py = Math.floor(drop.y);
+        if (px >= 0 && px < 960 && py >= 0 && py < 640) {
+          if (waterMask.data.data[(py * 960 + px) * 4] > 128) {
+            this._spawnWaterRipple(drop.x, drop.y, rcfg);
+            splashed = true;
+          }
+        }
+      }
+
+      // 2. 硬表面碰撞：深度差检测
+      if (!splashed && CharSystem && CharSystem.depthData) {
+        const nx = drop.x / 960;
+        const ny = drop.y / 640;
+        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
+          const depthHere = CharSystem.getDepth(nx, ny);
+          const nyAbove = (drop.y - 6) / 640;
+          const depthAbove = nyAbove >= 0 ? CharSystem.getDepth(nx, nyAbove) : depthHere;
+          if (depthHere - depthAbove > 0.06) {
+            this._spawnSplash(drop.x, drop.y, drop.wind, rcfg);
+            splashed = true;
+          }
+        }
+      }
+
+      if (splashed || drop.y > 660) {
+        drop.y = -drop.length - Math.random() * 40;
+        drop.x = Math.random() * 1000 - 20;
+      }
       if (drop.x > 980) drop.x = -20;
     }
 
@@ -785,6 +826,97 @@ const VFX = {
     }
 
     ctx.restore();
+  },
+
+  // ---- 生成溅起粒子 ----
+  _spawnSplash(x, y, wind, rcfg) {
+    const count = 3 + Math.floor(Math.random() * 3); // 3~5 个溅射粒子
+    const baseOpacity = (rcfg.opacity || 0.2) * 2.5;
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI * 0.15 + Math.random() * (-Math.PI * 0.7); // 向上偏 15°~85°
+      const speed = 1.2 + Math.random() * 2.5;
+      this.splashes.push({
+        x: x + (Math.random() - 0.5) * 4,
+        y: y,
+        vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -0.6) + wind * 0.3,
+        vy: Math.sin(angle) * speed,
+        life: 0,
+        maxLife: 0.25 + Math.random() * 0.2, // 250~450ms 短暂存在
+        size: 0.8 + Math.random() * 1.5,
+        opacity: baseOpacity * (0.5 + Math.random() * 0.5),
+      });
+    }
+  },
+
+  // ---- 渲染溅起粒子 + 水面涟漪 ----
+  _renderSplashes(ctx, dt) {
+    if (this.splashes.length === 0) return;
+    ctx.save();
+    for (let i = this.splashes.length - 1; i >= 0; i--) {
+      const s = this.splashes[i];
+      s.life += dt / 1000;
+
+      const t = s.life / s.maxLife;
+      if (t >= 1) {
+        this.splashes.splice(i, 1);
+        continue;
+      }
+
+      if (s.isRipple) {
+        // 水面涟漪渲染：同心圆扩散
+        const radius = s.size + s.growRate * s.life;
+        // 前 20% 淡入，后 50% 淡出
+        const alpha = t < 0.2 ? s.opacity * (t / 0.2)
+                    : t > 0.5 ? s.opacity * (1 - (t - 0.5) / 0.5)
+                    : s.opacity;
+
+        ctx.lineWidth = 1.0;
+        for (let r = 0; r < s.rings; r++) {
+          const ringRadius = radius * (1 - r * 0.25);
+          const ringAlpha = alpha * (1 - r * 0.3);
+          if (ringRadius <= 0 || ringAlpha <= 0) continue;
+          ctx.strokeStyle = `rgba(140, 200, 255, ${ringAlpha})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        // 硬表面溅射粒子
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vy += 0.18; // 重力
+
+        // 淡出曲线：前 30% 保持，后 70% 线性淡出
+        const alpha = t < 0.3 ? s.opacity : s.opacity * (1 - (t - 0.3) / 0.7);
+
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(180, 210, 255, 0.9)';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size * (1 - t * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  },
+
+  // ---- 生成水面涟漪（雨滴落入水面） ----
+  _spawnWaterRipple(x, y, rcfg) {
+    // 水面涟漪：同心圆扩散效果
+    const baseOpacity = (rcfg.opacity || 0.2) * 2.0;
+    this.splashes.push({
+      x: x,
+      y: y,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: 0.6 + Math.random() * 0.3, // 600~900ms 扩散
+      size: 2 + Math.random() * 2,         // 初始半径
+      growRate: 18 + Math.random() * 10,    // 扩散速度 px/s
+      opacity: baseOpacity * (0.4 + Math.random() * 0.3),
+      isRipple: true,  // 标记为涟漪而非溅射
+      rings: 2 + Math.floor(Math.random() * 2), // 2~3 圈涟漪
+    });
   },
 
   _rainCanvas: null,
@@ -906,10 +1038,35 @@ const VFX = {
 
   // ---- 水面反射 (增强版) ----
   // 反射场景内容 + 波纹扰动 + 镜面高光 + 涟漪
+  // 使用统一 mask 体系中的 water mask 识别水面
   _renderPuddleReflection(ctx, dt, pcfg) {
     const W = 960, H = 640;
-    const waterY = pcfg.y;
-    const waterH = H - waterY;
+    const sceneId = Game.currentScene;
+
+    // 从 water mask 获取水面区域，无 mask 则用配置值
+    let waterY = pcfg.y;
+    let waterH = H - waterY;
+    const waterMask = Game.waterMasks[sceneId];
+
+    if (waterMask) {
+      // 扫描 water mask 找到水面的最顶部 Y（第一个白色行）
+      const d = waterMask.data.data;
+      let topY = H, bottomY = 0;
+      for (let y = 0; y < H; y += 2) {
+        for (let x = 0; x < W; x += 8) {
+          if (d[(y * W + x) * 4] > 128) {
+            if (y < topY) topY = y;
+            if (y > bottomY) bottomY = y;
+            break;
+          }
+        }
+      }
+      if (topY < H) {
+        waterY = topY;
+        waterH = bottomY - topY;
+      }
+    }
+
     if (waterH <= 0) return;
 
     // ── 初始化持久状态 ──
@@ -1862,6 +2019,7 @@ const Game = {
   frameInterval: 83,
   masks: {},
   objMasks: {},
+  waterMasks: {},
   selectedItem: null,
   dialogueActive: false,
   mouseX: 0,
@@ -2030,6 +2188,13 @@ const Game = {
       loadMask(`assets/masks/${id}_mask.png`).then(m => { this.masks[id] = m; })
     );
 
+    // 加载水面 mask
+    const waterPromises = sceneIds.map(id =>
+      loadMask(`assets/masks/${id}_water_mask.png`).then(m => {
+        if (m) this.waterMasks[id] = m;
+      })
+    );
+
     const objMaskList = [];
     for (const [sceneId, scene] of Object.entries(SCENES)) {
       if (!scene.hotspots) continue;
@@ -2043,7 +2208,7 @@ const Game = {
       })
     );
 
-    await Promise.all([...comboPromises, ...objPromises]);
+    await Promise.all([...comboPromises, ...waterPromises, ...objPromises]);
 
     // 预计算边缘像素、标签位置、遮罩层
     for (const id of sceneIds) {

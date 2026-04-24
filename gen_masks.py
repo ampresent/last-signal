@@ -49,6 +49,8 @@ SCENES = {
             {"id": "door", "label": "门",
              "bbox": [760, 140, 938, 600]},
         ],
+        "walkable": {"bbox": [60, 180, 900, 627], "label": "房间地面"},
+        "water": None,
         "edge_transitions": [
             {"id": "to_street", "label": "出门", "zone": "bottom",
              "size": 50, "target": "street"},
@@ -66,6 +68,8 @@ SCENES = {
             {"id": "dumpster", "label": "垃圾桶",
              "bbox": [350, 440, 540, 600]},
         ],
+        "walkable": {"bbox": [30, 160, 930, 627], "label": "街道地面"},
+        "water": {"bbox": [30, 480, 930, 627], "label": "路面积水"},
         "edge_transitions": [
             {"id": "to_alley", "label": "进入小巷", "zone": "left",
              "size": 50, "target": "alley"},
@@ -81,6 +85,8 @@ SCENES = {
             {"id": "exit", "label": "出口",
              "bbox": [760, 200, 938, 600]},
         ],
+        "walkable": {"bbox": [60, 180, 900, 627], "label": "酒吧地面"},
+        "water": None,
         "edge_transitions": []
     },
     "alley": {
@@ -93,6 +99,8 @@ SCENES = {
             {"id": "exit", "label": "返回街道",
              "bbox": [740, 300, 938, 627]},
         ],
+        "walkable": {"bbox": [60, 120, 900, 627], "label": "巷子地面"},
+        "water": {"bbox": [60, 460, 900, 627], "label": "巷子积水"},
         "edge_transitions": []
     },
     "tower": {
@@ -105,6 +113,8 @@ SCENES = {
             {"id": "exit", "label": "返回街道",
              "bbox": [780, 400, 938, 627]},
         ],
+        "walkable": {"bbox": [100, 200, 900, 627], "label": "塔楼广场地面"},
+        "water": {"bbox": [100, 500, 900, 627], "label": "广场积水"},
         "edge_transitions": []
     },
     "server": {
@@ -119,11 +129,15 @@ SCENES = {
             {"id": "lobby_exit", "label": "返回大厅",
              "bbox": [0, 500, 250, 627]},
         ],
+        "walkable": {"bbox": [60, 100, 900, 627], "label": "机房地面"},
+        "water": None,
         "edge_transitions": []
     },
     "rooftop": {
         "image": "bg_rooftop.png",
         "objects": [],
+        "walkable": {"bbox": [60, 100, 900, 627], "label": "楼顶地面"},
+        "water": {"bbox": [60, 480, 900, 627], "label": "楼顶积水"},
         "edge_transitions": [
             {"id": "to_server", "label": "下楼", "zone": "bottom",
              "size": 60, "target": "server"},
@@ -139,6 +153,8 @@ SCENES = {
             {"id": "chair", "label": "办公椅",
              "bbox": [640, 380, 830, 620]},
         ],
+        "walkable": {"bbox": [60, 140, 900, 627], "label": "办公室地面"},
+        "water": None,
         "edge_transitions": []
     },
 
@@ -158,6 +174,8 @@ SCENES = {
             {"id": "exit", "label": "出口",
              "bbox": [0, 500, 200, 627]},
         ],
+        "walkable": {"bbox": [30, 180, 930, 627], "label": "大厅地面"},
+        "water": None,
         "edge_transitions": [
             {"id": "to_maintenance", "label": "地下通道", "zone": "bottom",
              "size": 40, "target": "maintenance"},
@@ -176,6 +194,8 @@ SCENES = {
             {"id": "exit", "label": "返回大厅",
              "bbox": [0, 500, 200, 627]},
         ],
+        "walkable": {"bbox": [30, 100, 930, 627], "label": "通道地面"},
+        "water": {"bbox": [30, 480, 930, 627], "label": "通道积水"},
         "edge_transitions": []
     },
 
@@ -191,6 +211,8 @@ SCENES = {
             {"id": "exit", "label": "出口",
              "bbox": [0, 500, 200, 627]},
         ],
+        "walkable": {"bbox": [30, 100, 930, 627], "label": "站台地面"},
+        "water": None,
         "edge_transitions": []
     },
 
@@ -204,6 +226,8 @@ SCENES = {
             {"id": "terminal", "label": "控制台",
              "bbox": [100, 380, 350, 580]},
         ],
+        "walkable": {"bbox": [60, 140, 900, 627], "label": "实验室地面"},
+        "water": None,
         "edge_transitions": []
     },
 
@@ -217,6 +241,8 @@ SCENES = {
             {"id": "nurse_station", "label": "护士站",
              "bbox": [400, 300, 600, 500]},
         ],
+        "walkable": {"bbox": [30, 120, 930, 627], "label": "走廊地面"},
+        "water": None,
         "edge_transitions": [
             {"id": "to_street", "label": "出院", "zone": "bottom",
              "size": 50, "target": "street"},
@@ -281,7 +307,7 @@ def add_edge_transition(mask, zone, size, w, h):
 
 
 def process_scene(scene_id, data):
-    """处理单个场景，生成组合 mask + 每个物体的单独 mask"""
+    """处理单个场景，生成组合 mask + 每个物体的单独 mask + walkable + water"""
     img_path = os.path.join(ASSETS_DIR, data["image"])
     if not os.path.exists(img_path):
         print(f"  ❌ 图片不存在: {img_path}")
@@ -324,6 +350,50 @@ def process_scene(scene_id, data):
         combined = cv2.bitwise_or(combined, seg)
         print(f"  🎯 {obj['label']} ({obj['id']}): {ratio:.1f}%")
 
+    # ── Walkable 区域 ──
+    walkable_cfg = data.get("walkable")
+    if walkable_cfg:
+        seg = grabcut_segment(img, walkable_cfg["bbox"])
+        ratio = np.count_nonzero(seg) / (h * w) * 100
+        if ratio < 1.0:
+            # GrabCut 失败，fallback 到矩形
+            seg = np.zeros((h, w), np.uint8)
+            x1, y1, x2, y2 = walkable_cfg["bbox"]
+            seg[y1:y2, x1:x2] = 255
+        # 减去不可行走的物体 mask（obstacle）
+        for obj in data["objects"]:
+            obj_mask_path = os.path.join(MASK_DIR, f"{scene_id}_{obj['id']}_mask.png")
+            if os.path.exists(obj_mask_path):
+                obs = cv2.imread(obj_mask_path, cv2.IMREAD_GRAYSCALE)
+                if obs is not None:
+                    obs = cv2.resize(obs, (w, h), interpolation=cv2.INTER_NEAREST)
+                    seg[obs > 128] = 0
+        # 形态学平滑
+        seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+        seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        walkable_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_walkable_mask.png"), walkable_game)
+        walk_pct = np.count_nonzero(walkable_game) / (GAME_W * GAME_H) * 100
+        print(f"  🚶 walkable ({walkable_cfg['label']}): {walk_pct:.1f}%")
+
+    # ── Water 水面区域 ──
+    water_cfg = data.get("water")
+    if water_cfg:
+        seg = grabcut_segment(img, water_cfg["bbox"])
+        ratio = np.count_nonzero(seg) / (h * w) * 100
+        if ratio < 0.3:
+            # GrabCut 没能分割出水面，fallback 到矩形
+            seg = np.zeros((h, w), np.uint8)
+            x1, y1, x2, y2 = water_cfg["bbox"]
+            seg[y1:y2, x1:x2] = 255
+        # 形态学平滑
+        seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+        seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        water_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_water_mask.png"), water_game)
+        water_pct = np.count_nonzero(water_game) / (GAME_W * GAME_H) * 100
+        print(f"  💧 water ({water_cfg['label']}): {water_pct:.1f}%")
+
     # 边缘过渡
     for edge in data.get("edge_transitions", []):
         add_edge_transition(combined, edge["zone"], edge["size"], w, h)
@@ -348,12 +418,26 @@ def main():
     # 保存元数据
     meta = {}
     for sid, sd in SCENES.items():
+        objects = [
+            {"id": o["id"], "label": o["label"],
+             "mask": f"masks/{sid}_{o['id']}_mask.png"}
+            for o in sd["objects"]
+        ]
+        # walkable 和 water 也写入元数据
+        if sd.get("walkable"):
+            objects.append({
+                "id": "walkable", "label": sd["walkable"]["label"],
+                "mask": f"masks/{sid}_walkable_mask.png",
+                "type": "walkable"
+            })
+        if sd.get("water"):
+            objects.append({
+                "id": "water", "label": sd["water"]["label"],
+                "mask": f"masks/{sid}_water_mask.png",
+                "type": "water"
+            })
         meta[sid] = {
-            "objects": [
-                {"id": o["id"], "label": o["label"],
-                 "mask": f"masks/{sid}_{o['id']}_mask.png"}
-                for o in sd["objects"]
-            ],
+            "objects": objects,
             "edge_transitions": [
                 {"id": e["id"], "label": e["label"],
                  "zone": e["zone"], "target": e.get("target", "")}
