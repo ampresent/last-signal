@@ -91,28 +91,32 @@ def render_walk_frames(img_rgba, bones, walk_frames, parts):
         for side in ("left", "right"):
             upper_key = f"{side}_upper_leg"
             lower_key = f"{side}_lower_leg"
-            upper_angle = frame_data.get(upper_key, {}).get("skZ", 0)
+            upper_data = frame_data.get(upper_key, {})
             lower_angle = frame_data.get(lower_key, {}).get("skZ", 0)
+            upper_angle = upper_data.get("skZ", 0)
+            leg_dx = int(round(upper_data.get("x", 0)))  # horizontal stride
+            leg_dy = int(round(upper_data.get("y", 0)))  # vertical lift
 
-            # Draw upper leg rotated from hip
-            draw_rotated(img_rgba, upper_key, upper_angle)
+            # Draw upper leg with rotation + offset (horizontal stride + lift)
+            if upper_key in parts:
+                px, py, pw, ph = int(parts[upper_key][0]), int(parts[upper_key][1]), int(parts[upper_key][2]), int(parts[upper_key][3])
+                region = img_rgba[max(0,py):min(h,py+ph), max(0,px):min(w,px+pw)].copy()
+                if region.size > 0 and pw > 0 and ph > 0:
+                    center = (pw // 2, 0)
+                    M = cv2.getRotationMatrix2D(center, -upper_angle, 1.0)
+                    rotated = cv2.warpAffine(region, M, (pw, ph), borderMode=cv2.BORDER_CONSTANT)
+                    paste_region(canvas, rotated, px + sway // 2 + leg_dx, py - bounce + leg_dy, w, h)
 
-            # For lower leg, we need to:
-            # 1. Extract the lower leg region from the ORIGINAL image
-            # 2. Rotate it by the UPPER leg angle (inheritance)
-            # 3. Then rotate by its OWN angle around its own top (knee)
-            # Simplified: combine angles, rotate around knee pivot
+            # Lower leg: inherit upper rotation + knee bend + offset
             if lower_key in parts:
                 lx, ly, lw, lh = int(parts[lower_key][0]), int(parts[lower_key][1]), int(parts[lower_key][2]), int(parts[lower_key][3])
                 region = img_rgba[max(0,ly):min(h,ly+lh), max(0,lx):min(w,lx+lw)].copy()
                 if region.size > 0 and lw > 0 and lh > 0:
-                    # Combined rotation: upper angle affects the whole limb,
-                    # lower angle adds knee bend
                     combined_angle = upper_angle + lower_angle
                     center = (lw // 2, 0)
                     M = cv2.getRotationMatrix2D(center, -combined_angle, 1.0)
                     rotated = cv2.warpAffine(region, M, (lw, lh), borderMode=cv2.BORDER_CONSTANT)
-                    paste_region(canvas, rotated, lx + sway // 2, ly - bounce, w, h)
+                    paste_region(canvas, rotated, lx + sway // 2 + leg_dx, ly - bounce + leg_dy, w, h)
 
         # ── 2. Arms (behind torso for side views) ──
         for side in ("left", "right"):

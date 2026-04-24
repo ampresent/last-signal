@@ -371,16 +371,14 @@ def generate_walk_cycle(bones, num_frames=8):
 def generate_walk_cycle_direction(bones, direction, num_frames=8):
     """Generate walk cycle with direction-specific parameters.
 
-    Calibrated against official DragonBones DragonBoy walk data:
-    - Upper leg: ±45° (DragonBoy: ±90°, halved for 2D cutout)
-    - Lower leg: ±55° (DragonBoy: ±84°-114°)
-    - Upper arm: ±35° (DragonBoy: ±51°-120°)
-    - Lower arm: ±25° (DragonBoy: ±17°-45°)
-    - Hand: ±20° (DragonBoy: ±30°-45°)
-    - Hip bob: 12px (DragonBoy: 25px)
-    - Spine sway: ±8° (DragonBoy: implicit in body)
-    - Head: ±5° (DragonBoy: ±10°)
-    - Scale: 1.0-1.06 (DragonBoy: 1.0-1.14)
+    Front view (down/up): legs cross via horizontal shift + small rotation,
+    not large rotation (which creates unnatural splay). Reference: human gait
+    where weight shifts over planted foot, knees track forward not outward.
+
+    Side view (left/right): can use larger rotation since profile is visible.
+
+    Calibrated against official DragonBones DragonBoy data for side views,
+    and biomechanical gait analysis for front views.
     """
     frames = []
 
@@ -391,96 +389,101 @@ def generate_walk_cycle_direction(bones, direction, num_frames=8):
 
         if direction in ("down", "up"):
             arm_mult = 1.0 if direction == "down" else 0.7
-            leg_swing = 45
-            knee_bend = 55
-            arm_swing = 35 * arm_mult
-            elbow_bend = 25 * arm_mult
-            hand_swing = 20 * arm_mult
 
             # Body: hip bob + spine sway + head counter-sway
-            hip_bob = math.sin(phase * 2) * 12
-            spine_sway = math.sin(phase) * 8
+            hip_bob = math.sin(phase * 2) * 10
+            spine_sway = math.sin(phase) * 5
             frame["hip"] = {"y": round(hip_bob, 2)}
             frame["spine"] = {"skZ": round(spine_sway, 2), "y": round(hip_bob * 0.3, 2)}
-            frame["head"] = {"skZ": round(-spine_sway * 0.6, 2)}
+            frame["head"] = {"skZ": round(-spine_sway * 0.5, 2)}
 
-            # Legs: cross motion with scale change
-            l_leg = math.sin(phase) * leg_swing
-            l_scale = 1.0 + max(0, math.sin(phase)) * 0.06
-            r_scale = 1.0 + max(0, -math.sin(phase)) * 0.06
-            frame["left_upper_leg"] = {"skZ": round(l_leg, 2), "scY": round(l_scale, 3)}
-            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
-            frame["right_upper_leg"] = {"skZ": round(-l_leg, 2), "scY": round(r_scale, 3)}
-            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+            # ── Front-view legs: shift + small rotation (not large arc) ──
+            # Weight transfer: one leg steps forward (down+rotate), other lifts (up+rotate)
+            # The "forward" leg has knee bend, the "back" leg extends
+            l_phase = phase
+            r_phase = phase + math.pi
 
-            # Arms: counter-swing to legs, with elbow bend
-            l_arm = math.sin(phase + math.pi) * arm_swing
-            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
-            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
-            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
-            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
+            for side, pphase in [("left", l_phase), ("right", r_phase)]:
+                # Horizontal shift: leg swings left/right (crosses center)
+                x_shift = math.sin(pphase) * 12  # ±12px horizontal stride
+                # Vertical lift: foot lifts off ground at mid-swing
+                y_lift = max(0, math.sin(pphase)) * 8  # 0~8px lift
+                # Small rotation: just enough to show angle change (not ±45°)
+                rot = math.sin(pphase) * 12  # ±12° rotation
+                # Knee bend: bends when leg is lifted (mid-swing)
+                knee = max(0, math.sin(pphase)) * 30  # 0~30° knee bend
+                # Scale: lifted leg appears slightly smaller (further from camera)
+                sc = 1.0 - max(0, math.sin(pphase)) * 0.04
 
-            # Hands: subtle wrist motion
-            frame["left_hand"] = {"skZ": round(math.sin(phase + math.pi) * hand_swing, 2)}
-            frame["right_hand"] = {"skZ": round(-math.sin(phase + math.pi) * hand_swing, 2)}
+                frame[f"{side}_upper_leg"] = {
+                    "skZ": round(rot, 2),
+                    "x": round(x_shift, 2),
+                    "y": round(-y_lift, 2),  # negative = up
+                    "scY": round(sc, 3),
+                }
+                frame[f"{side}_lower_leg"] = {
+                    "skZ": round(knee, 2),
+                }
+
+            # ── Front-view arms: counter-swing to legs ──
+            for side, pphase in [("left", l_phase), ("right", r_phase)]:
+                arm_swing = math.sin(pphase + math.pi) * 25 * arm_mult
+                elbow = max(0, math.sin(pphase + math.pi)) * 20 * arm_mult
+                hand = math.sin(pphase + math.pi) * 15 * arm_mult
+
+                frame[f"{side}_upper_arm"] = {"skZ": round(arm_swing, 2)}
+                frame[f"{side}_lower_arm"] = {"skZ": round(elbow, 2)}
+                frame[f"{side}_hand"] = {"skZ": round(hand, 2)}
 
         elif direction == "right":
+            # Side view: can use larger rotations since profile is visible
             hip_bob = math.sin(phase * 2) * 12
-            body_lean = math.sin(phase) * 8
-            leg_swing = 45
-            knee_bend = 55
-            arm_swing = 35
-            elbow_bend = 25
-            hand_swing = 20
+            body_lean = math.sin(phase) * 6
 
-            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.3, 2)}
+            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.5, 2)}
             frame["spine"] = {"skZ": round(body_lean, 2), "y": round(hip_bob * 0.3, 2)}
-            frame["head"] = {"skZ": round(-body_lean * 0.6, 2)}
+            frame["head"] = {"skZ": round(-body_lean * 0.5, 2)}
 
-            l_leg = math.sin(phase) * leg_swing
-            l_scale = 1.0 + max(0, math.sin(phase)) * 0.06
-            r_scale = 1.0 + max(0, -math.sin(phase)) * 0.06
-            frame["left_upper_leg"] = {"skZ": round(l_leg, 2), "scY": round(l_scale, 3)}
-            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
-            frame["right_upper_leg"] = {"skZ": round(-l_leg, 2), "scY": round(r_scale, 3)}
-            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+            # Side-view legs: larger rotation (profile visible)
+            for side, pphase in [("left", phase), ("right", phase + math.pi)]:
+                leg_rot = math.sin(pphase) * 40
+                knee = max(0, math.sin(pphase)) * 45
+                sc = 1.0 - max(0, math.sin(pphase)) * 0.05
 
-            l_arm = math.sin(phase + math.pi) * arm_swing
-            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
-            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
-            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
-            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
-            frame["left_hand"] = {"skZ": round(math.sin(phase + math.pi) * hand_swing, 2)}
-            frame["right_hand"] = {"skZ": round(-math.sin(phase + math.pi) * hand_swing, 2)}
+                frame[f"{side}_upper_leg"] = {"skZ": round(leg_rot, 2), "scY": round(sc, 3)}
+                frame[f"{side}_lower_leg"] = {"skZ": round(knee, 2)}
+
+            # Side-view arms: counter-swing
+            for side, pphase in [("left", phase + math.pi), ("right", phase)]:
+                arm_rot = math.sin(pphase) * 30
+                elbow = max(0, math.sin(pphase)) * 25
+                hand = math.sin(pphase) * 15
+                frame[f"{side}_upper_arm"] = {"skZ": round(arm_rot, 2)}
+                frame[f"{side}_lower_arm"] = {"skZ": round(elbow, 2)}
+                frame[f"{side}_hand"] = {"skZ": round(hand, 2)}
 
         elif direction == "left":
             hip_bob = math.sin(phase * 2) * 12
-            body_lean = -math.sin(phase) * 8
-            leg_swing = 45
-            knee_bend = 55
-            arm_swing = 35
-            elbow_bend = 25
-            hand_swing = 20
+            body_lean = -math.sin(phase) * 6
 
-            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.3, 2)}
+            frame["hip"] = {"y": round(hip_bob, 2), "x": round(body_lean * 0.5, 2)}
             frame["spine"] = {"skZ": round(body_lean, 2), "y": round(hip_bob * 0.3, 2)}
-            frame["head"] = {"skZ": round(-body_lean * 0.6, 2)}
+            frame["head"] = {"skZ": round(-body_lean * 0.5, 2)}
 
-            l_leg = math.sin(phase) * leg_swing
-            l_scale = 1.0 + max(0, math.sin(phase)) * 0.06
-            r_scale = 1.0 + max(0, -math.sin(phase)) * 0.06
-            frame["left_upper_leg"] = {"skZ": round(l_leg, 2), "scY": round(l_scale, 3)}
-            frame["left_lower_leg"] = {"skZ": round(max(0, math.sin(phase)) * knee_bend, 2)}
-            frame["right_upper_leg"] = {"skZ": round(-l_leg, 2), "scY": round(r_scale, 3)}
-            frame["right_lower_leg"] = {"skZ": round(max(0, -math.sin(phase)) * knee_bend, 2)}
+            for side, pphase in [("left", phase), ("right", phase + math.pi)]:
+                leg_rot = math.sin(pphase) * 40
+                knee = max(0, math.sin(pphase)) * 45
+                sc = 1.0 - max(0, math.sin(pphase)) * 0.05
+                frame[f"{side}_upper_leg"] = {"skZ": round(leg_rot, 2), "scY": round(sc, 3)}
+                frame[f"{side}_lower_leg"] = {"skZ": round(knee, 2)}
 
-            l_arm = math.sin(phase + math.pi) * arm_swing
-            frame["left_upper_arm"] = {"skZ": round(l_arm, 2)}
-            frame["left_lower_arm"] = {"skZ": round(max(0, math.sin(phase + math.pi)) * elbow_bend, 2)}
-            frame["right_upper_arm"] = {"skZ": round(-l_arm, 2)}
-            frame["right_lower_arm"] = {"skZ": round(max(0, -math.sin(phase + math.pi)) * elbow_bend, 2)}
-            frame["left_hand"] = {"skZ": round(math.sin(phase + math.pi) * hand_swing, 2)}
-            frame["right_hand"] = {"skZ": round(-math.sin(phase + math.pi) * hand_swing, 2)}
+            for side, pphase in [("left", phase + math.pi), ("right", phase)]:
+                arm_rot = math.sin(pphase) * 30
+                elbow = max(0, math.sin(pphase)) * 25
+                hand = math.sin(pphase) * 15
+                frame[f"{side}_upper_arm"] = {"skZ": round(arm_rot, 2)}
+                frame[f"{side}_lower_arm"] = {"skZ": round(elbow, 2)}
+                frame[f"{side}_hand"] = {"skZ": round(hand, 2)}
 
         frames.append(frame)
 
