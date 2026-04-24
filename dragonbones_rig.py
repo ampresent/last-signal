@@ -161,6 +161,24 @@ def detect_body_parts(img_rgba):
         "right_leg":(right_leg_x1, legs_top, right_leg_x2 - right_leg_x1, legs_bottom - legs_top),
     }
 
+    # ── Split limbs into upper/lower segments (knee/elbow at ~50%) ──
+    for side in ("left", "right"):
+        # Legs: split at knee (50% height)
+        lx, ly, lw, lh = parts[f"{side}_leg"]
+        knee_y = ly + int(lh * 0.50)
+        upper_h = knee_y - ly
+        lower_h = lh - upper_h
+        parts[f"{side}_upper_leg"] = (lx, ly, lw, upper_h)
+        parts[f"{side}_lower_leg"] = (lx, knee_y, lw, lower_h)
+
+        # Arms: split at elbow (50% height)
+        ax, ay, aw, ah = parts[f"{side}_arm"]
+        elbow_y = ay + int(ah * 0.50)
+        upper_ah = elbow_y - ay
+        lower_ah = ah - upper_ah
+        parts[f"{side}_upper_arm"] = (ax, ay, aw, upper_ah)
+        parts[f"{side}_lower_arm"] = (ax, elbow_y, aw, lower_ah)
+
     return parts
 
 
