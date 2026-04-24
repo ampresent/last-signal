@@ -164,17 +164,24 @@ Canvas 粒子系统，在 AI 帧之上叠加实时效果。60fps，零额外文�
 | 效果 | 描述 | 场景 |
 |---|---|---|
 | 雨滴 | 倾斜雨丝粒子，支持风向；室内场景裁剪到窗口 mask | 街道/小巷/楼顶/公寓 |
+| 雨滴溅起 | 雨滴碰硬表面（深度图检测）→ 飞溅小水滴粒子 | 有雨 + 深度图的场景 |
+| 雨滴涟漪 | 雨滴落水面（water mask 检测）→ 同心圆波纹扩散 | 有水面的场景 |
 | 雾气 | 径向渐变雾层，缓慢漂移 | 街道/楼顶/酒吧 |
 | 霓虹脉冲 | 绿/紫光晕呼吸叠加 | 全场景 |
 | 环境粒子 | 灰尘/蒸汽/烟雾/数据流/水滴/风尘 | 按场景区分 |
-| 水面反射 | 场景反射 + 波纹扰动 + 镜面高光 + 涟漪 | 街道/小巷/塔楼/楼顶 |
+| 水面反射 | 场景反射 + 波纹扰动 + 镜面高光 + 涟漪（定位用 water mask） | 街道/小巷/塔楼/楼顶 |
 | CRT 扫描线 | 滚动细线 | 公寓/酒吧/服务器室 |
 | 全局闪烁 | 随机亮度抖动 | 除楼顶外 |
 | 故障效果 | 偶发水平位移+红蓝色偏 | 全场景（低概率） |
 
 **配置：** `VFX.SCENE_CONFIG` 中每个场景独立定义效果组合和参数。
 
-**渲染顺序：** 雨滴 → 雾气 → 霓虹脉冲 → 环境粒子 → 水洼反射 → 暗角 → 闪烁 → 扫描线 → 故障
+**渲染顺序：** 雨滴（含溅起/涟漪） → 雾气 → 霓虹脉冲 → 环境粒子 → 水洼反射 → 暗角 → 闪烁 → 扫描线 → 故障
+
+**雨滴碰撞系统：**
+- **硬表面溅起**：采样深度图，当前像素与上方 6px 深度差 > 0.06 → 生成 3~5 个飞溅粒子（重力 + 淡出）
+- **水面涟漪**：采样 water mask，雨滴落在白色区域 → 同心圆扩散（2~3 圈，600~900ms）
+- 两者互斥，优先检测水面
 
 **室内雨滴裁剪：**
 - 室外场景（street/alley/tower/rooftop）：全屏雨滴
@@ -248,6 +255,13 @@ index.html            — 游戏主文件（加载引擎 + 配置）
 - 比最浅表面更深的区域被遮挡
 - 持续变浅的区域不遮挡（光能穿过浅区照亮更浅处）
 - 详见 `gen_depth_lighting.py` → `ray_march_shadows()`
+
+**深度衰减（实时点光源）：**
+- 光源有 Z 轴深度值（`lightPos.z`），代表其在场景中的前后位置
+- 像素深度 ≤ 光源深度：100% 亮度（在光源前方）
+- 像素深度 > 光源深度：`smoothstep(0, 0.15, depthDiff)` 渐变衰减
+- 最低保留 5% 光照，避免前景完全黑掉
+- 修复：将硬切 `depthOcclude = 0/1` 改为平滑过渡（`lighting-engine.js`）
 
 ### 配置文件格式
 
@@ -508,6 +522,16 @@ root
 3. 自动加载骨骼 + 行走动画
 4. 可继续编辑动画细节、添加 mesh 变形
 
+### 行走 GIF 预览
+
+```bash
+python3 gen_walk_preview.py              # 所有角色
+python3 gen_walk_preview.py --char kai   # 单个角色
+```
+
+输出 `assets/sprites/previews/{char}_walk.gif`：4 行（DOWN/LEFT/RIGHT/UP）× 8 帧行走动画。
+用于快速验证骨骼绑定和动画效果是否正确。
+
 ---
 
 ## 游戏引擎架构
@@ -522,10 +546,10 @@ last-signal/
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
-├── gen_masks.py            # GrabCut 精细 mask 生成器
+├── gen_masks.py            # GrabCut 精细 mask 生成器（统一：交互/可行走/水面）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
 ├── gen_character_sprites.py  # 旧版角色行走帧生成（已弃用，保留兼容）
-├── gen_walk_masks.py       # 可行走区域 mask 生成
+├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×8帧）
 ├── dragonbones_rig.py      # DragonBones 骨骼自动绑定 + sprite sheet 生成
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
@@ -542,9 +566,10 @@ last-signal/
     │   ├── {char}_{dir}_f{0-7}.png    # 逐帧 PNG
     │   └── rig_{char}_{dir}/          # DragonBones 骨骼数据
     └── masks/
-        ├── {scene}_mask.png           # 组合 mask
+        ├── {scene}_mask.png           # 组合 mask（交互区域并集）
         ├── {scene}_{obj}_mask.png     # 单独物体 mask
         ├── {scene}_walkable_mask.png  # 可行走区域 mask
+        ├── {scene}_water_mask.png     # 水面区域 mask
         └── mask_metadata.json
 ```
 
@@ -617,19 +642,53 @@ Game.sfx("click"|"pickup"|"door"|"error"|"success");
 
 ## Mask 交互系统
 
-**二值 mask 图片**做像素级碰撞检测，替代矩形热区。
+**统一 mask 管线**：所有 mask（交互、可行走、水面）都通过同一套视觉模型 + GrabCut 流程生成。
 
-- 组合 mask `masks/{scene}_mask.png` — 悬停效果
-- 单独 mask `masks/{scene}_{obj}_mask.png` — 点击归属
-- 白色 (>128) = 可交互，黑色 = 背景
+### Mask 类型
 
-**生成流程：**
+| 类型 | 文件名 | 用途 |
+|------|--------|------|
+| 组合 mask | `{scene}_mask.png` | 所有可交互区域的并集，悬停检测 |
+| 物体 mask | `{scene}_{obj}_mask.png` | 单个物体的精确 mask，点击归属 |
+| 可行走 mask | `{scene}_walkable_mask.png` | 角色可行走区域，路径规划 |
+| 水面 mask | `{scene}_water_mask.png` | 水面区域，反射 + 雨滴涟漪 |
+
+白色 (>128) = 有效区域，黑色 = 背景。
+
+### 生成流程
+
+`gen_masks.py` 统一处理所有 mask 类型：
+
 1. 视觉模型识别物体边界框 `[x1, y1, x2, y2]`
-2. `gen_masks.py` 用 OpenCV GrabCut 精细分割
-3. 输出非矩形精确 mask
+2. GrabCut 精细分割每个物体 → `{scene}_{obj}_mask.png`
+3. `walkable` 区域用 GrabCut 分割，自动减去物体 mask（障碍物）→ `{scene}_walkable_mask.png`
+4. `water` 区域用 GrabCut 分割 → `{scene}_water_mask.png`
+5. 组合所有物体 mask + 边缘过渡 → `{scene}_mask.png`
 
-**视觉反馈：**
-- Mask 仅用于交互检测（悬停/点击），不在 canvas 上绘制任何视觉效果
+### 场景配置（gen_masks.py SCENES）
+
+每个场景新增 `walkable` 和 `water` 字段：
+```python
+"street": {
+    "objects": [...],
+    "walkable": {"bbox": [30, 160, 930, 627], "label": "街道地面"},
+    "water": {"bbox": [30, 480, 930, 627], "label": "路面积水"},
+    "edge_transitions": [...]
+}
+```
+`water: None` 表示该场景无水面。
+
+### 运行时使用
+
+- **交互检测**：`Game.isMaskHit(x, y)` + `Game.objMasks[key]`
+- **行走碰撞**：`CharSystem.isWalkable(nx, ny)` 读取 walkable mask
+- **水面反射**：`Game.waterMasks[sceneId]` 定位水面 Y 范围
+- **雨滴涟漪**：雨滴落在 water mask 白色区域 → 同心圆涟漪
+- **雨滴溅起**：雨滴碰到深度图深度跳变处 → 飞溅粒子
+
+### 视觉反馈
+
+- Mask 仅用于检测，不在 canvas 上绘制任何视觉效果
 - 光标在可交互区域变为 pointer，顶部显示 hint 文字
 - VFX 雨滴可通过 `clipToMask` 裁剪到指定 mask 区域
 
@@ -649,19 +708,20 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 
 python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
-python3 gen_masks.py               # 3. 生成 mask（可选，已有则跳过）
+python3 gen_masks.py               # 3. 生成统一 mask（交互/可行走/水面）
+python3 dragonbones_rig.py --batch # 4. DragonBones 骨骼绑定
+python3 gen_walk_preview.py        # 5. 行走 GIF 预览
 ```
 
 ### 添加新场景
 1. `gen_assets.py` 添加 prompt
 2. `gen_depth_lighting.py` 的 `SCENE_LIGHTS` 添加光源配置（位置/颜色/半径/相位函数）
 3. `lighting-config.json` 添加实时渲染光源配置
-4. `gen_masks.py` 添加物体 bbox
-5. `gen_walk_masks.py` 添加可行走区域
-6. `index.html` SCENES 添加场景定义
-7. `VFX.SCENE_CONFIG` 添加动效配置
-8. 运行生成脚本
-9. `git add -A && git commit && git push`
+4. `gen_masks.py` 添加物体 bbox + `walkable` + `water` 字段
+5. `index.html` SCENES 添加场景定义
+6. `VFX.SCENE_CONFIG` 添加动效配置（含 `puddleReflection` 如有水面）
+7. 运行生成脚本
+8. `git add -A && git commit && git push`
 
 ---
 
