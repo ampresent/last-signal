@@ -9,6 +9,7 @@
 - [对话系统](#对话系统)
 - [角色行走系统](#角色行走系统)
 - [DragonBones 骨骼动画](#dragonbones-骨骼动画)
+  - [骨骼点位验证流程](#骨骼点位验证流程)
 - [VFX 实时动效引擎](#vfx-实时动效引擎)
 - [游戏引擎架构](#游戏引擎架构)
 - [Mask 交互系统](#mask-交互系统)
@@ -545,6 +546,86 @@ python3 gen_walk_preview.py --char kai   # 单个角色
 
 输出 `assets/sprites/previews/{char}_walk.gif`：4 行（DOWN/LEFT/RIGHT/UP）× 8 帧行走动画。
 用于快速验证骨骼绑定和动画效果是否正确。
+
+### 骨骼点位验证流程
+
+骨骼自动生成后，需要验证 `rig_*_ske.json` 中的关节位置是否准确落在角色身体对应部位上。
+
+#### 坐标系说明
+
+`dragonbones_rig.py` 在 `_ske.json` 的 `transform` 字段中写入的是**绝对 DragonBones 坐标**（以画布中心底部为原点，Y 轴向上），而非相对于父骨骼的偏移量。
+
+转换公式：
+```
+pixel_x = dbx + img_w / 2
+pixel_y = img_h / 2 - dby
+```
+
+> ⚠️ 踩坑：如果按 DragonBones 标准把 transform 当作相对偏移累加，所有点位会下飘到画布底部。必须直接按绝对坐标转换。
+
+#### 验证步骤
+
+**Step 1：生成叠放图**
+
+用 Python + PIL 将骨骼点位（彩色圆点）和连线叠到角色 rig 图上：
+
+```python
+# 核心逻辑
+def db_to_pixel(dbx, dby, img_w, img_h):
+    """绝对 DB 坐标 → 像素坐标"""
+    return dbx + img_w / 2, img_h / 2 - dby
+
+# 读取 _ske.json，遍历每个 bone
+# transform.x / transform.y 直接作为绝对坐标转换
+# 绘制：关节圆点 + 父子连线 + 标签
+```
+
+对每个角色 × 每个方向生成一张叠放图：
+```
+skeleton_{char}_{dir}_v2.png
+```
+
+**Step 2：视觉模型自动校验**
+
+用多模态视觉模型（如 MiMo Omni）逐点检查：
+
+```bash
+bash mimo_api.sh image skeleton_kai_down_v2.png \
+  "检查每个骨骼点是否准确落在角色对应身体部位上：
+   head 在头部、spine 在胸部、hip 在胯部、
+   肩/肘/腕在对应位置、膝/脚踝在对应位置。
+   有偏差的指出偏差方向和大约像素数。"
+```
+
+**Step 3：判断标准**
+
+| 结果 | 处理 |
+|------|------|
+| 所有点位准确 | ✅ 通过，无需修改 |
+| 个别点位偏差 < 5px | ⚠️ 可接受，视情况决定是否修正 |
+| 点位偏差 > 10px 或位置完全错误 | ❌ 需要检查 `dragonbones_rig.py` 的身体部位检测逻辑 |
+
+**Step 4：批量验证脚本**
+
+```bash
+# 生成所有角色 × 方向的叠放图
+python3 overlay_skeleton_v2.py
+
+# 自动调用视觉模型逐张校验
+for f in skeleton_*_v2.png; do
+  bash mimo_api.sh image "$f" \
+    "检查骨骼点位是否准确落在对应身体部位上，列出有偏差的点。"
+done
+```
+
+#### 常见问题
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| 所有点位下飘到画布底部 | 把绝对坐标当相对偏移累加 | 直接用 transform 值转像素坐标 |
+| 头部/肩部偏移 | 身体部位检测的 neck_y 不准 | 检查 `detect_body_parts()` 的垂直投影逻辑 |
+| 手臂位置偏移 | arm_strip_w 过窄或过宽 | 调整 torso_w 比例参数 |
+| 腿部分割不准 | 中心间隙检测失败 | 检查 leg_h_proj 平滑和 gap 检测 |
 
 ---
 
