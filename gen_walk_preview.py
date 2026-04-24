@@ -28,115 +28,143 @@ GIF_SCALE = 3  # upscale for visibility
 GIF_FPS = 10
 
 
-def render_bone_frame(img_rgba, bones, frame_data, scale=1):
-    """Render a single frame by applying bone transforms to the character image.
-
-    Simplified approach: apply subtle transforms (shift, rotate) to body part
-    regions based on bone angles, then composite onto a clean canvas.
-    """
+def rotate_region(img_rgba, cx, cy, angle_deg, region_x, region_y, region_w, region_h):
+    """Rotate a body part region around its anchor point (top-center for limbs)."""
     h, w = img_rgba.shape[:2]
-    canvas = np.zeros((h, w, 4), dtype=np.uint8)
+    # Extract region
+    rx1 = max(0, region_x)
+    ry1 = max(0, region_y)
+    rx2 = min(w, region_x + region_w)
+    ry2 = min(h, region_y + region_h)
+    if rx2 <= rx1 or ry2 <= ry1:
+        return img_rgba.copy()
 
-    # For a front-facing sprite, we apply transforms as subtle pixel shifts
-    # rather than full skeletal deformation (which would require mesh skinning).
-    # The visual effect comes from slight position offsets of body regions.
+    region = img_rgba[ry1:ry2, rx1:rx2].copy()
+    rh, rw = region.shape[:2]
 
-    # Get hip offset (applies to everything)
-    hip_dy = frame_data.get("hip", {}).get("y", 0)
+    # Rotation center = top-center of region (pivot point)
+    pivot_x = rw / 2
+    pivot_y = 0
 
-    # Copy the whole image as base
+    M = cv2.getRotationMatrix2D((pivot_x, pivot_y), angle_deg, 1.0)
+    # Adjust translation to keep pivot in place
+    M[0, 2] += rx1 - rx1
+    M[1, 2] += ry1 - ry1
+
+    rotated = cv2.warpAffine(region, M, (rw, rh), borderMode=cv2.BORDER_CONSTANT)
+
     result = img_rgba.copy()
-
-    # Apply subtle vertical bob to simulate walk bounce
-    bob = int(round(hip_dy))
-    if bob != 0:
-        M = np.float32([[1, 0, 0], [0, 1, -bob]])
-        result = cv2.warpAffine(result, M, (w, h), borderMode=cv2.BORDER_CONSTANT)
-
+    result[ry1:ry2, rx1:rx2] = rotated
     return result
 
 
 def render_walk_frames(img_rgba, bones, walk_frames, parts):
-    """Render 8 walk frames with programmatic animation.
+    """Render 8 walk frames with dramatic cutout animation.
 
-    Instead of skeletal deformation (complex), we use cutout animation:
-    - Slight vertical bounce
-    - Subtle horizontal sway
-    - Leg/arm region shifts for stride effect
+    Uses affine rotation for limbs + visible bounce/sway.
     """
     h, w = img_rgba.shape[:2]
     frames = []
 
-    # Extract body part regions from the original image
-    part_regions = {}
-    for name, (px, py, pw, ph) in parts.items():
-        px = max(0, px)
-        py = max(0, py)
-        pw = min(pw, w - px)
-        ph = min(ph, h - py)
-        if pw > 0 and ph > 0:
-            part_regions[name] = img_rgba[py:py+ph, px:px+pw].copy()
-
     for fi, frame_data in enumerate(walk_frames):
         canvas = np.zeros((h, w, 4), dtype=np.uint8)
 
-        # Global bounce
-        hip_dy = int(round(frame_data.get("hip", {}).get("y", 0)))
-        spine_sway = frame_data.get("spine", {}).get("skZ", 0)
+        # ── Global transforms ──
+        hip_dy = frame_data.get("hip", {}).get("y", 0)  # ±2 px
+        spine_sway = frame_data.get("spine", {}).get("skZ", 0)  # ±1.5°
+        head_sway = frame_data.get("head", {}).get("skZ", 0)  # ±0.45°
 
-        # Place torso (slight sway)
-        tx, ty, tw, th = parts["torso"]
-        sway_px = int(round(spine_sway * 0.5))
-        canvas[ty-hip_dy:ty-hip_dy+th, tx+sway_px:tx+sway_px+tw] = \
-            img_rgba[ty:ty+th, tx:tx+tw]
+        # Convert to pixel offsets (scaled up for visibility)
+        bounce = int(round(hip_dy * 1.5))
+        sway = int(round(spine_sway * 1.2))
 
-        # Place head
-        hx, hy, hw, hh = parts["head"]
-        head_sway = int(round(frame_data.get("head", {}).get("skZ", 0) * 0.3))
-        canvas[hy-hip_dy:hy-hip_dy+hh, hx+sway_px+head_sway:hx+sway_px+head_sway+hw] = \
-            img_rgba[hy:hy+hh, hx:hx+hw]
+        # ── 1. Draw legs first (behind torso) ──
+        l_leg_angle = frame_data.get("left_upper_leg", {}).get("skZ", 0)
+        r_leg_angle = frame_data.get("right_upper_leg", {}).get("skZ", 0)
 
-        # Left leg - shift based on leg angle
-        l_upper = frame_data.get("left_upper_leg", {}).get("skZ", 0)
-        l_shift = int(round(math.sin(math.radians(l_upper)) * 4))
-        lx, ly, lw, lh = parts["left_leg"]
-        canvas[ly-hip_dy:ly-hip_dy+lh, lx+l_shift:lx+l_shift+lw] = \
-            img_rgba[ly:ly+lh, lx:lx+lw]
+        for leg_name, angle in [("left_leg", l_leg_angle), ("right_leg", r_leg_angle)]:
+            lx, ly, lw, lh = parts[leg_name]
+            lx, ly, lw, lh = int(lx), int(ly), int(lw), int(lh)
 
-        # Right leg - opposite phase
-        r_upper = frame_data.get("right_upper_leg", {}).get("skZ", 0)
-        r_shift = int(round(math.sin(math.radians(r_upper)) * 4))
-        rx, ry, rw, rh = parts["right_leg"]
-        canvas[ry-hip_dy:ry-hip_dy+rh, rx+r_shift:rx+r_shift+rw] = \
-            img_rgba[ry:ry+rh, rx:rx+rw]
+            region = img_rgba[max(0,ly):min(h,ly+lh), max(0,lx):min(w,lx+lw)].copy()
+            if region.size == 0:
+                continue
 
-        # Left arm - slight swing
+            # Rotation around top-center of region (hip pivot)
+            center = (int(lw // 2), 0)
+            M = cv2.getRotationMatrix2D(center, -angle, 1.0)
+            M[0, 2] += 0
+            M[1, 2] += 0
+            rotated = cv2.warpAffine(region, M, (lw, lh), borderMode=cv2.BORDER_CONSTANT)
+
+            # Paste onto canvas with bounce offset
+            dst_y = ly - bounce
+            dst_x = lx + sway // 2
+            paste_region(canvas, rotated, dst_x, dst_y, w, h)
+
+        # ── 2. Draw arms (behind torso for side views) ──
         l_arm_angle = frame_data.get("left_upper_arm", {}).get("skZ", 0)
-        la_shift = int(round(math.sin(math.radians(l_arm_angle)) * 3))
-        lax, lay, law, lah = parts["left_arm"]
-        canvas[lay-hip_dy:lay-hip_dy+lah, lax+la_shift:lax+la_shift+law] = \
-            img_rgba[lay:lay+lah, lax:lax+law]
-
-        # Right arm
         r_arm_angle = frame_data.get("right_upper_arm", {}).get("skZ", 0)
-        ra_shift = int(round(math.sin(math.radians(r_arm_angle)) * 3))
-        rax, ray_raw, raw, rah = parts["right_arm"]
-        canvas[ray_raw-hip_dy:ray_raw-hip_dy+rah, rax+ra_shift:rax+ra_shift+raw] = \
-            img_rgba[ray_raw:ray_raw+rah, rax:rax+raw]
 
-        # Fill any gaps from shifts by copying background
-        # (pixels that were in original but not in transformed regions)
-        mask = cv2.bitwise_not(cv2.cvtColor(canvas, cv2.COLOR_BGRA2GRAY))
-        mask = (mask > 0).astype(np.uint8) * 255
-        # Only fill where original has content and canvas is empty
+        for arm_name, angle in [("left_arm", l_arm_angle), ("right_arm", r_arm_angle)]:
+            ax, ay, aw, ah = parts[arm_name]
+            ax, ay, aw, ah = int(ax), int(ay), int(aw), int(ah)
+            region = img_rgba[max(0,ay):min(h,ay+ah), max(0,ax):min(w,ax+aw)].copy()
+            if region.size == 0:
+                continue
+
+            center = (int(aw // 2), 0)
+            M = cv2.getRotationMatrix2D(center, -angle, 1.0)
+            rotated = cv2.warpAffine(region, M, (aw, ah), borderMode=cv2.BORDER_CONSTANT)
+
+            dst_y = ay - bounce
+            dst_x = ax + sway // 2
+            paste_region(canvas, rotated, dst_x, dst_y, w, h)
+
+        # ── 3. Draw torso (on top of limbs) ──
+        tx, ty, tw, th = int(parts["torso"][0]), int(parts["torso"][1]), int(parts["torso"][2]), int(parts["torso"][3])
+        dst_x = tx + sway
+        dst_y = ty - bounce
+        paste_region(canvas, img_rgba[ty:ty+th, tx:tx+tw], dst_x, dst_y, w, h)
+
+        # ── 4. Draw head (on top) ──
+        hx, hy, hw, hh = int(parts["head"][0]), int(parts["head"][1]), int(parts["head"][2]), int(parts["head"][3])
+        dst_x = hx + sway + int(round(head_sway * 0.8))
+        dst_y = hy - bounce - 1
+        paste_region(canvas, img_rgba[hy:hy+hh, hx:hx+hw], dst_x, dst_y, w, h)
+
+        # ── 5. Fill gaps (original pixels not covered by any part) ──
+        alpha = canvas[:, :, 3]
+        gap_mask = (alpha < 30).astype(np.uint8) * 255
         orig_alpha = img_rgba[:, :, 3]
-        fill_mask = cv2.bitwise_and(mask, (orig_alpha > 30).astype(np.uint8) * 255)
+        fill = cv2.bitwise_and(gap_mask, (orig_alpha > 30).astype(np.uint8) * 255)
         for c in range(4):
-            canvas[:, :, c] = np.where(fill_mask > 0, img_rgba[:, :, c], canvas[:, :, c])
+            canvas[:, :, c] = np.where(fill > 0, img_rgba[:, :, c], canvas[:, :, c])
 
         frames.append(canvas)
 
     return frames
+
+
+def paste_region(canvas, region, dst_x, dst_y, canvas_w, canvas_h):
+    """Paste a region onto canvas with bounds clipping."""
+    rh, rw = region.shape[:2]
+    # Source region (full)
+    sx1, sy1 = 0, 0
+    sx2, sy2 = rw, rh
+    # Destination (clipped to canvas)
+    dx1 = max(0, dst_x)
+    dy1 = max(0, dst_y)
+    dx2 = min(canvas_w, dst_x + rw)
+    dy2 = min(canvas_h, dst_y + rh)
+    if dx2 <= dx1 or dy2 <= dy1:
+        return
+    # Corresponding source pixels
+    sx1 += dx1 - dst_x
+    sy1 += dy1 - dst_y
+    sx2 = sx1 + (dx2 - dx1)
+    sy2 = sy1 + (dy2 - dy1)
+    canvas[dy1:dy2, dx1:dx2] = region[sy1:sy2, sx1:sx2]
 
 
 def make_gif(direction_frames, out_path, scale=3, fps=10):
