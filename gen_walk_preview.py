@@ -31,7 +31,6 @@ GIF_FPS = 10
 def rotate_region(img_rgba, cx, cy, angle_deg, region_x, region_y, region_w, region_h):
     """Rotate a body part region around its anchor point (top-center for limbs)."""
     h, w = img_rgba.shape[:2]
-    # Extract region
     rx1 = max(0, region_x)
     ry1 = max(0, region_y)
     rx2 = min(w, region_x + region_w)
@@ -42,15 +41,10 @@ def rotate_region(img_rgba, cx, cy, angle_deg, region_x, region_y, region_w, reg
     region = img_rgba[ry1:ry2, rx1:rx2].copy()
     rh, rw = region.shape[:2]
 
-    # Rotation center = top-center of region (pivot point)
     pivot_x = rw / 2
     pivot_y = 0
 
     M = cv2.getRotationMatrix2D((pivot_x, pivot_y), angle_deg, 1.0)
-    # Adjust translation to keep pivot in place
-    M[0, 2] += rx1 - rx1
-    M[1, 2] += ry1 - ry1
-
     rotated = cv2.warpAffine(region, M, (rw, rh), borderMode=cv2.BORDER_CONSTANT)
 
     result = img_rgba.copy()
@@ -59,9 +53,11 @@ def rotate_region(img_rgba, cx, cy, angle_deg, region_x, region_y, region_w, reg
 
 
 def render_walk_frames(img_rgba, bones, walk_frames, parts):
-    """Render 8 walk frames with dramatic cutout animation.
+    """Render 8 walk frames with proper joint articulation.
 
-    Uses affine rotation for limbs + visible bounce/sway.
+    Each limb is split into upper/lower segments.
+    Upper rotates from shoulder/hip pivot.
+    Lower rotates from elbow/knee pivot, inheriting parent rotation.
     """
     h, w = img_rgba.shape[:2]
     frames = []
@@ -70,70 +66,86 @@ def render_walk_frames(img_rgba, bones, walk_frames, parts):
         canvas = np.zeros((h, w, 4), dtype=np.uint8)
 
         # ── Global transforms ──
-        hip_dy = frame_data.get("hip", {}).get("y", 0)  # ±2 px
-        spine_sway = frame_data.get("spine", {}).get("skZ", 0)  # ±1.5°
-        head_sway = frame_data.get("head", {}).get("skZ", 0)  # ±0.45°
+        hip_dy = frame_data.get("hip", {}).get("y", 0)
+        spine_sway = frame_data.get("spine", {}).get("skZ", 0)
+        head_sway = frame_data.get("head", {}).get("skZ", 0)
 
-        # Convert to pixel offsets (scaled up for visibility)
         bounce = int(round(hip_dy * 1.5))
         sway = int(round(spine_sway * 1.2))
 
-        # ── 1. Draw legs first (behind torso) ──
-        l_leg_angle = frame_data.get("left_upper_leg", {}).get("skZ", 0)
-        r_leg_angle = frame_data.get("right_upper_leg", {}).get("skZ", 0)
+        # ── Helper: rotate a region around its top-center, paste onto canvas ──
+        def draw_rotated(src_img, part_key, angle_deg, extra_dx=0, extra_dy=0):
+            if part_key not in parts:
+                return
+            px, py, pw, ph = int(parts[part_key][0]), int(parts[part_key][1]), int(parts[part_key][2]), int(parts[part_key][3])
+            region = src_img[max(0,py):min(h,py+ph), max(0,px):min(w,px+pw)].copy()
+            if region.size == 0 or pw == 0 or ph == 0:
+                return
+            center = (pw // 2, 0)
+            M = cv2.getRotationMatrix2D(center, -angle_deg, 1.0)
+            rotated = cv2.warpAffine(region, M, (pw, ph), borderMode=cv2.BORDER_CONSTANT)
+            paste_region(canvas, rotated, px + sway // 2 + extra_dx, py - bounce + extra_dy, w, h)
 
-        for leg_name, angle in [("left_leg", l_leg_angle), ("right_leg", r_leg_angle)]:
-            lx, ly, lw, lh = parts[leg_name]
-            lx, ly, lw, lh = int(lx), int(ly), int(lw), int(lh)
+        # ── 1. Legs (behind torso) ──
+        # Upper legs rotate from hip, lower legs inherit + add knee bend
+        for side in ("left", "right"):
+            upper_key = f"{side}_upper_leg"
+            lower_key = f"{side}_lower_leg"
+            upper_angle = frame_data.get(upper_key, {}).get("skZ", 0)
+            lower_angle = frame_data.get(lower_key, {}).get("skZ", 0)
 
-            region = img_rgba[max(0,ly):min(h,ly+lh), max(0,lx):min(w,lx+lw)].copy()
-            if region.size == 0:
-                continue
+            # Draw upper leg rotated from hip
+            draw_rotated(img_rgba, upper_key, upper_angle)
 
-            # Rotation around top-center of region (hip pivot)
-            center = (int(lw // 2), 0)
-            M = cv2.getRotationMatrix2D(center, -angle, 1.0)
-            M[0, 2] += 0
-            M[1, 2] += 0
-            rotated = cv2.warpAffine(region, M, (lw, lh), borderMode=cv2.BORDER_CONSTANT)
+            # For lower leg, we need to:
+            # 1. Extract the lower leg region from the ORIGINAL image
+            # 2. Rotate it by the UPPER leg angle (inheritance)
+            # 3. Then rotate by its OWN angle around its own top (knee)
+            # Simplified: combine angles, rotate around knee pivot
+            if lower_key in parts:
+                lx, ly, lw, lh = int(parts[lower_key][0]), int(parts[lower_key][1]), int(parts[lower_key][2]), int(parts[lower_key][3])
+                region = img_rgba[max(0,ly):min(h,ly+lh), max(0,lx):min(w,lx+lw)].copy()
+                if region.size > 0 and lw > 0 and lh > 0:
+                    # Combined rotation: upper angle affects the whole limb,
+                    # lower angle adds knee bend
+                    combined_angle = upper_angle + lower_angle
+                    center = (lw // 2, 0)
+                    M = cv2.getRotationMatrix2D(center, -combined_angle, 1.0)
+                    rotated = cv2.warpAffine(region, M, (lw, lh), borderMode=cv2.BORDER_CONSTANT)
+                    paste_region(canvas, rotated, lx + sway // 2, ly - bounce, w, h)
 
-            # Paste onto canvas with bounce offset
-            dst_y = ly - bounce
-            dst_x = lx + sway // 2
-            paste_region(canvas, rotated, dst_x, dst_y, w, h)
+        # ── 2. Arms (behind torso for side views) ──
+        for side in ("left", "right"):
+            upper_key = f"{side}_upper_arm"
+            lower_key = f"{side}_lower_arm"
+            upper_angle = frame_data.get(upper_key, {}).get("skZ", 0)
+            lower_angle = frame_data.get(lower_key, {}).get("skZ", 0)
 
-        # ── 2. Draw arms (behind torso for side views) ──
-        l_arm_angle = frame_data.get("left_upper_arm", {}).get("skZ", 0)
-        r_arm_angle = frame_data.get("right_upper_arm", {}).get("skZ", 0)
+            # Upper arm rotates from shoulder
+            draw_rotated(img_rgba, upper_key, upper_angle)
 
-        for arm_name, angle in [("left_arm", l_arm_angle), ("right_arm", r_arm_angle)]:
-            ax, ay, aw, ah = parts[arm_name]
-            ax, ay, aw, ah = int(ax), int(ay), int(aw), int(ah)
-            region = img_rgba[max(0,ay):min(h,ay+ah), max(0,ax):min(w,ax+aw)].copy()
-            if region.size == 0:
-                continue
+            # Lower arm: inherit upper + own elbow bend
+            if lower_key in parts:
+                ax, ay, aw, ah = int(parts[lower_key][0]), int(parts[lower_key][1]), int(parts[lower_key][2]), int(parts[lower_key][3])
+                region = img_rgba[max(0,ay):min(h,ay+ah), max(0,ax):min(w,ax+aw)].copy()
+                if region.size > 0 and aw > 0 and ah > 0:
+                    combined_angle = upper_angle + lower_angle
+                    center = (aw // 2, 0)
+                    M = cv2.getRotationMatrix2D(center, -combined_angle, 1.0)
+                    rotated = cv2.warpAffine(region, M, (aw, ah), borderMode=cv2.BORDER_CONSTANT)
+                    paste_region(canvas, rotated, ax + sway // 2, ay - bounce, w, h)
 
-            center = (int(aw // 2), 0)
-            M = cv2.getRotationMatrix2D(center, -angle, 1.0)
-            rotated = cv2.warpAffine(region, M, (aw, ah), borderMode=cv2.BORDER_CONSTANT)
+        # ── 3. Torso (on top of limbs) ──
+        draw_rotated(img_rgba, "torso", spine_sway)
 
-            dst_y = ay - bounce
-            dst_x = ax + sway // 2
-            paste_region(canvas, rotated, dst_x, dst_y, w, h)
+        # ── 4. Head (on top) ──
+        if "head" in parts:
+            hx, hy, hw, hh = int(parts["head"][0]), int(parts["head"][1]), int(parts["head"][2]), int(parts["head"][3])
+            dst_x = hx + sway + int(round(head_sway * 0.8))
+            dst_y = hy - bounce - 1
+            paste_region(canvas, img_rgba[hy:hy+hh, hx:hx+hw], dst_x, dst_y, w, h)
 
-        # ── 3. Draw torso (on top of limbs) ──
-        tx, ty, tw, th = int(parts["torso"][0]), int(parts["torso"][1]), int(parts["torso"][2]), int(parts["torso"][3])
-        dst_x = tx + sway
-        dst_y = ty - bounce
-        paste_region(canvas, img_rgba[ty:ty+th, tx:tx+tw], dst_x, dst_y, w, h)
-
-        # ── 4. Draw head (on top) ──
-        hx, hy, hw, hh = int(parts["head"][0]), int(parts["head"][1]), int(parts["head"][2]), int(parts["head"][3])
-        dst_x = hx + sway + int(round(head_sway * 0.8))
-        dst_y = hy - bounce - 1
-        paste_region(canvas, img_rgba[hy:hy+hh, hx:hx+hw], dst_x, dst_y, w, h)
-
-        # ── 5. Fill gaps (original pixels not covered by any part) ──
+        # ── 5. Fill gaps ──
         alpha = canvas[:, :, 3]
         gap_mask = (alpha < 30).astype(np.uint8) * 255
         orig_alpha = img_rgba[:, :, 3]
