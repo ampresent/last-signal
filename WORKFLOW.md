@@ -386,9 +386,8 @@ await Game.showCasualChat("说话者", "文本", { expression: "happy" });
 
 ```
 CharacterSystem       — 角色管理（加载、渲染、碰撞）
-gen_character_views.py — 角色视角生成（正面→img2img 三角度）
+gen_character_views.py — 角色视角生成（正面→img2img）
 gen_walk_masks.py     — 可行走区域 mask 生成
-dragonbones_rig.py    — DragonBones 骨骼自动绑定
 ```
 
 ### 生成流程（v2：正面→img2img）
@@ -642,7 +641,6 @@ last-signal/
 ├── gen_masks.py            # GrabCut 精细 mask 生成器（统一：交互/可行走/水面）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
 ├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×8帧）
-├── dragonbones_rig.py      # DragonBones 骨骼自动绑定 + sprite sheet 生成
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
@@ -655,8 +653,7 @@ last-signal/
     │   ├── cutout_{char}_{dir}.png    # 角色抠图
     │   ├── raw_{char}_{dir}.png       # 原始角色图
     │   ├── sheet_{char}_{dir}.png     # Sprite Sheet（8帧）
-    │   ├── {char}_{dir}_f{0-7}.png    # 逐帧 PNG
-    │   └── rig_{char}_{dir}/          # DragonBones 骨骼数据
+    │   └── {char}_{dir}_f{0-7}.png    # 逐帧 PNG
     └── masks/
         ├── {scene}_mask.png           # 组合 mask（交互区域并集）
         ├── {scene}_{obj}_mask.png     # 单独物体 mask
@@ -801,8 +798,7 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
 python3 gen_masks.py               # 3. 生成统一 mask（交互/可行走/水面）
-python3 dragonbones_rig.py --batch # 4. DragonBones 骨骼绑定
-python3 gen_walk_preview.py        # 5. 行走 GIF 预览
+python3 gen_walk_preview.py        # 4. 行走 GIF 预览
 ```
 
 ### 添加新场景
