@@ -2012,11 +2012,10 @@ const CharSystem = {
     if (!sprite) sprite = this.sprites[char.id]?.[`${char.dir}_f0`];
     if (!sprite) return; // 精灵图未加载
 
-    // 角色尺寸 (根据深度缩放 — 远处小, 近处大)
+    // 角色尺寸 (固定大小，不随深度缩放)
     // 精灵帧是 64×128 (宽高比 1:2)，按比例绘制避免拉宽
-    const depthScale = 0.6 + (1.0 - depth) * 0.8;
     const baseSize = 960 * char.scale;
-    const h = baseSize * depthScale;
+    const h = baseSize;
     const w = h * (sprite.width / sprite.height); // 保持原始宽高比
 
     // 角色位置 (脚部对齐 Y 坐标)
