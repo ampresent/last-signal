@@ -329,6 +329,63 @@
     font-family: var(--mono);
     display: none;
   }
+  /* ── Mask Editor ── */
+  .editor-toolbar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    align-items: center;
+  }
+  .editor-tool {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .editor-tool:hover { border-color: var(--cyan); color: var(--text); }
+  .editor-tool.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
+  .editor-tool.danger:hover { border-color: var(--red); color: var(--red); }
+  .editor-tool.success:hover { border-color: var(--green); color: var(--green); }
+  .editor-sep {
+    width: 1px; height: 24px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+  .editor-canvas-wrap {
+    position: relative;
+    cursor: none;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .editor-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+  }
+  #editorCursor {
+    position: absolute;
+    border: 2px solid var(--cyan);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: difference;
+    display: none;
+  }
+  .editor-stats {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text2);
+  }
+  .editor-stats span { color: var(--cyan); }
   /* ── Responsive ── */
   @media (max-width: 600px) {
     .header h1 { font-size: 20px; }
@@ -985,10 +1042,85 @@ async function renderPipeline() {
 
     <div class="arrow-down">▼</div>
 
-    <!-- Step 6: Verification -->
+    <!-- Step 6: Mask Editor -->
     <div class="step">
       <div class="step-header">
         <div class="step-num output">6</div>
+        <div class="step-title">✏️ Mask 编辑器 — 手动微调</div>
+        <div class="step-desc">Brush / Eraser / Undo / Export</div>
+      </div>
+      <div class="step-body">
+        <div class="editor-toolbar" id="editorToolbar">
+          <span style="font-size:12px;color:var(--text2);margin-right:4px">编辑目标:</span>
+          <select id="editorTarget" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
+            ${scene.objects.map((o, i) =>
+              `<option value="${o.id}" data-idx="${i}">${o.label} (${o.id})</option>`
+            ).join('')}
+            ${hasWalkable ? `<option value="walkable" data-idx="walkable">🚶 ${scene.walkable.label}</option>` : ''}
+          </select>
+          <div class="editor-sep"></div>
+          <button class="editor-tool active" id="toolBrush" title="画笔 (B)">🖊️</button>
+          <button class="editor-tool" id="toolEraser" title="橡皮擦 (E)">🧹</button>
+          <button class="editor-tool" id="toolFill" title="填充选区 (F)">🪣</button>
+          <div class="editor-sep"></div>
+          <span style="font-size:11px;color:var(--text2)">大小:</span>
+          <input type="range" id="brushSize" min="2" max="80" value="20" style="width:80px;accent-color:var(--cyan)">
+          <span id="brushSizeVal" style="font-size:11px;color:var(--cyan);font-family:var(--mono);min-width:28px">20</span>
+          <div class="editor-sep"></div>
+          <button class="editor-tool" id="toolUndo" title="撤销 (Ctrl+Z)">↩️</button>
+          <button class="editor-tool" id="toolRedo" title="重做 (Ctrl+Y)">↪️</button>
+          <button class="editor-tool danger" id="toolReset" title="重置到原始 Mask">🔄</button>
+          <div class="editor-sep"></div>
+          <button class="editor-tool" id="toolInvert" title="反转 Mask">🔲</button>
+          <button class="editor-tool success" id="toolDownload" title="下载编辑后的 Mask">💾</button>
+        </div>
+        <div class="editor-stats" id="editorStats">
+          <div>白色像素: <span id="statWhite">—</span></div>
+          <div>覆盖面积: <span id="statArea">—</span></div>
+          <div>操作历史: <span id="statHistory">0</span> 步</div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">编辑画布 — 在场景图上绘制 Mask</div>
+            <div class="viz-panel-body" style="padding:0">
+              <div class="editor-canvas-wrap" id="editorCanvasWrap">
+                <canvas id="editorBgCanvas" width="${IMG_W}" height="${IMG_H}"></canvas>
+                <canvas id="editorMaskCanvas" width="${IMG_W}" height="${IMG_H}" style="position:absolute;top:0;left:0"></canvas>
+                <canvas id="editorOverlayCanvas" width="${IMG_W}" height="${IMG_H}" style="position:absolute;top:0;left:0"></canvas>
+                <div id="editorCursor"></div>
+              </div>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">Mask 预览 (黑白)</div>
+            <div class="viz-panel-body">
+              <canvas id="editorPreviewCanvas" width="${IMG_W}" height="${IMG_H}" style="background:#000"></canvas>
+            </div>
+            <div class="viz-panel-title" style="margin-top:1px">快捷键</div>
+            <div class="viz-panel-body">
+              <div class="math-block" style="font-size:12px;line-height:2">
+<span class="var">B</span> = 画笔模式 &nbsp;&nbsp; <span class="var">E</span> = 橡皮擦模式
+<span class="var">F</span> = 填充选区 &nbsp;&nbsp; <span class="var">I</span> = 反转 Mask
+<span class="var">[</span> = 缩小笔刷 &nbsp;&nbsp; <span class="var">]</span> = 放大笔刷
+<span class="var">Ctrl+Z</span> = 撤销 &nbsp; <span class="var">Ctrl+Y</span> = 重做
+<span class="var">Ctrl+S</span> = 下载 Mask PNG
+
+<span class="comment">// 编辑直接修改内存中的 mask 数据</span>
+<span class="comment">// 下载导出为 960×640 二值 PNG</span>
+<span class="comment">// 白色=mask区域, 黑色=背景</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 7: Verification -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num output">7</div>
         <div class="step-title">🔎 叠层验证 — Omni 审查</div>
         <div class="step-desc">mimo-omni 视觉模型</div>
       </div>
@@ -1071,6 +1203,9 @@ async function renderPipeline() {
   drawOutput(scene, sceneImg, maskImgs, 'combo');
   // Draw verification
   drawVerification(scene, sceneImg, maskImgs, 0);
+
+  // Init editor
+  initEditor(scene, sceneImg, maskImgs);
 
   // Bind events
   bindEvents(scene, sceneImg, maskImgs);
@@ -1360,6 +1495,421 @@ function drawVerification(scene, img, maskImgs, objIdx) {
   ctx.font = '12px monospace';
   ctx.fillStyle = '#ff5252';
   ctx.fillText(`验证: ${obj.label} — 红色区域 = mask 叠加`, 16, 26);
+}
+
+// ════════════════════════════════════════════════
+// Mask Editor
+// ════════════════════════════════════════════════
+const editor = {
+  tool: 'brush',       // brush | eraser | fill
+  brushSize: 20,
+  isDrawing: false,
+  lastX: -1, lastY: -1,
+  history: [],         // ImageData stack
+  historyIdx: -1,
+  maxHistory: 40,
+  currentMaskId: null,
+  maskData: null,      // Uint8ClampedArray (IMG_W * IMG_H), 0 or 255
+  originalMask: null,  // copy of the loaded mask
+};
+
+function initEditor(scene, img, maskImgs) {
+  const bgCanvas = document.getElementById('editorBgCanvas');
+  const maskCanvas = document.getElementById('editorMaskCanvas');
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (!bgCanvas || !maskCanvas || !overlayCanvas) return;
+
+  const bgCtx = bgCanvas.getContext('2d');
+  const maskCtx = maskCanvas.getContext('2d');
+  const overlayCtx = overlayCanvas.getContext('2d');
+
+  // Draw background
+  bgCtx.clearRect(0, 0, IMG_W, IMG_H);
+  if (img) bgCtx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  // Load first mask
+  const firstObj = scene.objects[0];
+  if (firstObj) loadEditorMask(scene, maskImgs, firstObj.id);
+
+  // Tool buttons
+  const toolBrush = document.getElementById('toolBrush');
+  const toolEraser = document.getElementById('toolEraser');
+  const toolFill = document.getElementById('toolFill');
+  const toolUndo = document.getElementById('toolUndo');
+  const toolRedo = document.getElementById('toolRedo');
+  const toolReset = document.getElementById('toolReset');
+  const toolInvert = document.getElementById('toolInvert');
+  const toolDownload = document.getElementById('toolDownload');
+  const brushSizeSlider = document.getElementById('brushSize');
+  const brushSizeVal = document.getElementById('brushSizeVal');
+  const editorTarget = document.getElementById('editorTarget');
+  const cursor = document.getElementById('editorCursor');
+
+  function setTool(t) {
+    editor.tool = t;
+    [toolBrush, toolEraser, toolFill].forEach(b => b.classList.remove('active'));
+    if (t === 'brush') toolBrush.classList.add('active');
+    else if (t === 'eraser') toolEraser.classList.add('active');
+    else if (t === 'fill') toolFill.classList.add('active');
+  }
+
+  toolBrush.onclick = () => setTool('brush');
+  toolEraser.onclick = () => setTool('eraser');
+  toolFill.onclick = () => setTool('fill');
+  toolUndo.onclick = () => editorUndo();
+  toolRedo.onclick = () => editorRedo();
+  toolReset.onclick = () => editorReset();
+  toolInvert.onclick = () => editorInvert();
+  toolDownload.onclick = () => editorDownload(currentScene);
+
+  brushSizeSlider.oninput = () => {
+    editor.brushSize = parseInt(brushSizeSlider.value);
+    brushSizeVal.textContent = editor.brushSize;
+    updateCursor(overlayCanvas, cursor, -1, -1);
+  };
+
+  editorTarget.onchange = () => {
+    loadEditorMask(scene, maskImgs, editorTarget.value);
+  };
+
+  // Mouse events on overlay canvas
+  overlayCanvas.addEventListener('mousedown', (e) => {
+    const [x, y] = getCanvasCoords(overlayCanvas, e);
+    if (editor.tool === 'fill') {
+      editorPushHistory();
+      editorFill(x, y);
+      renderEditorOverlay(overlayCtx, scene);
+      renderEditorPreview(previewCanvas, scene);
+    } else {
+      editor.isDrawing = true;
+      editorPushHistory();
+      editorDraw(x, y);
+      editor.lastX = x;
+      editor.lastY = y;
+    }
+  });
+
+  overlayCanvas.addEventListener('mousemove', (e) => {
+    const [x, y] = getCanvasCoords(overlayCanvas, e);
+    updateCursor(overlayCanvas, cursor, x, y);
+    if (editor.isDrawing && editor.tool !== 'fill') {
+      editorDrawLine(editor.lastX, editor.lastY, x, y);
+      editor.lastX = x;
+      editor.lastY = y;
+    }
+  });
+
+  overlayCanvas.addEventListener('mouseup', () => {
+    if (editor.isDrawing) {
+      editor.isDrawing = false;
+      renderEditorOverlay(overlayCtx, scene);
+      renderEditorPreview(previewCanvas, scene);
+    }
+  });
+
+  overlayCanvas.addEventListener('mouseleave', () => {
+    editor.isDrawing = false;
+    cursor.style.display = 'none';
+  });
+
+  overlayCanvas.addEventListener('mouseenter', () => {
+    cursor.style.display = 'block';
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'b' || e.key === 'B') setTool('brush');
+    if (e.key === 'e' || e.key === 'E') setTool('eraser');
+    if (e.key === 'f' || e.key === 'F') setTool('fill');
+    if (e.key === 'i' || e.key === 'I') editorInvert();
+    if (e.key === '[') { editor.brushSize = Math.max(2, editor.brushSize - 5); brushSizeSlider.value = editor.brushSize; brushSizeVal.textContent = editor.brushSize; updateCursor(overlayCanvas, cursor, -1, -1); }
+    if (e.key === ']') { editor.brushSize = Math.min(80, editor.brushSize + 5); brushSizeSlider.value = editor.brushSize; brushSizeVal.textContent = editor.brushSize; updateCursor(overlayCanvas, cursor, -1, -1); }
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); editorUndo(); }
+    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); editorRedo(); }
+    if (e.ctrlKey && e.key === 's') { e.preventDefault(); editorDownload(currentScene); }
+  });
+}
+
+function getCanvasCoords(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = IMG_W / rect.width;
+  const scaleY = IMG_H / rect.height;
+  return [
+    Math.round((e.clientX - rect.left) * scaleX),
+    Math.round((e.clientY - rect.top) * scaleY)
+  ];
+}
+
+function updateCursor(canvas, cursorEl, x, y) {
+  if (x < 0 || y < 0) { cursorEl.style.display = 'none'; return; }
+  const rect = canvas.getBoundingClientRect();
+  const sx = rect.width / IMG_W;
+  const sy = rect.height / IMG_H;
+  const size = editor.brushSize * Math.max(sx, sy);
+  cursorEl.style.display = 'block';
+  cursorEl.style.width = size + 'px';
+  cursorEl.style.height = size + 'px';
+  cursorEl.style.left = (x * sx) + 'px';
+  cursorEl.style.top = (y * sy) + 'px';
+}
+
+function loadEditorMask(scene, maskImgs, maskId) {
+  editor.currentMaskId = maskId;
+  const maskImg = maskImgs[maskId];
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = IMG_W;
+  tmpCanvas.height = IMG_H;
+  const tmpCtx = tmpCanvas.getContext('2d');
+
+  if (maskImg) {
+    tmpCtx.drawImage(maskImg, 0, 0, IMG_W, IMG_H);
+    const imgData = tmpCtx.getImageData(0, 0, IMG_W, IMG_H);
+    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H);
+    for (let i = 0; i < IMG_W * IMG_H; i++) {
+      editor.maskData[i] = imgData.data[i * 4 + 3] > 128 ? 255 : 0;
+    }
+  } else {
+    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H); // all black
+  }
+  editor.originalMask = new Uint8ClampedArray(editor.maskData);
+  editor.history = [];
+  editor.historyIdx = -1;
+  editorPushHistory();
+
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorPushHistory() {
+  // Remove any redo states
+  if (editor.historyIdx < editor.history.length - 1) {
+    editor.history = editor.history.slice(0, editor.historyIdx + 1);
+  }
+  editor.history.push(new Uint8ClampedArray(editor.maskData));
+  if (editor.history.length > editor.maxHistory) editor.history.shift();
+  editor.historyIdx = editor.history.length - 1;
+  updateEditorStats();
+}
+
+function editorUndo() {
+  if (editor.historyIdx <= 0) return;
+  editor.historyIdx--;
+  editor.maskData = new Uint8ClampedArray(editor.history[editor.historyIdx]);
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorRedo() {
+  if (editor.historyIdx >= editor.history.length - 1) return;
+  editor.historyIdx++;
+  editor.maskData = new Uint8ClampedArray(editor.history[editor.historyIdx]);
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorReset() {
+  editor.maskData = new Uint8ClampedArray(editor.originalMask);
+  editorPushHistory();
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+}
+
+function editorInvert() {
+  editorPushHistory();
+  for (let i = 0; i < editor.maskData.length; i++) {
+    editor.maskData[i] = editor.maskData[i] > 0 ? 0 : 255;
+  }
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+}
+
+function editorDraw(x, y) {
+  const r = editor.brushSize / 2;
+  const val = editor.tool === 'brush' ? 255 : 0;
+  const r2 = r * r;
+  const x1 = Math.max(0, Math.floor(x - r));
+  const y1 = Math.max(0, Math.floor(y - r));
+  const x2 = Math.min(IMG_W - 1, Math.ceil(x + r));
+  const y2 = Math.min(IMG_H - 1, Math.ceil(y + r));
+  for (let py = y1; py <= y2; py++) {
+    for (let px = x1; px <= x2; px++) {
+      const dx = px - x, dy = py - y;
+      if (dx * dx + dy * dy <= r2) {
+        editor.maskData[py * IMG_W + px] = val;
+      }
+    }
+  }
+  // Live update overlay
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), SCENES[currentScene]);
+}
+
+function editorDrawLine(x0, y0, x1, y1) {
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  const r = editor.brushSize / 2;
+  const val = editor.tool === 'brush' ? 255 : 0;
+  const r2 = r * r;
+  while (true) {
+    // Draw circle at (x0, y0)
+    const px1 = Math.max(0, Math.floor(x0 - r));
+    const py1 = Math.max(0, Math.floor(y0 - r));
+    const px2 = Math.min(IMG_W - 1, Math.ceil(x0 + r));
+    const py2 = Math.min(IMG_H - 1, Math.ceil(y0 + r));
+    for (let py = py1; py <= py2; py++) {
+      for (let px = px1; px <= px2; px++) {
+        const ddx = px - x0, ddy = py - y0;
+        if (ddx * ddx + ddy * ddy <= r2) {
+          editor.maskData[py * IMG_W + px] = val;
+        }
+      }
+    }
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+  // Live update overlay
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), SCENES[currentScene]);
+}
+
+function editorFill(x, y) {
+  const target = editor.maskData[y * IMG_W + x];
+  const fillVal = target > 0 ? 0 : 255;
+  const stack = [[x, y]];
+  const visited = new Uint8Array(IMG_W * IMG_H);
+  while (stack.length > 0) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cx >= IMG_W || cy < 0 || cy >= IMG_H) continue;
+    const idx = cy * IMG_W + cx;
+    if (visited[idx]) continue;
+    if (editor.maskData[idx] !== target) continue;
+    visited[idx] = 1;
+    editor.maskData[idx] = fillVal;
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+}
+
+function renderEditorOverlay(ctx, scene) {
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+  // Draw mask as semi-transparent cyan overlay
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    if (editor.maskData[i] > 128) {
+      imgData.data[i * 4] = 0;       // R
+      imgData.data[i * 4 + 1] = 229; // G
+      imgData.data[i * 4 + 2] = 255; // B
+      imgData.data[i * 4 + 3] = 100; // A
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Draw mask edge
+  ctx.strokeStyle = 'rgba(0,229,255,0.8)';
+  ctx.lineWidth = 1;
+  // Simple edge detection: if pixel is mask but neighbor isn't
+  for (let y = 1; y < IMG_H - 1; y++) {
+    for (let x = 1; x < IMG_W - 1; x++) {
+      const idx = y * IMG_W + x;
+      if (editor.maskData[idx] > 128) {
+        const hasEdge = (
+          editor.maskData[idx - 1] <= 128 ||
+          editor.maskData[idx + 1] <= 128 ||
+          editor.maskData[idx - IMG_W] <= 128 ||
+          editor.maskData[idx + IMG_W] <= 128
+        );
+        if (hasEdge) {
+          ctx.fillStyle = 'rgba(0,229,255,0.7)';
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+
+  // Draw brush preview circle at current position
+  if (editor.tool === 'brush' || editor.tool === 'eraser') {
+    ctx.strokeStyle = editor.tool === 'brush' ? 'rgba(0,229,255,0.5)' : 'rgba(255,82,82,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    // We don't draw the cursor circle here — it's done by the CSS cursor div
+    ctx.setLineDash([]);
+  }
+}
+
+function renderEditorPreview(canvas, scene) {
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    const v = editor.maskData[i];
+    imgData.data[i * 4] = v;
+    imgData.data[i * 4 + 1] = v;
+    imgData.data[i * 4 + 2] = v;
+    imgData.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function updateEditorStats() {
+  let whiteCount = 0;
+  for (let i = 0; i < editor.maskData.length; i++) {
+    if (editor.maskData[i] > 128) whiteCount++;
+  }
+  const area = (whiteCount / (IMG_W * IMG_H) * 100).toFixed(2);
+  const statWhite = document.getElementById('statWhite');
+  const statArea = document.getElementById('statArea');
+  const statHistory = document.getElementById('statHistory');
+  if (statWhite) statWhite.textContent = whiteCount.toLocaleString();
+  if (statArea) statArea.textContent = area + '%';
+  if (statHistory) statHistory.textContent = editor.history.length;
+}
+
+function editorDownload(sceneId) {
+  // Export as 960×640 binary mask PNG
+  const exportW = 960, exportH = 640;
+  const canvas = document.createElement('canvas');
+  canvas.width = exportW;
+  canvas.height = exportH;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    const v = editor.maskData[i];
+    imgData.data[i * 4] = v;
+    imgData.data[i * 4 + 1] = v;
+    imgData.data[i * 4 + 2] = v;
+    imgData.data[i * 4 + 3] = 255;
+  }
+  // Draw at original size then scale
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = IMG_W;
+  tmpCanvas.height = IMG_H;
+  tmpCanvas.getContext('2d').putImageData(imgData, 0, 0);
+  ctx.drawImage(tmpCanvas, 0, 0, exportW, exportH);
+
+  const link = document.createElement('a');
+  link.download = `${sceneId}_${editor.currentMaskId}_mask_edited.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
 }
 
 // ════════════════════════════════════════════════
