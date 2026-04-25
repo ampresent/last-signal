@@ -15,6 +15,12 @@
         "id": "door",
         "label": "门",
         "mask": "masks/apartment_door_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "房间地面",
+        "mask": "masks/apartment_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": [
@@ -47,6 +53,18 @@
         "id": "dumpster",
         "label": "垃圾桶",
         "mask": "masks/street_dumpster_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "街道地面",
+        "mask": "masks/street_walkable_mask.png",
+        "type": "walkable"
+      },
+      {
+        "id": "water",
+        "label": "路面积水",
+        "mask": "masks/street_water_mask.png",
+        "type": "water"
       }
     ],
     "edge_transitions": [
@@ -74,6 +92,12 @@
         "id": "exit",
         "label": "出口",
         "mask": "masks/bar_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "酒吧地面",
+        "mask": "masks/bar_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": []
@@ -94,6 +118,18 @@
         "id": "exit",
         "label": "返回街道",
         "mask": "masks/alley_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "巷子地面",
+        "mask": "masks/alley_walkable_mask.png",
+        "type": "walkable"
+      },
+      {
+        "id": "water",
+        "label": "巷子积水",
+        "mask": "masks/alley_water_mask.png",
+        "type": "water"
       }
     ],
     "edge_transitions": []
@@ -114,6 +150,18 @@
         "id": "exit",
         "label": "返回街道",
         "mask": "masks/tower_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "塔楼广场地面",
+        "mask": "masks/tower_walkable_mask.png",
+        "type": "walkable"
+      },
+      {
+        "id": "water",
+        "label": "广场积水",
+        "mask": "masks/tower_water_mask.png",
+        "type": "water"
       }
     ],
     "edge_transitions": []
@@ -139,12 +187,31 @@
         "id": "lobby_exit",
         "label": "返回大厅",
         "mask": "masks/server_lobby_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "机房地面",
+        "mask": "masks/server_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": []
   },
   "rooftop": {
-    "objects": [],
+    "objects": [
+      {
+        "id": "walkable",
+        "label": "楼顶地面",
+        "mask": "masks/rooftop_walkable_mask.png",
+        "type": "walkable"
+      },
+      {
+        "id": "water",
+        "label": "楼顶积水",
+        "mask": "masks/rooftop_water_mask.png",
+        "type": "water"
+      }
+    ],
     "edge_transitions": [
       {
         "id": "to_server",
@@ -170,6 +237,12 @@
         "id": "chair",
         "label": "办公椅",
         "mask": "masks/office_chair_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "办公室地面",
+        "mask": "masks/office_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": []
@@ -200,6 +273,12 @@
         "id": "exit",
         "label": "出口",
         "mask": "masks/echo_lobby_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "大厅地面",
+        "mask": "masks/echo_lobby_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": [
@@ -232,6 +311,18 @@
         "id": "exit",
         "label": "返回大厅",
         "mask": "masks/maintenance_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "通道地面",
+        "mask": "masks/maintenance_walkable_mask.png",
+        "type": "walkable"
+      },
+      {
+        "id": "water",
+        "label": "通道积水",
+        "mask": "masks/maintenance_water_mask.png",
+        "type": "water"
       }
     ],
     "edge_transitions": []
@@ -257,6 +348,12 @@
         "id": "exit",
         "label": "出口",
         "mask": "masks/data_haven_exit_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "站台地面",
+        "mask": "masks/data_haven_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": []
@@ -277,6 +374,12 @@
         "id": "terminal",
         "label": "控制台",
         "mask": "masks/flashback_terminal_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "实验室地面",
+        "mask": "masks/flashback_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": []
@@ -297,6 +400,12 @@
         "id": "nurse_station",
         "label": "护士站",
         "mask": "masks/hospital_nurse_station_mask.png"
+      },
+      {
+        "id": "walkable",
+        "label": "走廊地面",
+        "mask": "masks/hospital_walkable_mask.png",
+        "type": "walkable"
       }
     ],
     "edge_transitions": [
