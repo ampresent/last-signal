@@ -818,16 +818,19 @@ python3 gen_masks.py --scene bar --skip-verify --no-push
 
 ### 场景配置 (gen_masks.py SCENES)
 
-每个场景定义 `walkable` 和 `water` 字段：
+每个场景定义 `spawn`、`walkable` 和 `water` 字段：
 ```python
 "street": {
+    "spawn": [0.48, 0.64],  # 角色初始位置 (归一化坐标, 从 walkable mask 选取)
     "objects": [...],
     "walkable": {"bbox": [30, 160, 930, 627], "label": "街道地面"},
     "water": {"bbox": [30, 480, 930, 627], "label": "路面积水"},
     "edge_transitions": [...]
 }
 ```
-`water: None` 表示该场景无水面。
+- `spawn`: 归一化坐标 `[x, y]` (0~1), 角色进入场景时的初始位置
+- `water: None` 表示该场景无水面
+- spawn 位置从 walkable mask 中自动采样中心区域, 确保角色站在可行走区域
 
 ### 依赖
 

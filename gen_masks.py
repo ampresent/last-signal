@@ -55,6 +55,7 @@ DECODER_PATH = os.path.join(MODELS_DIR, "mobile_sam.onnx")
 SCENES = {
     "apartment": {
         "image": "bg_apartment.png",
+        "spawn": [0.52, 0.57],  # 归一化坐标, walkable 区域中心
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [500, 380, 900, 627]},
             {"id": "window", "label": "窗户", "bbox": [10, 140, 460, 590]},
@@ -69,6 +70,7 @@ SCENES = {
     },
     "street": {
         "image": "bg_street.png",
+        "spawn": [0.48, 0.64],
         "objects": [
             {"id": "bar_entrance", "label": "The Rust 酒吧", "bbox": [80, 80, 380, 520]},
             {"id": "alley_entrance", "label": "小巷", "bbox": [0, 380, 140, 627]},
@@ -84,6 +86,7 @@ SCENES = {
     },
     "bar": {
         "image": "bg_bar.png",
+        "spawn": [0.51, 0.79],
         "objects": [
             {"id": "bartender", "label": "酒保", "bbox": [420, 280, 700, 530]},
             {"id": "oracle", "label": "神秘客人", "bbox": [200, 300, 420, 560]},
@@ -95,6 +98,7 @@ SCENES = {
     },
     "alley": {
         "image": "bg_alley.png",
+        "spawn": [0.57, 0.77],
         "objects": [
             {"id": "shadow", "label": "影子 (数据贩子)", "bbox": [230, 120, 520, 480]},
             {"id": "graffiti", "label": "涂鸦墙", "bbox": [10, 200, 230, 560]},
@@ -106,6 +110,7 @@ SCENES = {
     },
     "tower": {
         "image": "bg_tower_exterior.png",
+        "spawn": [0.51, 0.63],
         "objects": [
             {"id": "scanner", "label": "正门扫描仪", "bbox": [380, 350, 620, 610]},
             {"id": "guard_booth", "label": "警卫亭", "bbox": [220, 480, 420, 620]},
@@ -117,6 +122,7 @@ SCENES = {
     },
     "server": {
         "image": "bg_server_room.png",
+        "spawn": [0.39, 0.87],
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [235, 200, 720, 520]},
             {"id": "rack", "label": "服务器机柜", "bbox": [0, 0, 240, 627]},
@@ -129,6 +135,7 @@ SCENES = {
     },
     "rooftop": {
         "image": "bg_rooftop.png",
+        "spawn": [0.50, 0.70],
         "objects": [],
         "walkable": {"bbox": [60, 100, 900, 627], "label": "楼顶地面"},
         "water": {"bbox": [60, 480, 900, 627], "label": "楼顶积水"},
@@ -139,6 +146,7 @@ SCENES = {
     },
     "office": {
         "image": "bg_office.png",
+        "spawn": [0.56, 0.76],
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [250, 200, 600, 580]},
             {"id": "safe", "label": "保险柜", "bbox": [750, 280, 938, 620]},
@@ -150,6 +158,7 @@ SCENES = {
     },
     "echo_lobby": {
         "image": "bg_echo_lobby.png",
+        "spawn": [0.35, 0.84],
         "objects": [
             {"id": "reception", "label": "前台接待", "bbox": [300, 280, 660, 500]},
             {"id": "scanner", "label": "安检门", "bbox": [350, 400, 610, 627]},
@@ -166,6 +175,7 @@ SCENES = {
     },
     "maintenance": {
         "image": "bg_maintenance.png",
+        "spawn": [0.48, 0.81],
         "objects": [
             {"id": "blast_door", "label": "防爆门", "bbox": [350, 150, 610, 500]},
             {"id": "pipe_valve", "label": "管道阀门", "bbox": [80, 250, 280, 480]},
@@ -178,6 +188,7 @@ SCENES = {
     },
     "data_haven": {
         "image": "bg_data_haven.png",
+        "spawn": [0.58, 0.78],
         "objects": [
             {"id": "workstation", "label": "工作站", "bbox": [200, 200, 550, 480]},
             {"id": "train_car", "label": "旧列车", "bbox": [700, 280, 938, 580]},
@@ -190,6 +201,7 @@ SCENES = {
     },
     "flashback": {
         "image": "bg_flashback.png",
+        "spawn": [0.55, 0.76],
         "objects": [
             {"id": "pod_3", "label": "3号实验舱", "bbox": [250, 250, 480, 520]},
             {"id": "monitor", "label": "监控屏", "bbox": [550, 150, 780, 400]},
@@ -201,6 +213,7 @@ SCENES = {
     },
     "hospital": {
         "image": "bg_hospital.png",
+        "spawn": [0.47, 0.79],
         "objects": [
             {"id": "room_door", "label": "病房门", "bbox": [100, 200, 350, 520]},
             {"id": "window", "label": "窗户", "bbox": [650, 100, 938, 480]},
@@ -561,6 +574,7 @@ def save_metadata():
                 "type": "water"
             })
         meta[sid] = {
+            "spawn": sd.get("spawn", [0.5, 0.75]),
             "objects": objects,
             "edge_transitions": [
                 {"id": e["id"], "label": e["label"],
