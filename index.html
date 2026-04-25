@@ -1891,27 +1891,33 @@ const CharSystem = {
   // ── 加载深度图 ──
   async _loadDepthMap(sceneId) {
     this.depthData = null;
-    const path = `assets/${sceneId}_depth.webp`;
+    const depthNames = [
+      `assets/${sceneId}_depth.webp`,
+      `assets/depth_${sceneId}.png`,
+    ];
 
-    DebugLogger._startLoad(path, 'depth-map');
-    try {
-      const img = new Image();
-      const loaded = await new Promise(resolve => {
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = path;
-      });
-      if (loaded) {
-        const c = document.createElement('canvas');
-        c.width = 960; c.height = 640;
-        const cx = c.getContext('2d', { willReadFrequently: true });
-        cx.drawImage(img, 0, 0, 960, 640);
-        this.depthData = cx.getImageData(0, 0, 960, 640);
-        DebugLogger._endLoad(path, true, { size: '960x640' });
-      } else {
-        DebugLogger._endLoad(path, false, { reason: 'not found' });
-      }
-      } catch (e) { DebugLogger._endLoad(path, false, { reason: e.message }); }
+    for (const path of depthNames) {
+      DebugLogger._startLoad(path, 'depth-map');
+      try {
+        const img = new Image();
+        const loaded = await new Promise(resolve => {
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = path;
+        });
+        if (loaded) {
+          const c = document.createElement('canvas');
+          c.width = 960; c.height = 640;
+          const cx = c.getContext('2d', { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, 960, 640);
+          this.depthData = cx.getImageData(0, 0, 960, 640);
+          DebugLogger._endLoad(path, true, { size: '960x640' });
+          break;
+        } else {
+          DebugLogger._endLoad(path, false, { reason: 'not found (fallback)' });
+        }
+      } catch (e) { DebugLogger._endLoad(path, false, { reason: e.message }); /* continue */ }
+    }
   },
 
   // ── 检查位置是否可行走 ──
