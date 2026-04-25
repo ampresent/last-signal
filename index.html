@@ -2302,7 +2302,7 @@ const Game = {
     ];
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office', 'underground', 'core'];
+    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
 
     let count = 0;
 
@@ -2320,9 +2320,6 @@ const Game = {
     count += 3 * 4 * walkFrameCount;
 
     // 场景 mask
-    count += sceneIds.length;
-
-    // 水面 mask
     count += sceneIds.length;
 
     // 对象 mask (动态，先估算一个上限)
@@ -2388,7 +2385,7 @@ const Game = {
     for (const char of ['kai', 'oracle', 'joker']) {
       for (const expr of EXPRESSIONS) {
         const key = `portrait_${char}_${expr}`;
-        promises.push(loadImg(`assets/expressions/${key}.png`).then(img => { this.images[key] = img; }));
+        promises.push(loadImg(`assets/expressions/${char}_${expr}.png`).then(img => { this.images[key] = img; }));
       }
     }
 
@@ -2431,7 +2428,7 @@ const Game = {
   },
 
   async loadMasks() {
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office', 'underground', 'core'];
+    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
 
     const loadMask = (url) => LoadingTracker.loadMask(url);
 
@@ -2439,15 +2436,9 @@ const Game = {
       loadMask(`assets/masks/${id}_mask.png`).then(m => { this.masks[id] = m; })
     );
 
-    // 加载水面 mask
-    const waterPromises = sceneIds.map(id =>
-      loadMask(`assets/masks/${id}_water_mask.png`).then(m => {
-        if (m) this.waterMasks[id] = m;
-      })
-    );
-
     const objMaskList = [];
     for (const [sceneId, scene] of Object.entries(SCENES)) {
+      if (!sceneIds.includes(sceneId)) continue; // 跳过没有 mask 的场景
       if (!scene.hotspots) continue;
       for (const hs of scene.hotspots) {
         if (hs.maskId) objMaskList.push({ sceneId, objId: hs.maskId });
@@ -2459,7 +2450,7 @@ const Game = {
       })
     );
 
-    await Promise.all([...comboPromises, ...waterPromises, ...objPromises]);
+    await Promise.all([...comboPromises, ...objPromises]);
 
     // 预计算边缘像素、标签位置、遮罩层
     for (const id of sceneIds) {
