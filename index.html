@@ -2347,28 +2347,28 @@ const Game = {
     LoadingTracker.done();
   },
 
-  // 统计需要加载的素材总数 (从 SCENES 动态推导)
+  // 统计需要加载的素材总数 — 只统计第一个场景 + 主角（快速启动）
   _countAssets() {
-    const sceneIds = Object.keys(SCENES);
+    const firstSceneId = Object.keys(SCENES)[0];
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
 
     let count = 0;
 
-    // 每个场景: 背景 + walkable mask + scene mask
-    count += sceneIds.length * 3;
+    // 第一个场景: 背景 + walkable mask + scene mask
+    count += 3;
 
     // 头像 + 表情
     count += portraits.length + 3 * EXPRESSIONS.length;
 
-    // 行走精灵图
-    const walkFrameCount = CharSystem.WALK_FRAMES || 8;
-    count += 3 * 4 * walkFrameCount;
+    // 主角行走精灵 (kai, 4方向)
+    const walkFrameCount = CharSystem.WALK_FRAMES || 6;
+    count += 4 * walkFrameCount;
 
-    // 对象 mask
-    for (const scene of Object.values(SCENES)) {
-      if (!scene.hotspots) continue;
-      for (const hs of scene.hotspots) {
+    // 第一个场景的对象 mask
+    const firstScene = SCENES[firstSceneId];
+    if (firstScene.hotspots) {
+      for (const hs of firstScene.hotspots) {
         if (hs.maskId) count++;
       }
     }
@@ -2398,15 +2398,19 @@ const Game = {
     }
   },
 
-  // ── 按场景顺序异步加载全部资源 ──
-  // 场景顺序从 SCENES 对象的 key 顺序推导，先加载排在前面的场景
+  // ── 首场景快速加载 + 后台异步加载剩余资源 ──
   async loadAssets() {
     const loadImg = (src) => LoadingTracker.loadImage(src);
     const loadMask = (url) => LoadingTracker.loadMask(url);
     const sceneIds = Object.keys(SCENES);
+    const firstSceneId = sceneIds[0];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
 
-    // ── 全局资源 (头像、表情) 与第一个场景并行加载 ──
+    // ══════════════════════════════════════════════════
+    // Phase 1: 阻塞加载 — 只加载首场景 + 全局资源 + 主角
+    // ══════════════════════════════════════════════════
+
+    // 全局资源 (头像、表情) 与首场景并行
     const globalDone = (async () => {
       for (const name of ['portrait_kai', 'portrait_oracle', 'portrait_joker']) {
         LoadingTracker.setCurrent(`portrait ${name}`);
@@ -2422,30 +2426,102 @@ const Game = {
       LoadingTracker.setCurrent('portraits done');
     })();
 
-    // ── 按场景顺序加载: 背景 → mask → 角色精灵 ──
-    const loadedSprites = new Set(); // 避免重复加载同一角色的精灵
+    // 首场景: 背景 → mask → 主角精灵
+    const scene = SCENES[firstSceneId];
+    const bgName = scene.background;
 
-    for (const sceneId of sceneIds) {
+    // 背景
+    if (bgName && !this.images[bgName]) {
+      LoadingTracker.setCurrent(`${firstSceneId} · background`);
+      const img = await loadImg(`assets/${bgName}.webp`);
+      this.images[bgName] = img;
+      this.bgFrames[bgName] = img ? [img] : [];
+    }
+
+    // Walkable mask
+    LoadingTracker.setCurrent(`${firstSceneId} · walkable mask`);
+    await loadMask(`assets/masks/${firstSceneId}_walkable_mask.webp`).then(m => {
+      if (m) this.masks[`${firstSceneId}_walkable`] = m;
+    });
+
+    // Scene mask
+    LoadingTracker.setCurrent(`${firstSceneId} · scene mask`);
+    await loadMask(`assets/masks/${firstSceneId}_mask.webp`).then(m => {
+      this.masks[firstSceneId] = m;
+    });
+
+    // Object masks
+    if (scene.hotspots) {
+      for (const hs of scene.hotspots) {
+        if (hs.maskId) {
+          LoadingTracker.setCurrent(`${firstSceneId} · mask ${hs.maskId}`);
+          await loadMask(`assets/masks/${firstSceneId}_${hs.maskId}_mask.webp`).then(m => {
+            if (m) this.objMasks[`${firstSceneId}_${hs.maskId}`] = m;
+          });
+        }
+      }
+    }
+
+    // 主角行走精灵 (kai)
+    const dirs = ['down', 'left', 'right', 'up'];
+    const walkFrameCount = CharSystem.WALK_FRAMES || 6;
+    for (const dir of dirs) {
+      for (let fi = 0; fi < walkFrameCount; fi++) {
+        const key = `kai_${dir}_f${fi}`;
+        LoadingTracker.setCurrent(`sprite ${key}`);
+        const img = await loadImg(`assets/sprites/${key}.webp`);
+        if (img) {
+          if (!CharSystem.sprites['kai']) CharSystem.sprites['kai'] = {};
+          CharSystem.sprites['kai'][`${dir}_f${fi}`] = img;
+        }
+      }
+    }
+
+    // 等全局资源完成
+    await globalDone;
+
+    // 预计算首场景 mask
+    this._precomputeMasks([firstSceneId]);
+
+    // 标记首场景加载完成
+    this._loadedScenes = new Set([firstSceneId]);
+    this._allAssetsLoaded = false;
+
+    // ══════════════════════════════════════════════════
+    // Phase 2: 后台异步加载 — 不阻塞游戏启动
+    // ══════════════════════════════════════════════════
+    this._backgroundLoadAssets(sceneIds.slice(1));
+  },
+
+  // ── 后台加载剩余场景 ──
+  async _backgroundLoadAssets(remainingSceneIds) {
+    const loadImg = (src) => {
+      const key = src.replace('assets/', '').replace(/\.\w+$/, '');
+      if (this.images[key]) return Promise.resolve(this.images[key]);
+      return LoadingTracker.loadImage(src);
+    };
+    const loadMask = (url) => LoadingTracker.loadMask(url);
+
+    for (const sceneId of remainingSceneIds) {
       const scene = SCENES[sceneId];
       const bgName = scene.background;
 
       // 背景
       if (bgName && !this.images[bgName]) {
-        LoadingTracker.setCurrent(`${sceneId} · background`);
+        LoadingTracker.setCurrent(`[bg] ${sceneId} · background`);
         const img = await loadImg(`assets/${bgName}.webp`);
         this.images[bgName] = img;
         this.bgFrames[bgName] = img ? [img] : [];
       }
 
       // Walkable mask
-      LoadingTracker.setCurrent(`${sceneId} · walkable mask`);
-      const walkMaskPath = `assets/masks/${sceneId}_walkable_mask.webp`;
-      await loadMask(walkMaskPath).then(m => {
+      LoadingTracker.setCurrent(`[bg] ${sceneId} · walkable mask`);
+      await loadMask(`assets/masks/${sceneId}_walkable_mask.webp`).then(m => {
         if (m) this.masks[`${sceneId}_walkable`] = m;
       });
 
       // Scene mask
-      LoadingTracker.setCurrent(`${sceneId} · scene mask`);
+      LoadingTracker.setCurrent(`[bg] ${sceneId} · scene mask`);
       await loadMask(`assets/masks/${sceneId}_mask.webp`).then(m => {
         this.masks[sceneId] = m;
       });
@@ -2454,7 +2530,7 @@ const Game = {
       if (scene.hotspots) {
         for (const hs of scene.hotspots) {
           if (hs.maskId) {
-            LoadingTracker.setCurrent(`${sceneId} · mask ${hs.maskId}`);
+            LoadingTracker.setCurrent(`[bg] ${sceneId} · mask ${hs.maskId}`);
             await loadMask(`assets/masks/${sceneId}_${hs.maskId}_mask.webp`).then(m => {
               if (m) this.objMasks[`${sceneId}_${hs.maskId}`] = m;
             });
@@ -2462,32 +2538,18 @@ const Game = {
         }
       }
 
-      // 本场景角色的行走精灵
-      if (scene.characters) {
-        const dirs = ['down', 'left', 'right', 'up'];
-        const walkFrameCount = CharSystem.WALK_FRAMES || 8;
-        for (const char of scene.characters) {
-          if (loadedSprites.has(char.id)) continue;
-          loadedSprites.add(char.id);
-          for (const dir of dirs) {
-            for (let fi = 0; fi < walkFrameCount; fi++) {
-              const key = `${char.id}_${dir}_f${fi}`;
-              LoadingTracker.setCurrent(`${sceneId} · sprite ${key}`);
-              const img = await loadImg(`assets/sprites/${key}.webp`);
-              if (img) {
-                if (!CharSystem.sprites[char.id]) CharSystem.sprites[char.id] = {};
-                CharSystem.sprites[char.id][`${dir}_f${fi}`] = img;
-              }
-            }
-          }
-        }
-      }
+      // 预计算 mask
+      this._precomputeMasks([sceneId]);
+      this._loadedScenes.add(sceneId);
+      console.log(`✅ Background loaded: ${sceneId}`);
     }
 
-    // 等全局资源也完成
-    await globalDone;
+    this._allAssetsLoaded = true;
+    console.log('✅ All scene assets loaded in background');
+  },
 
-    // ── 预计算 mask 边缘、标签、遮罩层 ──
+  // ── 预计算 mask 边缘、标签、遮罩层 ──
+  _precomputeMasks(sceneIds) {
     for (const id of sceneIds) {
       const mask = this.masks[id];
       if (!mask) continue;
@@ -2539,6 +2601,8 @@ const Game = {
   _edgeCache: {},
   _labelCache: {},
   _overlayCache: {},
+  _loadedScenes: new Set(),
+  _allAssetsLoaded: false,
 
   isMaskHit(x, y) {
     const mask = this.masks[this.currentScene];
@@ -2559,6 +2623,18 @@ const Game = {
   async goScene(sceneId) {
     const fade = document.getElementById('fade-overlay');
     fade.classList.add('active');
+
+    // 如果目标场景还没加载完，等待后台加载
+    if (!this._loadedScenes.has(sceneId)) {
+      console.log(`⏳ Waiting for ${sceneId} assets to load...`);
+      await new Promise(resolve => {
+        const check = () => {
+          if (this._loadedScenes.has(sceneId)) resolve();
+          else setTimeout(check, 100);
+        };
+        check();
+      });
+    }
 
     await this.sleep(600);
     this.currentScene = sceneId;
