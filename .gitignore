@@ -1,6 +1,6 @@
 __pycache__/
 
-# 模型权重（大文件，从 R2 下载）
+# 模型权重（大文件，从 R2/HF 下载）
 models/
 
 # 凭据文件（禁止入库）
@@ -8,10 +8,9 @@ models/
 .hf-token
 .s3cfg
 .git-credentials-file
+.git-credential
 
 # 预览 GIF
 preview_*.gif
-.github-token
-.hf-token
-.s3cfg
-.git-credentials-file
+# 验证临时文件
+_verify_preview.png

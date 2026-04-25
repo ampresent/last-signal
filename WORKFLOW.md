@@ -134,7 +134,7 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 
 python3 gen_assets.py              # 1. 基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
-python3 gen_masks.py               # 3. 生成 mask（可选，已有则跳过）
+python3 gen_masks.py               # 3. MobileSAM + Omni 生成 mask (含叠层验证)
 ```
 
 ### 场景动画剧本
@@ -155,7 +155,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 python3 gen_assets.py                      # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py              # 2. 所有场景 Depth Lighting
 python3 gen_depth_lighting.py --scene apartment  # 或只渲染单个场景
-python3 gen_masks.py                       # 3. 生成 mask（可选）
+python3 gen_masks.py                       # 3. MobileSAM + Omni mask 生成 (含验证)
 ```
 
 Canvas 粒子系统，在 AI 帧之上叠加实时效果。60fps，零额外文件体积。
@@ -731,7 +731,15 @@ Game.sfx("click"|"pickup"|"door"|"error"|"success");
 
 ## Mask 交互系统
 
-**统一 mask 管线**：所有 mask（交互、可行走、水面）都通过同一套视觉模型 + GrabCut 流程生成。
+**统一 mask 管线**：MobileSAM (ONNX) 精确分割 + Omni 视觉模型引导 + 叠层验证。
+
+### 技术栈
+
+| 组件 | 用途 | 说明 |
+|------|------|------|
+| MobileSAM (ONNX) | 精确分割 | TinyViT 轻量模型 (~2MB), ONNX Runtime 推理, 无需 GPU |
+| mimo-omni | 物体识别 + mask 验证 | 多模态视觉模型, 识别 bbox + 审查 mask 质量 |
+| GrabCut (降级) | 备选方案 | MobileSAM 不可用时自动降级 |
 
 ### Mask 类型
 
@@ -744,19 +752,76 @@ Game.sfx("click"|"pickup"|"door"|"error"|"success");
 
 白色 (>128) = 有效区域，黑色 = 背景。
 
-### 生成流程
+### 生成流程 (三步流水线)
 
-`gen_masks.py` 统一处理所有 mask 类型：
+```
+bg_{scene}.png (场景原图)
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 1: Omni 物体识别               │
+  │   mimo-omni 分析场景图               │
+  │   → 识别可交互物体 + 边界框 bbox     │
+  │   (已有 bbox 定义时可跳过)           │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 2: MobileSAM 精确分割           │
+  │   TinyViT encoder → image embedding │
+  │   bbox prompt → mask decoder         │
+  │   → 精确二值 mask (非矩形)           │
+  │   + 形态学清理 (close/open)          │
+  │   + 质量检查 (面积比 0.05%~35%)      │
+  │   降级: GrabCut (MobileSAM 不可用)   │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 3: 叠层验证 (Layer Verification)│
+  │   将 mask 半透明叠加到原图           │
+  │   Omni 审查:                        │
+  │   ✓ mask 是否准确覆盖目标物体?       │
+  │   ✓ mask 是否包含过多背景?           │
+  │   ✓ mask 是否遗漏物体重要部分?       │
+  │   → PASS / FAIL + 原因              │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  输出: assets/masks/{scene}_{obj}_mask.png
+        assets/masks/{scene}_mask.png (组合)
+        assets/masks/{scene}_walkable_mask.png
+        assets/masks/{scene}_water_mask.png
+```
 
-1. 视觉模型识别物体边界框 `[x1, y1, x2, y2]`
-2. GrabCut 精细分割每个物体 → `{scene}_{obj}_mask.png`
-3. `walkable` 区域用 GrabCut 分割，自动减去物体 mask（障碍物）→ `{scene}_walkable_mask.png`
-4. `water` 区域用 GrabCut 分割 → `{scene}_water_mask.png`
-5. 组合所有物体 mask + 边缘过渡 → `{scene}_mask.png`
+### 运行
 
-### 场景配置（gen_masks.py SCENES）
+```bash
+# 完整流程 (所有场景, Omni 识别 + MobileSAM + 验证 + push)
+python3 gen_masks.py
 
-每个场景新增 `walkable` 和 `water` 字段：
+# 跳过 Omni 识别 (直接用 SCENES 中预定义的 bbox)
+python3 gen_masks.py --skip-omni-detect
+
+# 跳过叠层验证
+python3 gen_masks.py --skip-verify
+
+# 不自动 push
+python3 gen_masks.py --no-push
+
+# 只用 GrabCut (不下载 MobileSAM)
+python3 gen_masks.py --grabcut-only
+
+# 单个场景
+python3 gen_masks.py --scene apartment
+
+# 组合: 单场景 + 跳过验证 + 不 push
+python3 gen_masks.py --scene bar --skip-verify --no-push
+```
+
+### 场景配置 (gen_masks.py SCENES)
+
+每个场景定义 `walkable` 和 `water` 字段：
 ```python
 "street": {
     "objects": [...],
@@ -766,6 +831,16 @@ Game.sfx("click"|"pickup"|"door"|"error"|"success");
 }
 ```
 `water: None` 表示该场景无水面。
+
+### 依赖
+
+| 依赖 | 大小 | 用途 |
+|------|------|------|
+| `onnxruntime` | ~15MB | MobileSAM ONNX 推理 |
+| `opencv-python-headless` | ~30MB | 图像处理 + GrabCut 降级 |
+| `pillow` | ~3MB | 图片读写 |
+| `numpy` | ~30MB | 数值计算 |
+| `mobile_sam_vit_t.onnx` | ~2MB | MobileSAM TinyViT 模型权重 |
 
 ### 运行时使用
 
