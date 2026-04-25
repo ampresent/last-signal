@@ -23,7 +23,7 @@
             0.7490196078431373
           ],
           "radius": 95,
-          "intensity": 3.845,
+          "intensity": 4.02,
           "phase": {
             "type": "burst",
             "speed": 2.85,
@@ -53,8 +53,8 @@
             0.4,
             1
           ],
-          "radius": 790,
-          "intensity": 2.365,
+          "radius": 625,
+          "intensity": 1.475,
           "phase": {
             "type": "lightning",
             "speed": 1,
@@ -84,81 +84,31 @@
           "id": "neon_magenta",
           "name": "品红霓虹",
           "type": "point",
-          "x": 0.3,
-          "y": 0.25,
+          "x": 0.15,
+          "y": 0.605,
           "color": [
-            1,
-            0.1,
-            0.6
-          ],
-          "radius": 200,
-          "intensity": 0.4,
-          "phase": {
-            "type": "pulse",
-            "speed": 1,
-            "min": 0.2,
-            "max": 0.5
-          }
-        },
-        {
-          "id": "neon_cyan",
-          "name": "青色霓虹",
-          "type": "point",
-          "x": 0.7,
-          "y": 0.3,
-          "color": [
-            0.1,
-            0.9,
+            0.8509803921568627,
+            0.9019607843137255,
             1
           ],
-          "radius": 180,
-          "intensity": 0.35,
+          "radius": 520,
+          "intensity": 1.4,
           "phase": {
-            "type": "pulse",
-            "speed": 1.2,
-            "min": 0.15,
-            "max": 0.45
-          }
-        },
-        {
-          "id": "street_car",
-          "name": "街道车灯",
-          "type": "directional",
+            "type": "burst",
+            "speed": 4.65,
+            "min": 0.38762286270293544,
+            "max": 0.9565272931635335,
+            "offset": 0
+          },
+          "depth": 0.29,
           "dir": [
-            1,
-            0.2
+            0,
+            0
           ],
-          "color": [
-            1,
-            0.95,
-            0.8
-          ],
-          "intensity": 0.15,
-          "phase": {
-            "type": "car_sweep",
-            "speed": 0.8,
-            "min": 0,
-            "max": 0.2
-          }
-        },
-        {
-          "id": "puddle_glow",
-          "name": "积水反射",
-          "type": "point",
-          "x": 0.5,
-          "y": 0.85,
-          "color": [
-            0.3,
-            0.5,
-            0.8
-          ],
-          "radius": 150,
-          "intensity": 0.1,
-          "phase": {
-            "type": "sine",
-            "speed": 0.5,
-            "min": 0.05,
-            "max": 0.15
+          "noise": {
+            "intensity": 0.62,
+            "speed": 0.3,
+            "phase": 0.8
           }
         }
       ]
