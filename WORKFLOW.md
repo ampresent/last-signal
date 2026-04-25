@@ -960,6 +960,17 @@ decoder 的 `image_embeddings` 输入仍是 `[1, 256, 64, 64]` (4D)。
 - `mobile_sam.onnx` (16MB) — mask 解码器
 存放于 R2 `s3://mystore/deps/`, `setup.sh` 自动下载。
 
+### 9. Depth-Anything 深度图方向与游戏坐标系相反
+
+**现象**：角色近处小、远处大 (近小远大)，缩放方向反了
+**原因**：Depth-Anything 输出 white=near, black=far (白色=近处)。但游戏代码 `getDepth()` 直接返回 `pixel/255`，把 white 当成 far (1.0)，导致 `depthScale = 0.6 + (1.0-depth)*0.8` 计算出反向结果。
+**解决**：`getDepth()` 返回 `1.0 - (pixel/255)` 取反，使 0=near, 1=far 与游戏坐标系一致。
+```javascript
+// ✗ 错误: return this.depthData.data[idx] / 255;
+// ✓ 正确: return 1.0 - (this.depthData.data[idx] / 255);
+```
+> ⚠️ 注意：`gen_depth_lighting.py` 的光照渲染使用 `depth_factor = 1.0 - depth_float`，本身已处理了反转，不受影响。只有游戏引擎 `index.html` 的 `getDepth()` 需要修复。
+
 ---
 
 ## 部署到 GitHub Pages
