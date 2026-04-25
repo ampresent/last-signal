@@ -2180,17 +2180,12 @@ const Game = {
     ];
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
-    const NUM_FRAMES = 24;
     const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office', 'underground', 'core'];
 
     let count = 0;
 
-    // 背景帧
-    for (const bgName of sceneBgs) {
-      count += NUM_FRAMES;
-      // 降级尝试的单帧
-      count += 1;
-    }
+    // 背景单帧 (每个场景只加载 1 帧)
+    count += sceneBgs.length;
 
     // 头像
     count += portraits.length;
@@ -2247,29 +2242,17 @@ const Game = {
     ];
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
-    const NUM_FRAMES = 24;
 
     const loadImg = (src) => LoadingTracker.loadImage(src);
 
     const promises = [];
 
+    // 只加载单帧静态背景（不再加载 24 帧动画序列）
     for (const bgName of sceneBgs) {
-      const framePromises = [];
-      for (let fi = 0; fi < NUM_FRAMES; fi++) {
-        framePromises.push(loadImg(`assets/${bgName}_f${fi}.png`));
-      }
       promises.push(
-        Promise.all(framePromises).then(frames => {
-          const validFrames = frames.filter(f => f !== null);
-          if (validFrames.length > 0) {
-            this.bgFrames[bgName] = validFrames;
-            this.images[bgName] = validFrames[0];
-          } else {
-            return loadImg(`assets/${bgName}.png`).then(img => {
-              this.images[bgName] = img;
-              this.bgFrames[bgName] = img ? [img] : [];
-            });
-          }
+        loadImg(`assets/${bgName}.png`).then(img => {
+          this.images[bgName] = img;
+          this.bgFrames[bgName] = img ? [img] : [];
         })
       );
     }
