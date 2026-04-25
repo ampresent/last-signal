@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MobileSAM Pipeline Visualizer — LAST SIGNAL</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a28;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text2: #8888a0;
+    --accent: #00e5ff;
+    --accent2: #7c4dff;
+    --green: #00e676;
+    --red: #ff5252;
+    --orange: #ffab40;
+    --yellow: #ffd740;
+    --pink: #ff4081;
+    --cyan: #00e5ff;
+    --radius: 12px;
+    --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 0 24px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--cyan), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .header .sub {
+    color: var(--text2);
+    font-size: 14px;
+    margin-top: 6px;
+    font-family: var(--mono);
+  }
+  /* ── Scene Tabs ── */
+  .scene-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .scene-tab {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--mono);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .scene-tab:hover { background: var(--surface2); color: var(--text); }
+  .scene-tab.active {
+    background: rgba(0,229,255,0.1);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  /* ── Layout ── */
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .pipeline { display: flex; flex-direction: column; gap: 32px; }
+  /* ── Step Card ── */
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+  .step-num.input { background: rgba(0,229,255,0.15); color: var(--cyan); }
+  .step-num.process { background: rgba(124,77,255,0.15); color: var(--accent2); }
+  .step-num.output { background: rgba(0,230,118,0.15); color: var(--green); }
+  .step-title { font-size: 16px; font-weight: 600; }
+  .step-desc { font-size: 13px; color: var(--text2); margin-left: auto; font-family: var(--mono); }
+  .step-body { padding: 20px; }
+  /* ── Visual Grid ── */
+  .viz-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .viz-grid { grid-template-columns: 1fr; } }
+  .viz-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .viz-panel-title {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .viz-panel-body { padding: 12px; position: relative; }
+  .viz-panel-body canvas, .viz-panel-body img {
+    width: 100%;
+    border-radius: 4px;
+    display: block;
+  }
+  /* ── Canvas overlays ── */
+  .canvas-wrap { position: relative; }
+  .canvas-wrap canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  /* ── Data Table ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--surface2);
+    color: var(--text2);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-cyan { background: rgba(0,229,255,0.15); color: var(--cyan); }
+  .badge-purple { background: rgba(124,77,255,0.15); color: var(--accent2); }
+  .badge-green { background: rgba(0,230,118,0.15); color: var(--green); }
+  .badge-orange { background: rgba(255,171,64,0.15); color: var(--orange); }
+  .badge-red { background: rgba(255,82,82,0.15); color: var(--red); }
+  /* ── Math Block ── */
+  .math-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text2);
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  .math-block .op { color: var(--cyan); font-weight: 600; }
+  .math-block .val { color: var(--green); }
+  .math-block .var { color: var(--orange); }
+  .math-block .comment { color: #555; }
+  /* ── Pipeline Arrow ── */
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+    color: var(--text2);
+    font-size: 20px;
+  }
+  /* ── BBox Canvas ── */
+  .bbox-canvas { cursor: crosshair; }
+  .bbox-label {
+    position: absolute;
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    pointer-events: none;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  /* ── Slider ── */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+  .slider-row label {
+    font-size: 12px;
+    color: var(--text2);
+    min-width: 80px;
+    font-family: var(--mono);
+  }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--cyan); }
+  .slider-row .val {
+    font-size: 12px;
+    color: var(--cyan);
+    font-family: var(--mono);
+    min-width: 40px;
+    text-align: right;
+  }
+  /* ── Mask Overlay Controls ── */
+  .overlay-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+  }
+  .overlay-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: all 0.15s;
+  }
+  .overlay-btn:hover { border-color: var(--cyan); color: var(--text); }
+  .overlay-btn.active { background: rgba(0,229,255,0.1); border-color: var(--cyan); color: var(--cyan); }
+  /* ── Flow Diagram ── */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 16px 0;
+    overflow-x: auto;
+    justify-content: center;
+  }
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+  .flow-node .icon { font-size: 24px; margin-bottom: 4px; }
+  .flow-node .name { font-size: 12px; font-weight: 600; }
+  .flow-node .detail { font-size: 10px; color: var(--text2); font-family: var(--mono); margin-top: 2px; }
+  .flow-node.active { border-color: var(--cyan); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
+  .flow-arrow {
+    font-size: 18px;
+    color: var(--text2);
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  /* ── Stats ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .stat-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-card .stat-val {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+  .stat-card .stat-label {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  /* ── Tooltip ── */
+  .tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.9);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 50;
+    max-width: 300px;
+    font-family: var(--mono);
+    display: none;
+  }
+  /* ── Mask Editor ── */
+  .editor-toolbar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    align-items: center;
+  }
+  .editor-tool {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .editor-tool:hover { border-color: var(--cyan); color: var(--text); }
+  .editor-tool.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
+  .editor-tool.danger:hover { border-color: var(--red); color: var(--red); }
+  .editor-tool.success:hover { border-color: var(--green); color: var(--green); }
+  .editor-sep {
+    width: 1px; height: 24px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+  .editor-canvas-wrap {
+    position: relative;
+    cursor: none;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .editor-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+  }
+  #editorCursor {
+    position: absolute;
+    border: 2px solid var(--cyan);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: difference;
+    display: none;
+  }
+  .editor-stats {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text2);
+  }
+  .editor-stats span { color: var(--cyan); }
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .header h1 { font-size: 20px; }
+    .container { padding: 12px; }
+    .step-body { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎭 MobileSAM Pipeline Visualizer</h1>
+  <div class="sub">LAST SIGNAL — Mask 生成全流程可视化</div>
+</div>
+
+<div class="scene-tabs" id="sceneTabs"></div>
+
+<div class="container">
+  <div class="pipeline" id="pipeline"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ════════════════════════════════════════════════
+// Scene Data (from gen_masks.py SCENES)
+// ════════════════════════════════════════════════
+const SCENES = {
+  apartment: {
+    image: "assets/bg_apartment_f0.webp",
+    depth: "assets/apartment_depth.webp",
+    label: "公寓",
+    spawn: [0.52, 0.57],
+    objects: [
+      { id: "terminal", label: "终端", bbox: [500, 380, 900, 627], mask: "assets/masks/apartment_terminal_mask.webp" },
+      { id: "window", label: "窗户", bbox: [10, 140, 460, 590], mask: "assets/masks/apartment_window_mask.webp" },
+      { id: "door", label: "门", bbox: [760, 140, 938, 600], mask: "assets/masks/apartment_door_mask.webp" },
+    ],
+    walkable: { bbox: [60, 180, 900, 627], label: "房间地面", mask: "assets/masks/apartment_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/apartment_mask.webp",
+  },
+  street: {
+    image: "assets/bg_street_f0.webp",
+    depth: "assets/street_depth.webp",
+    label: "街道",
+    spawn: [0.48, 0.64],
+    objects: [
+      { id: "bar_entrance", label: "The Rust 酒吧", bbox: [80, 80, 380, 520], mask: "assets/masks/street_bar_entrance_mask.webp" },
+      { id: "alley_entrance", label: "小巷", bbox: [0, 380, 140, 627], mask: "assets/masks/street_alley_entrance_mask.webp" },
+      { id: "road_right", label: "通往旧工业带", bbox: [520, 80, 938, 520], mask: "assets/masks/street_road_right_mask.webp" },
+      { id: "dumpster", label: "垃圾桶", bbox: [350, 440, 540, 600], mask: "assets/masks/street_dumpster_mask.webp" },
+    ],
+    walkable: { bbox: [30, 160, 930, 627], label: "街道地面", mask: "assets/masks/street_walkable_mask.webp" },
+    water: { bbox: [30, 480, 930, 627], label: "路面积水" },
+    comboMask: "assets/masks/street_mask.webp",
+  },
+  bar: {
+    image: "assets/bg_bar_f0.webp",
+    depth: "assets/bar_depth.webp",
+    label: "酒吧",
+    spawn: [0.51, 0.79],
+    objects: [
+      { id: "bartender", label: "酒保", bbox: [420, 280, 700, 530], mask: "assets/masks/bar_bartender_mask.webp" },
+      { id: "oracle", label: "神秘客人", bbox: [200, 300, 420, 560], mask: "assets/masks/bar_oracle_mask.webp" },
+      { id: "exit", label: "出口", bbox: [760, 200, 938, 600], mask: "assets/masks/bar_exit_mask.webp" },
+    ],
+    walkable: { bbox: [60, 180, 900, 627], label: "酒吧地面", mask: "assets/masks/bar_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/bar_mask.webp",
+  },
+  alley: {
+    image: "assets/bg_alley_f0.webp",
+    depth: "assets/alley_depth.webp",
+    label: "小巷",
+    spawn: [0.57, 0.77],
+    objects: [
+      { id: "shadow", label: "影子 (数据贩子)", bbox: [230, 120, 520, 480], mask: "assets/masks/alley_shadow_mask.webp" },
+      { id: "graffiti", label: "涂鸦墙", bbox: [10, 200, 230, 560], mask: "assets/masks/alley_graffiti_mask.webp" },
+      { id: "exit", label: "返回街道", bbox: [740, 300, 938, 627], mask: "assets/masks/alley_exit_mask.webp" },
+    ],
+    walkable: { bbox: [60, 120, 900, 627], label: "巷子地面", mask: "assets/masks/alley_walkable_mask.webp" },
+    water: { bbox: [60, 460, 900, 627], label: "巷子积水" },
+    comboMask: "assets/masks/alley_mask.webp",
+  },
+  tower: {
+    image: "assets/bg_tower_exterior_f0.webp",
+    depth: "assets/tower_exterior_depth.webp",
+    label: "塔楼",
+    spawn: [0.51, 0.63],
+    objects: [
+      { id: "scanner", label: "正门扫描仪", bbox: [380, 350, 620, 610], mask: "assets/masks/tower_exterior_scanner_mask.webp" },
+      { id: "guard_booth", label: "警卫亭", bbox: [220, 480, 420, 620], mask: "assets/masks/tower_exterior_guard_booth_mask.webp" },
+      { id: "exit", label: "返回街道", bbox: [780, 400, 938, 627], mask: "assets/masks/tower_exterior_exit_mask.webp" },
+    ],
+    walkable: { bbox: [100, 200, 900, 627], label: "塔楼广场地面", mask: "assets/masks/tower_exterior_walkable_mask.webp" },
+    water: { bbox: [100, 500, 900, 627], label: "广场积水" },
+    comboMask: "assets/masks/tower_exterior_mask.webp",
+  },
+  server: {
+    image: "assets/bg_server_room_f0.webp",
+    depth: "assets/server_room_depth.webp",
+    label: "服务器机房",
+    spawn: [0.39, 0.87],
+    objects: [
+      { id: "terminal", label: "终端", bbox: [235, 200, 720, 520], mask: "assets/masks/server_room_terminal_mask.webp" },
+      { id: "rack", label: "服务器机柜", bbox: [0, 0, 240, 627], mask: "assets/masks/server_room_rack_mask.webp" },
+      { id: "rooftop_exit", label: "通往楼顶", bbox: [380, 400, 600, 627], mask: "assets/masks/server_room_rooftop_exit_mask.webp" },
+      { id: "lobby_exit", label: "返回大厅", bbox: [0, 500, 250, 627], mask: "assets/masks/server_room_lobby_exit_mask.webp" },
+    ],
+    walkable: { bbox: [60, 100, 900, 627], label: "机房地面", mask: "assets/masks/server_room_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/server_room_mask.webp",
+  },
+  rooftop: {
+    image: "assets/bg_rooftop_f0.webp",
+    depth: "assets/rooftop_depth.webp",
+    label: "楼顶",
+    spawn: [0.50, 0.70],
+    objects: [],
+    walkable: { bbox: [60, 100, 900, 627], label: "楼顶地面", mask: "assets/masks/rooftop_walkable_mask.webp" },
+    water: { bbox: [60, 480, 900, 627], label: "楼顶积水" },
+    comboMask: "assets/masks/rooftop_mask.webp",
+  },
+  office: {
+    image: "assets/bg_office_f0.webp",
+    depth: "assets/office_depth.webp",
+    label: "办公室",
+    spawn: [0.56, 0.76],
+    objects: [
+      { id: "terminal", label: "终端", bbox: [250, 200, 600, 580], mask: "assets/masks/office_terminal_mask.webp" },
+      { id: "safe", label: "保险柜", bbox: [750, 280, 938, 620], mask: "assets/masks/office_safe_mask.webp" },
+      { id: "chair", label: "办公椅", bbox: [640, 380, 830, 620], mask: "assets/masks/office_chair_mask.webp" },
+    ],
+    walkable: { bbox: [60, 140, 900, 627], label: "办公室地面", mask: "assets/masks/office_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/office_mask.webp",
+  },
+  echo_lobby: {
+    image: "assets/bg_echo_lobby_f0.webp",
+    depth: "assets/echo_lobby_depth.webp",
+    label: "Echo 大厅",
+    spawn: [0.35, 0.84],
+    objects: [
+      { id: "reception", label: "前台接待", bbox: [300, 280, 660, 500], mask: "assets/masks/echo_lobby_reception_mask.webp" },
+      { id: "scanner", label: "安检门", bbox: [350, 400, 610, 627], mask: "assets/masks/echo_lobby_scanner_mask.webp" },
+      { id: "elevator", label: "电梯", bbox: [740, 200, 938, 520], mask: "assets/masks/echo_lobby_elevator_mask.webp" },
+      { id: "guard_post", label: "警卫亭", bbox: [50, 350, 280, 560], mask: "assets/masks/echo_lobby_guard_post_mask.webp" },
+      { id: "exit", label: "出口", bbox: [0, 500, 200, 627], mask: "assets/masks/echo_lobby_exit_mask.webp" },
+    ],
+    walkable: { bbox: [30, 180, 930, 627], label: "大厅地面", mask: "assets/masks/echo_lobby_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/echo_lobby_mask.webp",
+  },
+  maintenance: {
+    image: "assets/bg_maintenance_f0.webp",
+    depth: "assets/maintenance_depth.webp",
+    label: "维护通道",
+    spawn: [0.48, 0.81],
+    objects: [
+      { id: "blast_door", label: "防爆门", bbox: [350, 150, 610, 500], mask: "assets/masks/maintenance_blast_door_mask.webp" },
+      { id: "pipe_valve", label: "管道阀门", bbox: [80, 250, 280, 480], mask: "assets/masks/maintenance_pipe_valve_mask.webp" },
+      { id: "warning_sign", label: "警告标志", bbox: [650, 100, 850, 320], mask: "assets/masks/maintenance_warning_sign_mask.webp" },
+      { id: "exit", label: "返回大厅", bbox: [0, 500, 200, 627], mask: "assets/masks/maintenance_exit_mask.webp" },
+    ],
+    walkable: { bbox: [30, 100, 930, 627], label: "通道地面", mask: "assets/masks/maintenance_walkable_mask.webp" },
+    water: { bbox: [30, 480, 930, 627], label: "通道积水" },
+    comboMask: "assets/masks/maintenance_mask.webp",
+  },
+  data_haven: {
+    image: "assets/bg_data_haven_f0.webp",
+    depth: "assets/data_haven_depth.webp",
+    label: "数据港",
+    spawn: [0.58, 0.78],
+    objects: [
+      { id: "workstation", label: "工作站", bbox: [200, 200, 550, 480], mask: "assets/masks/data_haven_workstation_mask.webp" },
+      { id: "train_car", label: "旧列车", bbox: [700, 280, 938, 580], mask: "assets/masks/data_haven_train_car_mask.webp" },
+      { id: "antenna", label: "天线阵列", bbox: [350, 20, 600, 180], mask: "assets/masks/data_haven_antenna_mask.webp" },
+      { id: "exit", label: "出口", bbox: [0, 500, 200, 627], mask: "assets/masks/data_haven_exit_mask.webp" },
+    ],
+    walkable: { bbox: [30, 100, 930, 627], label: "站台地面", mask: "assets/masks/data_haven_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/data_haven_mask.webp",
+  },
+  flashback: {
+    image: "assets/bg_flashback_f0.webp",
+    depth: "assets/flashback_depth.webp",
+    label: "闪回",
+    spawn: [0.55, 0.76],
+    objects: [
+      { id: "pod_3", label: "3号实验舱", bbox: [250, 250, 480, 520], mask: "assets/masks/flashback_pod_3_mask.webp" },
+      { id: "monitor", label: "监控屏", bbox: [550, 150, 780, 400], mask: "assets/masks/flashback_monitor_mask.webp" },
+      { id: "terminal", label: "控制台", bbox: [100, 380, 350, 580], mask: "assets/masks/flashback_terminal_mask.webp" },
+    ],
+    walkable: { bbox: [60, 140, 900, 627], label: "实验室地面", mask: "assets/masks/flashback_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/flashback_mask.webp",
+  },
+  hospital: {
+    image: "assets/bg_hospital_f0.webp",
+    depth: "assets/hospital_depth.webp",
+    label: "医院",
+    spawn: [0.47, 0.79],
+    objects: [
+      { id: "room_door", label: "病房门", bbox: [100, 200, 350, 520], mask: "assets/masks/hospital_room_door_mask.webp" },
+      { id: "window", label: "窗户", bbox: [650, 100, 938, 480], mask: "assets/masks/hospital_window_mask.webp" },
+      { id: "nurse_station", label: "护士站", bbox: [400, 300, 600, 500], mask: "assets/masks/hospital_nurse_station_mask.webp" },
+    ],
+    walkable: { bbox: [30, 120, 930, 627], label: "走廊地面", mask: "assets/masks/hospital_walkable_mask.webp" },
+    water: null,
+    comboMask: "assets/masks/hospital_mask.webp",
+  },
+};
+
+const IMG_W = 940, IMG_H = 627;
+const MOBILESAM_SIZE = 1024;
+const MEAN = [0.485, 0.456, 0.406];
+const STD = [0.229, 0.224, 0.225];
+
+let currentScene = 'apartment';
+let overlayOpacity = 0.4;
+let selectedObjIdx = -1;
+let imageCache = {};
+
+// ════════════════════════════════════════════════
+// Image Loader
+// ════════════════════════════════════════════════
+function loadImage(src) {
+  if (imageCache[src]) return Promise.resolve(imageCache[src]);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => { imageCache[src] = img; resolve(img); };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+// ════════════════════════════════════════════════
+// Tab Rendering
+// ════════════════════════════════════════════════
+function renderTabs() {
+  const container = document.getElementById('sceneTabs');
+  container.innerHTML = Object.entries(SCENES).map(([id, s]) =>
+    `<button class="scene-tab ${id === currentScene ? 'active' : ''}" data-scene="${id}">${s.label}</button>`
+  ).join('');
+  container.querySelectorAll('.scene-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentScene = btn.dataset.scene;
+      selectedObjIdx = -1;
+      renderTabs();
+      renderPipeline();
+    });
+  });
+}
+
+// ════════════════════════════════════════════════
+// Pipeline Rendering
+// ════════════════════════════════════════════════
+async function renderPipeline() {
+  const scene = SCENES[currentScene];
+  const container = document.getElementById('pipeline');
+
+  // Preload images
+  const sceneImg = await loadImage(scene.image);
+  const depthImg = scene.depth ? await loadImage(scene.depth) : null;
+  const maskImgs = {};
+  for (const obj of scene.objects) {
+    if (obj.mask) maskImgs[obj.id] = await loadImage(obj.mask);
+  }
+  if (scene.walkable?.mask) maskImgs['walkable'] = await loadImage(scene.walkable.mask);
+  if (scene.comboMask) maskImgs['_combo'] = await loadImage(scene.comboMask);
+
+  const totalObjects = scene.objects.length;
+  const hasWalkable = !!scene.walkable;
+  const hasWater = !!scene.water;
+
+  container.innerHTML = `
+    <!-- Step 1: Input -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num input">1</div>
+        <div class="step-title">📥 输入 — 场景原图 + Bounding Box</div>
+        <div class="step-desc">${scene.label} · ${IMG_W}×${IMG_H}</div>
+      </div>
+      <div class="step-body">
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">场景原图 (bg_${currentScene}_f0.webp)</div>
+            <div class="viz-panel-body">
+              <div class="canvas-wrap" id="sceneCanvasWrap">
+                <canvas id="sceneCanvas" width="${IMG_W}" height="${IMG_H}"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">Bounding Box 定义 (${totalObjects} 个物体)</div>
+            <div class="viz-panel-body">
+              <table class="data-table">
+                <thead><tr><th>ID</th><th>标签</th><th>BBox [x1,y1,x2,y2]</th><th>面积%</th></tr></thead>
+                <tbody>
+                  ${scene.objects.map((o, i) => {
+                    const [x1,y1,x2,y2] = o.bbox;
+                    const area = ((x2-x1)*(y2-y1)/(IMG_W*IMG_H)*100).toFixed(1);
+                    return `<tr class="obj-row" data-idx="${i}" style="cursor:pointer">
+                      <td><span class="badge badge-cyan">${o.id}</span></td>
+                      <td>${o.label}</td>
+                      <td>${o.bbox.join(', ')}</td>
+                      <td>${area}%</td>
+                    </tr>`;
+                  }).join('')}
+                  ${scene.walkable ? (() => {
+                    const [x1,y1,x2,y2] = scene.walkable.bbox;
+                    const area = ((x2-x1)*(y2-y1)/(IMG_W*IMG_H)*100).toFixed(1);
+                    return `<tr><td><span class="badge badge-green">walkable</span></td><td>${scene.walkable.label}</td><td>${scene.walkable.bbox.join(', ')}</td><td>${area}%</td></tr>`;
+                  })() : ''}
+                  ${scene.water ? (() => {
+                    const [x1,y1,x2,y2] = scene.water.bbox;
+                    const area = ((x2-x1)*(y2-y1)/(IMG_W*IMG_H)*100).toFixed(1);
+                    return `<tr><td><span class="badge badge-purple">water</span></td><td>${scene.water.label}</td><td>${scene.water.bbox.join(', ')}</td><td>${area}%</td></tr>`;
+                  })() : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <div class="overlay-controls" id="bboxControls">
+            <button class="overlay-btn active" data-show="all">全部显示</button>
+            ${scene.objects.map((o, i) =>
+              `<button class="overlay-btn" data-idx="${i}">${o.label}</button>`
+            ).join('')}
+            ${scene.walkable ? `<button class="overlay-btn" data-idx="walkable" style="color:var(--green)">🚶 ${scene.walkable.label}</button>` : ''}
+            ${scene.water ? `<button class="overlay-btn" data-idx="water" style="color:var(--accent2)">💧 ${scene.water.label}</button>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 2: Preprocess -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num process">2</div>
+        <div class="step-title">⚙️ 预处理 — Resize + Normalize</div>
+        <div class="step-desc">940×627 → 1024×1024</div>
+      </div>
+      <div class="step-body">
+        <div class="flow-diagram">
+          <div class="flow-node active">
+            <div class="icon">🖼️</div>
+            <div class="name">原图</div>
+            <div class="detail">${IMG_W}×${IMG_H} BGR</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">🔄</div>
+            <div class="name">BGR→RGB</div>
+            <div class="detail">cv2.cvtColor</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">📏</div>
+            <div class="name">Resize</div>
+            <div class="detail">scale=${(MOBILESAM_SIZE/Math.max(IMG_W,IMG_H)).toFixed(4)}</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">⬛</div>
+            <div class="name">Pad</div>
+            <div class="detail">→ ${MOBILESAM_SIZE}×${MOBILESAM_SIZE}</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">📊</div>
+            <div class="name">Normalize</div>
+            <div class="detail">ImageNet μ/σ</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node active">
+            <div class="icon">🔢</div>
+            <div class="name">Input Tensor</div>
+            <div class="detail">[${MOBILESAM_SIZE}, ${MOBILESAM_SIZE}, 3] f32</div>
+          </div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">预处理可视化</div>
+            <div class="viz-panel-body">
+              <canvas id="preprocessCanvas" width="${MOBILESAM_SIZE}" height="${MOBILESAM_SIZE}" style="max-height:400px;object-fit:contain;background:#111"></canvas>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">归一化参数</div>
+            <div class="viz-panel-body">
+              <div class="math-block">
+<span class="comment">// ImageNet 归一化</span>
+<span class="var">MEAN</span> = [<span class="val">${MEAN.join(', ')}</span>]  <span class="comment">// RGB</span>
+<span class="var">STD</span>  = [<span class="val">${STD.join(', ')}</span>]
+
+<span class="comment">// 计算过程</span>
+<span class="var">pixel_rgb</span> = <span class="var">pixel_bgr</span>[::-1]       <span class="comment">// BGR → RGB</span>
+<span class="var">pixel_float</span> = <span class="var">pixel_rgb</span> / <span class="val">255.0</span>    <span class="comment">// [0,255] → [0,1]</span>
+<span class="var">normalized</span> = (<span class="var">pixel_float</span> - <span class="var">MEAN</span>) / <span class="var">STD</span>
+                              <span class="comment">// → ~[-2.1, 2.6]</span>
+
+<span class="comment">// Resize 缩放比</span>
+<span class="var">scale</span> = <span class="val">${MOBILESAM_SIZE}</span> / max(<span class="val">${IMG_W}</span>, <span class="val">${IMG_H}</span>)
+       = <span class="val">${(MOBILESAM_SIZE/Math.max(IMG_W,IMG_H)).toFixed(6)}</span>
+
+<span class="comment">// 新尺寸</span>
+<span class="var">new_w</span> = ${IMG_W} × scale = <span class="val">${Math.round(IMG_W * MOBILESAM_SIZE/Math.max(IMG_W,IMG_H))}</span>
+<span class="var">new_h</span> = ${IMG_H} × scale = <span class="val">${Math.round(IMG_H * MOBILESAM_SIZE/Math.max(IMG_W,IMG_H))}</span>
+
+<span class="comment">// Padding: 右侧 + 底部补零</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 3: Encoder -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num process">3</div>
+        <div class="step-title">🧠 编码器 — TinyViT Image Encoder</div>
+        <div class="step-desc">mobilesam.encoder.onnx · 27MB</div>
+      </div>
+      <div class="step-body">
+        <div class="flow-diagram">
+          <div class="flow-node active">
+            <div class="icon">🔢</div>
+            <div class="name">Input</div>
+            <div class="detail">[${MOBILESAM_SIZE}, ${MOBILESAM_SIZE}, 3]</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">🏗️</div>
+            <div class="name">TinyViT</div>
+            <div class="detail">MobileNet backbone</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">📐</div>
+            <div class="name">Neck</div>
+            <div class="detail">FPN 256-d</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node active">
+            <div class="icon">✨</div>
+            <div class="name">Embeddings</div>
+            <div class="detail">[1, 256, 64, 64]</div>
+          </div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">Image Embeddings 可视化 (256 通道 → RGB 伪彩色)</div>
+            <div class="viz-panel-body">
+              <canvas id="embedCanvas" width="512" height="512" style="background:#111;border-radius:4px"></canvas>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">编码器架构</div>
+            <div class="viz-panel-body">
+              <div class="math-block">
+<span class="comment">// MobileSAM Encoder (TinyViT)</span>
+<span class="comment">// 比 SAM 的 ViT-H 小 50x, 快 7x</span>
+
+<span class="var">Input</span>:  [${MOBILESAM_SIZE}, ${MOBILESAM_SIZE}, 3]  <span class="comment">// HWC float32</span>
+  ↓
+<span class="comment">// Patch Embed (4×4 convolution)</span>
+<span class="var">Patch</span>:  [256, 256, 96]    <span class="comment">// 1024/4=256</span>
+  ↓
+<span class="comment">// TinyViT Blocks × 4 stages</span>
+<span class="var">Stage1</span>: [256, 256, 96]    <span class="comment">// 2 blocks</span>
+<span class="var">Stage2</span>: [128, 128, 192]   <span class="comment">// 2 blocks, stride=2</span>
+<span class="var">Stage3</span>: [64, 64, 384]     <span class="comment">// 6 blocks, stride=2</span>
+<span class="var">Stage4</span>: [64, 64, 512]     <span class="comment">// 2 blocks</span>
+  ↓
+<span class="comment">// FPN Neck: 512 → 256</span>
+<span class="var">Output</span>: [1, 256, 64, 64]  <span class="comment">// image_embeddings</span>
+
+<span class="comment">// 参数量: ~5.7M (vs SAM ViT-H: 636M)</span>
+<span class="comment">// 模型大小: 27MB (vs SAM: 2.4GB)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 4: Decoder (per object) -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num process">4</div>
+        <div class="step-title">🎯 解码器 — Mask Decoder (逐物体)</div>
+        <div class="step-desc">mobile_sam.onnx · 16MB · bbox prompt</div>
+      </div>
+      <div class="step-body">
+        <div class="flow-diagram">
+          <div class="flow-node active">
+            <div class="icon">✨</div>
+            <div class="name">Embeddings</div>
+            <div class="detail">[1, 256, 64, 64]</div>
+          </div>
+          <div class="flow-arrow">+</div>
+          <div class="flow-node active">
+            <div class="icon">📦</div>
+            <div class="name">BBox Prompt</div>
+            <div class="detail">[1, 2, 2] coords + labels</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">🔗</div>
+            <div class="name">Cross-Attn</div>
+            <div class="detail">prompt ↔ image</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">🎭</div>
+            <div class="name">Mask Head</div>
+            <div class="detail">256×256 logits</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node active">
+            <div class="icon">✅</div>
+            <div class="name">Best Mask</div>
+            <div class="detail">IoU selection</div>
+          </div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">选择物体查看解码过程</div>
+            <div class="viz-panel-body">
+              <div class="overlay-controls" id="decoderObjBtns">
+                ${scene.objects.map((o, i) =>
+                  `<button class="overlay-btn ${i === 0 ? 'active' : ''}" data-idx="${i}">${o.label}</button>`
+                ).join('')}
+              </div>
+              <canvas id="decoderCanvas" width="${IMG_W}" height="${IMG_H}" style="margin-top:12px;background:#111"></canvas>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">解码器数学</div>
+            <div class="viz-panel-body">
+              <div class="math-block" id="decoderMath">
+<span class="comment">// Mask Decoder 流程</span>
+
+<span class="comment">// 1. BBox 缩放到 1024 空间</span>
+<span class="var">point_coords</span> = [
+  [<span class="val">x1</span> × scale, <span class="val">y1</span> × scale],
+  [<span class="val">x2</span> × scale, <span class="val">y2</span> × scale]
+]
+<span class="var">point_labels</span> = [<span class="val">2</span>, <span class="val">3</span>]  <span class="comment">// 2=top-left, 3=bottom-right</span>
+
+<span class="comment">// 2. 交叉注意力: prompt tokens ↔ image embeddings</span>
+<span class="var">tokens</span> = <span class="op">CrossAttention</span>(prompt_tokens, image_embeddings)
+
+<span class="comment">// 3. Mask 解码</span>
+<span class="var">mask_logits</span> = <span class="op">MaskDecoder</span>(tokens, embeddings)
+  → [1, 3, 256, 256]  <span class="comment">// 3 个候选 mask</span>
+
+<span class="comment">// 4. IoU 预测 → 选最佳</span>
+<span class="var">iou_preds</span> = [<span class="val">0.92</span>, <span class="val">0.87</span>, <span class="val">0.81</span>]
+<span class="var">best_idx</span> = <span class="op">argmax</span>(iou_preds)  <span class="comment">// → 0</span>
+
+<span class="comment">// 5. Sigmoid → 概率</span>
+<span class="var">mask_prob</span> = <span class="op">σ</span>(mask_logits[0, best_idx])
+           = 1 / (1 + <span class="op">exp</span>(-<span class="var">clip</span>(logits, -50, 50)))
+
+<span class="comment">// 6. Resize → 原图尺寸 → 阈值化</span>
+<span class="var">binary</span> = (<span class="var">mask_prob</span> > <span class="val">0.5</span>) × <span class="val">255</span>
+
+<span class="comment">// 7. 形态学清理</span>
+<span class="var">binary</span> = <span class="op">morphClose</span>(binary, <span class="val">7×7</span>)  <span class="comment">// 填孔</span>
+<span class="var">binary</span> = <span class="op">morphOpen</span>(binary, <span class="val">3×3</span>)   <span class="comment">// 去噪</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 5: Outputs -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num output">5</div>
+        <div class="step-title">📤 输出 — Mask 可视化</div>
+        <div class="step-desc">${totalObjects} masks + walkable${hasWater ? ' + water' : ''}</div>
+      </div>
+      <div class="step-body">
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--cyan)">${totalObjects}</div>
+            <div class="stat-label">物体 Masks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--green)">${hasWalkable ? '✓' : '—'}</div>
+            <div class="stat-label">Walkable</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--accent2)">${hasWater ? '✓' : '—'}</div>
+            <div class="stat-label">Water</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--orange)">3</div>
+            <div class="stat-label">Pipeline Steps</div>
+          </div>
+        </div>
+        <div class="overlay-controls" id="outputControls">
+          <span style="color:var(--text2);font-size:12px;margin-right:8px">叠加模式:</span>
+          <button class="overlay-btn active" data-mode="combo">组合 Mask</button>
+          <button class="overlay-btn" data-mode="individual">逐物体</button>
+          <button class="overlay-btn" data-mode="walkable">Walkable</button>
+          ${hasWater ? '<button class="overlay-btn" data-mode="water">Water</button>' : ''}
+          <button class="overlay-btn" data-mode="depth">深度图</button>
+          <span style="color:var(--text2);font-size:12px;margin-left:16px">透明度:</span>
+          <input type="range" min="0" max="100" value="40" id="opacitySlider" style="width:100px;accent-color:var(--cyan)">
+        </div>
+        <div class="viz-grid" style="margin-top:12px">
+          <div class="viz-panel">
+            <div class="viz-panel-title" id="outputLeftTitle">组合 Mask 叠加</div>
+            <div class="viz-panel-body">
+              <canvas id="outputCanvas" width="${IMG_W}" height="${IMG_H}" style="background:#111"></canvas>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">Mask 文件列表</div>
+            <div class="viz-panel-body" style="max-height:400px;overflow-y:auto">
+              <table class="data-table">
+                <thead><tr><th>文件</th><th>类型</th></tr></thead>
+                <tbody>
+                  ${scene.objects.map(o =>
+                    `<tr><td>${currentScene}_${o.id}_mask.webp</td><td><span class="badge badge-cyan">object</span></td></tr>`
+                  ).join('')}
+                  ${hasWalkable ? `<tr><td>${currentScene}_walkable_mask.webp</td><td><span class="badge badge-green">walkable</span></td></tr>` : ''}
+                  ${hasWater ? `<tr><td>${currentScene}_water_mask.webp</td><td><span class="badge badge-purple">water</span></td></tr>` : ''}
+                  <tr><td>${currentScene}_mask.webp</td><td><span class="badge badge-orange">combo</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 6: Mask Editor -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num output">6</div>
+        <div class="step-title">✏️ Mask 编辑器 — 手动微调</div>
+        <div class="step-desc">Brush / Eraser / Undo / Export</div>
+      </div>
+      <div class="step-body">
+        <div class="editor-toolbar" id="editorToolbar">
+          <span style="font-size:12px;color:var(--text2);margin-right:4px">编辑目标:</span>
+          <select id="editorTarget" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
+            ${scene.objects.map((o, i) =>
+              `<option value="${o.id}" data-idx="${i}">${o.label} (${o.id})</option>`
+            ).join('')}
+            ${hasWalkable ? `<option value="walkable" data-idx="walkable">🚶 ${scene.walkable.label}</option>` : ''}
+          </select>
+          <div class="editor-sep"></div>
+          <button class="editor-tool active" id="toolBrush" title="画笔 (B)">🖊️</button>
+          <button class="editor-tool" id="toolEraser" title="橡皮擦 (E)">🧹</button>
+          <button class="editor-tool" id="toolFill" title="填充选区 (F)">🪣</button>
+          <div class="editor-sep"></div>
+          <span style="font-size:11px;color:var(--text2)">大小:</span>
+          <input type="range" id="brushSize" min="2" max="80" value="20" style="width:80px;accent-color:var(--cyan)">
+          <span id="brushSizeVal" style="font-size:11px;color:var(--cyan);font-family:var(--mono);min-width:28px">20</span>
+          <div class="editor-sep"></div>
+          <button class="editor-tool" id="toolUndo" title="撤销 (Ctrl+Z)">↩️</button>
+          <button class="editor-tool" id="toolRedo" title="重做 (Ctrl+Y)">↪️</button>
+          <button class="editor-tool danger" id="toolReset" title="重置到原始 Mask">🔄</button>
+          <div class="editor-sep"></div>
+          <button class="editor-tool" id="toolInvert" title="反转 Mask">🔲</button>
+          <button class="editor-tool success" id="toolDownload" title="下载编辑后的 Mask">💾</button>
+        </div>
+        <div class="editor-stats" id="editorStats">
+          <div>来源: <span id="statSource" style="color:var(--green)">—</span></div>
+          <div>白色像素: <span id="statWhite">—</span></div>
+          <div>覆盖面积: <span id="statArea">—</span></div>
+          <div>操作历史: <span id="statHistory">0</span> 步</div>
+          <div>修改量: <span id="statDiff" style="color:var(--orange)">0</span> px</div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">编辑画布 — 在场景图上绘制 Mask</div>
+            <div class="viz-panel-body" style="padding:0">
+              <div class="editor-canvas-wrap" id="editorCanvasWrap">
+                <canvas id="editorBgCanvas" width="${IMG_W}" height="${IMG_H}"></canvas>
+                <canvas id="editorMaskCanvas" width="${IMG_W}" height="${IMG_H}" style="position:absolute;top:0;left:0"></canvas>
+                <canvas id="editorOverlayCanvas" width="${IMG_W}" height="${IMG_H}" style="position:absolute;top:0;left:0"></canvas>
+                <div id="editorCursor"></div>
+              </div>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">Mask 预览 (黑白)</div>
+            <div class="viz-panel-body">
+              <canvas id="editorPreviewCanvas" width="${IMG_W}" height="${IMG_H}" style="background:#000"></canvas>
+            </div>
+            <div class="viz-panel-title" style="margin-top:1px">快捷键</div>
+            <div class="viz-panel-body">
+              <div class="math-block" style="font-size:12px;line-height:2">
+<span class="var">B</span> = 画笔模式 &nbsp;&nbsp; <span class="var">E</span> = 橡皮擦模式
+<span class="var">F</span> = 填充选区 &nbsp;&nbsp; <span class="var">I</span> = 反转 Mask
+<span class="var">[</span> = 缩小笔刷 &nbsp;&nbsp; <span class="var">]</span> = 放大笔刷
+<span class="var">Ctrl+Z</span> = 撤销 &nbsp; <span class="var">Ctrl+Y</span> = 重做
+<span class="var">Ctrl+S</span> = 下载 Mask PNG
+
+<span class="comment">// 编辑直接修改内存中的 mask 数据</span>
+<span class="comment">// 下载导出为 960×640 二值 PNG</span>
+<span class="comment">// 白色=mask区域, 黑色=背景</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- Step 7: Verification -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num output">7</div>
+        <div class="step-title">🔎 叠层验证 — Omni 审查</div>
+        <div class="step-desc">mimo-omni 视觉模型</div>
+      </div>
+      <div class="step-body">
+        <div class="flow-diagram">
+          <div class="flow-node">
+            <div class="icon">🖼️</div>
+            <div class="name">原图</div>
+            <div class="detail">bg_scene.webp</div>
+          </div>
+          <div class="flow-arrow">+</div>
+          <div class="flow-node">
+            <div class="icon">🎭</div>
+            <div class="name">Mask</div>
+            <div class="detail">红色半透明叠加</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node active">
+            <div class="icon">👁️</div>
+            <div class="name">Omni 审查</div>
+            <div class="detail">3 项检查</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="icon">${'✅'}</div>
+            <div class="name">PASS / FAIL</div>
+            <div class="detail">质量判定</div>
+          </div>
+        </div>
+        <div class="viz-grid">
+          <div class="viz-panel">
+            <div class="viz-panel-title">验证预览 (选择物体)</div>
+            <div class="viz-panel-body">
+              <div class="overlay-controls" id="verifyObjBtns">
+                ${scene.objects.map((o, i) =>
+                  `<button class="overlay-btn ${i === 0 ? 'active' : ''}" data-idx="${i}">${o.label}</button>`
+                ).join('')}
+              </div>
+              <canvas id="verifyCanvas" width="${IMG_W}" height="${IMG_H}" style="margin-top:12px;background:#111"></canvas>
+            </div>
+          </div>
+          <div class="viz-panel">
+            <div class="viz-panel-title">Omni 验证 Prompt</div>
+            <div class="viz-panel-body">
+              <div class="math-block">
+<span class="comment">// 叠层验证 Prompt (发送给 Omni)</span>
+
+这是游戏场景 '<span class="var">${currentScene}</span>' 的物体
+'<span class="var" id="verifyObjLabel">${scene.objects[0]?.label || 'N/A'}</span>' 的 mask 验证图。
+红色半透明区域是生成的 mask。
+
+请判断:
+1. mask 是否准确覆盖了目标物体? (是/否)
+2. mask 是否包含过多背景区域? (是/否)
+3. mask 是否遗漏了物体的重要部分? (是/否)
+
+如果 mask 质量合格, 回复: <span class="val">PASS</span>
+如果 mask 质量不合格, 回复: <span class="val">FAIL &lt;原因&gt;</span>
+
+<span class="comment">// Omni 回复示例:</span>
+<span class="val">PASS</span>  <span class="comment">// mask 准确覆盖目标</span>
+<span class="val">FAIL</span>  mask 包含了左侧墙壁区域  <span class="comment">// 需要调整 bbox</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Draw scene image with bboxes
+  drawSceneWithBBoxes(scene, sceneImg, maskImgs);
+  // Draw preprocess
+  drawPreprocess(sceneImg);
+  // Draw embeddings
+  drawEmbeddings();
+  // Draw decoder
+  drawDecoder(scene, sceneImg, maskImgs, 0);
+  // Draw output
+  drawOutput(scene, sceneImg, maskImgs, 'combo');
+  // Draw verification
+  drawVerification(scene, sceneImg, maskImgs, 0);
+
+  // Init editor
+  initEditor(scene, sceneImg, maskImgs);
+
+  // Bind events
+  bindEvents(scene, sceneImg, maskImgs);
+}
+
+// ════════════════════════════════════════════════
+// Drawing Functions
+// ════════════════════════════════════════════════
+
+function drawSceneWithBBoxes(scene, img, maskImgs, highlightIdx = -1) {
+  const canvas = document.getElementById('sceneCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+  if (img) ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  const colors = ['#00e5ff', '#ff4081', '#ffab40', '#00e676', '#7c4dff', '#ffd740'];
+  scene.objects.forEach((o, i) => {
+    const [x1, y1, x2, y2] = o.bbox;
+    const color = colors[i % colors.length];
+    const isActive = highlightIdx === -1 || highlightIdx === i;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isActive ? 2.5 : 1;
+    ctx.globalAlpha = isActive ? 1 : 0.3;
+    ctx.setLineDash(isActive ? [] : [4, 4]);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    if (isActive) {
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.15;
+      ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+
+      ctx.globalAlpha = 1;
+      ctx.font = '11px monospace';
+      const textW = ctx.measureText(o.label).width + 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(x1, y1 - 20, textW, 18);
+      ctx.fillStyle = color;
+      ctx.fillText(o.label, x1 + 6, y1 - 6);
+    }
+  });
+
+  // walkable
+  if (scene.walkable && (highlightIdx === -1 || highlightIdx === 'walkable')) {
+    const [x1, y1, x2, y2] = scene.walkable.bbox;
+    ctx.strokeStyle = '#00e676';
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = highlightIdx === 'walkable' ? 0.8 : 0.2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  }
+  // water
+  if (scene.water && (highlightIdx === -1 || highlightIdx === 'water')) {
+    const [x1, y1, x2, y2] = scene.water.bbox;
+    ctx.strokeStyle = '#7c4dff';
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = highlightIdx === 'water' ? 0.8 : 0.2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.setLineDash([]);
+}
+
+function drawPreprocess(img) {
+  const canvas = document.getElementById('preprocessCanvas');
+  if (!canvas || !img) return;
+  const ctx = canvas.getContext('2d');
+  const S = MOBILESAM_SIZE;
+
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, S, S);
+
+  // Scale
+  const scale = S / Math.max(IMG_W, IMG_H);
+  const newW = Math.round(IMG_W * scale);
+  const newH = Math.round(IMG_H * scale);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, 0, 0, newW, newH);
+
+  // Draw padding region
+  ctx.strokeStyle = 'rgba(255,171,64,0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.strokeRect(0, 0, newW, newH);
+  ctx.setLineDash([]);
+
+  // Label
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(8, 8, 280, 60);
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#ffab40';
+  ctx.fillText(`Resize: ${IMG_W}×${IMG_H} → ${newW}×${newH}`, 16, 28);
+  ctx.fillStyle = '#888';
+  ctx.fillText(`Pad to: ${S}×${S} (right+bottom zeros)`, 16, 46);
+  ctx.fillStyle = '#00e5ff';
+  ctx.fillText(`Scale factor: ${scale.toFixed(6)}`, 16, 62);
+
+  // Draw grid showing padding
+  if (newW < S || newH < S) {
+    ctx.fillStyle = 'rgba(255,82,82,0.08)';
+    ctx.fillRect(newW, 0, S - newW, S);
+    ctx.fillRect(0, newH, S, S - newH);
+    ctx.fillStyle = 'rgba(255,82,82,0.4)';
+    ctx.font = '14px monospace';
+    ctx.fillText('ZERO PAD', newW + 20, S / 2);
+  }
+}
+
+function drawEmbeddings() {
+  const canvas = document.getElementById('embedCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = 512, H = 512;
+
+  // Generate pseudo-random embedding visualization
+  const imgData = ctx.createImageData(W, H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
+      // Simulate feature map patterns
+      const cx = x / W, cy = y / H;
+      const freq1 = Math.sin(cx * 20 + cy * 10) * 0.5 + 0.5;
+      const freq2 = Math.cos(cx * 15 - cy * 25) * 0.5 + 0.5;
+      const freq3 = Math.sin((cx + cy) * 30) * 0.5 + 0.5;
+      const edge = Math.abs(Math.sin(cx * 60)) * Math.abs(Math.sin(cy * 60));
+
+      imgData.data[idx] = Math.floor(freq1 * 120 + edge * 80);
+      imgData.data[idx + 1] = Math.floor(freq2 * 100 + edge * 60);
+      imgData.data[idx + 2] = Math.floor(freq3 * 150 + edge * 40);
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Labels
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(8, 8, 320, 44);
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#00e5ff';
+  ctx.fillText('Image Embeddings: [1, 256, 64, 64]', 16, 28);
+  ctx.fillStyle = '#888';
+  ctx.fillText('256-dim feature per 16×16 patch → pseudo RGB', 16, 44);
+}
+
+function drawDecoder(scene, img, maskImgs, objIdx) {
+  const canvas = document.getElementById('decoderCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+
+  if (img) ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  const obj = scene.objects[objIdx];
+  if (!obj) return;
+
+  // Draw bbox
+  const [x1, y1, x2, y2] = obj.bbox;
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+  // Draw mask overlay
+  const maskImg = maskImgs[obj.id];
+  if (maskImg) {
+    ctx.globalAlpha = 0.45;
+    ctx.drawImage(maskImg, 0, 0, IMG_W, IMG_H);
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw bbox corners
+  const corners = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+  ctx.fillStyle = '#00e5ff';
+  corners.forEach(([cx, cy]) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Labels
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(x1, y1 - 24, 200, 20);
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#00e5ff';
+  ctx.fillText(`bbox: [${obj.bbox.join(', ')}] → mask`, x1 + 6, y1 - 8);
+}
+
+function drawOutput(scene, img, maskImgs, mode) {
+  const canvas = document.getElementById('outputCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+
+  if (img) ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  const alpha = overlayOpacity;
+
+  if (mode === 'combo' && maskImgs['_combo']) {
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(maskImgs['_combo'], 0, 0, IMG_W, IMG_H);
+    ctx.globalAlpha = 1;
+  } else if (mode === 'individual') {
+    const colors = ['rgba(0,229,255,0.4)', 'rgba(255,64,129,0.4)', 'rgba(255,171,64,0.4)', 'rgba(0,230,118,0.4)', 'rgba(124,77,255,0.4)'];
+    scene.objects.forEach((o, i) => {
+      const mImg = maskImgs[o.id];
+      if (mImg) {
+        // Tint the mask
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = IMG_W;
+        tmpCanvas.height = IMG_H;
+        const tmpCtx = tmpCanvas.getContext('2d');
+        tmpCtx.drawImage(mImg, 0, 0, IMG_W, IMG_H);
+        tmpCtx.globalCompositeOperation = 'source-in';
+        tmpCtx.fillStyle = colors[i % colors.length];
+        tmpCtx.fillRect(0, 0, IMG_W, IMG_H);
+
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(tmpCanvas, 0, 0);
+        ctx.globalAlpha = 1;
+      }
+    });
+  } else if (mode === 'walkable' && maskImgs['walkable']) {
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = IMG_W;
+    tmpCanvas.height = IMG_H;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.drawImage(maskImgs['walkable'], 0, 0, IMG_W, IMG_H);
+    tmpCtx.globalCompositeOperation = 'source-in';
+    tmpCtx.fillStyle = 'rgba(0,230,118,0.5)';
+    tmpCtx.fillRect(0, 0, IMG_W, IMG_H);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(tmpCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+  } else if (mode === 'water' && maskImgs['water']) {
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = IMG_W;
+    tmpCanvas.height = IMG_H;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.drawImage(maskImgs['water'], 0, 0, IMG_W, IMG_H);
+    tmpCtx.globalCompositeOperation = 'source-in';
+    tmpCtx.fillStyle = 'rgba(124,77,255,0.5)';
+    tmpCtx.fillRect(0, 0, IMG_W, IMG_H);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(tmpCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+  } else if (mode === 'depth' && scene.depth) {
+    const depthImg = imageCache[scene.depth];
+    if (depthImg) {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(depthImg, 0, 0, IMG_W, IMG_H);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawVerification(scene, img, maskImgs, objIdx) {
+  const canvas = document.getElementById('verifyCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+
+  if (img) ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  const obj = scene.objects[objIdx];
+  if (!obj) return;
+
+  const maskImg = maskImgs[obj.id];
+  if (maskImg) {
+    // Red overlay (verification style)
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = IMG_W;
+    tmpCanvas.height = IMG_H;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.drawImage(maskImg, 0, 0, IMG_W, IMG_H);
+    tmpCtx.globalCompositeOperation = 'source-in';
+    tmpCtx.fillStyle = 'rgba(200,0,0,0.5)';
+    tmpCtx.fillRect(0, 0, IMG_W, IMG_H);
+    ctx.drawImage(tmpCanvas, 0, 0);
+  }
+
+  // Label
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(8, 8, 360, 24);
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#ff5252';
+  ctx.fillText(`验证: ${obj.label} — 红色区域 = mask 叠加`, 16, 26);
+}
+
+// ════════════════════════════════════════════════
+// Mask Editor
+// ════════════════════════════════════════════════
+const editor = {
+  tool: 'brush',       // brush | eraser | fill
+  brushSize: 20,
+  isDrawing: false,
+  lastX: -1, lastY: -1,
+  history: [],         // ImageData stack
+  historyIdx: -1,
+  maxHistory: 40,
+  currentMaskId: null,
+  maskData: null,      // Uint8ClampedArray (IMG_W * IMG_H), 0 or 255
+  originalMask: null,  // copy of the loaded mask
+};
+
+function initEditor(scene, img, maskImgs) {
+  const bgCanvas = document.getElementById('editorBgCanvas');
+  const maskCanvas = document.getElementById('editorMaskCanvas');
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (!bgCanvas || !maskCanvas || !overlayCanvas) return;
+
+  const bgCtx = bgCanvas.getContext('2d');
+  const maskCtx = maskCanvas.getContext('2d');
+  const overlayCtx = overlayCanvas.getContext('2d');
+
+  // Draw background
+  bgCtx.clearRect(0, 0, IMG_W, IMG_H);
+  if (img) bgCtx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  // Load first mask
+  const firstObj = scene.objects[0];
+  if (firstObj) loadEditorMask(scene, maskImgs, firstObj.id);
+
+  // Tool buttons
+  const toolBrush = document.getElementById('toolBrush');
+  const toolEraser = document.getElementById('toolEraser');
+  const toolFill = document.getElementById('toolFill');
+  const toolUndo = document.getElementById('toolUndo');
+  const toolRedo = document.getElementById('toolRedo');
+  const toolReset = document.getElementById('toolReset');
+  const toolInvert = document.getElementById('toolInvert');
+  const toolDownload = document.getElementById('toolDownload');
+  const brushSizeSlider = document.getElementById('brushSize');
+  const brushSizeVal = document.getElementById('brushSizeVal');
+  const editorTarget = document.getElementById('editorTarget');
+  const cursor = document.getElementById('editorCursor');
+
+  function setTool(t) {
+    editor.tool = t;
+    [toolBrush, toolEraser, toolFill].forEach(b => b.classList.remove('active'));
+    if (t === 'brush') toolBrush.classList.add('active');
+    else if (t === 'eraser') toolEraser.classList.add('active');
+    else if (t === 'fill') toolFill.classList.add('active');
+  }
+
+  toolBrush.onclick = () => setTool('brush');
+  toolEraser.onclick = () => setTool('eraser');
+  toolFill.onclick = () => setTool('fill');
+  toolUndo.onclick = () => editorUndo();
+  toolRedo.onclick = () => editorRedo();
+  toolReset.onclick = () => editorReset();
+  toolInvert.onclick = () => editorInvert();
+  toolDownload.onclick = () => editorDownload(currentScene);
+
+  brushSizeSlider.oninput = () => {
+    editor.brushSize = parseInt(brushSizeSlider.value);
+    brushSizeVal.textContent = editor.brushSize;
+    updateCursor(overlayCanvas, cursor, -1, -1);
+  };
+
+  editorTarget.onchange = () => {
+    loadEditorMask(scene, maskImgs, editorTarget.value);
+  };
+
+  // Mouse events on overlay canvas
+  overlayCanvas.addEventListener('mousedown', (e) => {
+    const [x, y] = getCanvasCoords(overlayCanvas, e);
+    if (editor.tool === 'fill') {
+      editorPushHistory();
+      editorFill(x, y);
+      renderEditorOverlay(overlayCtx, scene);
+      renderEditorPreview(previewCanvas, scene);
+    } else {
+      editor.isDrawing = true;
+      editorPushHistory();
+      editorDraw(x, y);
+      editor.lastX = x;
+      editor.lastY = y;
+    }
+  });
+
+  overlayCanvas.addEventListener('mousemove', (e) => {
+    const [x, y] = getCanvasCoords(overlayCanvas, e);
+    updateCursor(overlayCanvas, cursor, x, y);
+    if (editor.isDrawing && editor.tool !== 'fill') {
+      editorDrawLine(editor.lastX, editor.lastY, x, y);
+      editor.lastX = x;
+      editor.lastY = y;
+    }
+  });
+
+  overlayCanvas.addEventListener('mouseup', () => {
+    if (editor.isDrawing) {
+      editor.isDrawing = false;
+      renderEditorOverlay(overlayCtx, scene);
+      renderEditorPreview(previewCanvas, scene);
+    }
+  });
+
+  overlayCanvas.addEventListener('mouseleave', () => {
+    editor.isDrawing = false;
+    cursor.style.display = 'none';
+  });
+
+  overlayCanvas.addEventListener('mouseenter', () => {
+    cursor.style.display = 'block';
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'b' || e.key === 'B') setTool('brush');
+    if (e.key === 'e' || e.key === 'E') setTool('eraser');
+    if (e.key === 'f' || e.key === 'F') setTool('fill');
+    if (e.key === 'i' || e.key === 'I') editorInvert();
+    if (e.key === '[') { editor.brushSize = Math.max(2, editor.brushSize - 5); brushSizeSlider.value = editor.brushSize; brushSizeVal.textContent = editor.brushSize; updateCursor(overlayCanvas, cursor, -1, -1); }
+    if (e.key === ']') { editor.brushSize = Math.min(80, editor.brushSize + 5); brushSizeSlider.value = editor.brushSize; brushSizeVal.textContent = editor.brushSize; updateCursor(overlayCanvas, cursor, -1, -1); }
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); editorUndo(); }
+    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); editorRedo(); }
+    if (e.ctrlKey && e.key === 's') { e.preventDefault(); editorDownload(currentScene); }
+  });
+}
+
+function getCanvasCoords(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = IMG_W / rect.width;
+  const scaleY = IMG_H / rect.height;
+  return [
+    Math.round((e.clientX - rect.left) * scaleX),
+    Math.round((e.clientY - rect.top) * scaleY)
+  ];
+}
+
+function updateCursor(canvas, cursorEl, x, y) {
+  if (x < 0 || y < 0) { cursorEl.style.display = 'none'; return; }
+  const rect = canvas.getBoundingClientRect();
+  const sx = rect.width / IMG_W;
+  const sy = rect.height / IMG_H;
+  const size = editor.brushSize * Math.max(sx, sy);
+  cursorEl.style.display = 'block';
+  cursorEl.style.width = size + 'px';
+  cursorEl.style.height = size + 'px';
+  cursorEl.style.left = (x * sx) + 'px';
+  cursorEl.style.top = (y * sy) + 'px';
+}
+
+function loadEditorMask(scene, maskImgs, maskId) {
+  editor.currentMaskId = maskId;
+  const maskImg = maskImgs[maskId];
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = IMG_W;
+  tmpCanvas.height = IMG_H;
+  const tmpCtx = tmpCanvas.getContext('2d');
+
+  if (maskImg) {
+    // Draw the mask image onto a temp canvas to read pixels
+    tmpCtx.clearRect(0, 0, IMG_W, IMG_H);
+    tmpCtx.drawImage(maskImg, 0, 0, IMG_W, IMG_H);
+    const imgData = tmpCtx.getImageData(0, 0, IMG_W, IMG_H);
+    const pixels = imgData.data; // RGBA
+
+    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H);
+    let whiteCount = 0;
+
+    // Extract mask: check alpha channel first, then luminance
+    for (let i = 0; i < IMG_W * IMG_H; i++) {
+      const r = pixels[i * 4];
+      const g = pixels[i * 4 + 1];
+      const b = pixels[i * 4 + 2];
+      const a = pixels[i * 4 + 3];
+
+      let isMask = false;
+      if (a < 128) {
+        // Transparent pixel → background
+        isMask = false;
+      } else if (a >= 200) {
+        // Opaque pixel → check if it's white/bright (mask) or dark (background)
+        const lum = (r + g + b) / 3;
+        isMask = lum > 128;
+      } else {
+        // Semi-transparent → treat as mask edge, include it
+        isMask = true;
+      }
+
+      editor.maskData[i] = isMask ? 255 : 0;
+      if (isMask) whiteCount++;
+    }
+
+    const sourceLabel = document.getElementById('statSource');
+    if (sourceLabel) sourceLabel.textContent = `已加载 ${maskId} (${whiteCount.toLocaleString()} px)`;
+  } else {
+    // No mask image available — try to generate from bbox
+    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H);
+    const obj = scene.objects.find(o => o.id === maskId);
+    if (obj) {
+      const [x1, y1, x2, y2] = obj.bbox;
+      for (let y = y1; y < y2; y++) {
+        for (let x = x1; x < x2; x++) {
+          if (x >= 0 && x < IMG_W && y >= 0 && y < IMG_H) {
+            editor.maskData[y * IMG_W + x] = 255;
+          }
+        }
+      }
+      const sourceLabel = document.getElementById('statSource');
+      if (sourceLabel) sourceLabel.textContent = `从 bbox 生成 (${maskId})`;
+    } else {
+      const sourceLabel = document.getElementById('statSource');
+      if (sourceLabel) sourceLabel.textContent = `空白画布`;
+    }
+  }
+
+  editor.originalMask = new Uint8ClampedArray(editor.maskData);
+  editor.history = [];
+  editor.historyIdx = -1;
+  editorPushHistory();
+
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorPushHistory() {
+  // Remove any redo states
+  if (editor.historyIdx < editor.history.length - 1) {
+    editor.history = editor.history.slice(0, editor.historyIdx + 1);
+  }
+  editor.history.push(new Uint8ClampedArray(editor.maskData));
+  if (editor.history.length > editor.maxHistory) editor.history.shift();
+  editor.historyIdx = editor.history.length - 1;
+  updateEditorStats();
+}
+
+function editorUndo() {
+  if (editor.historyIdx <= 0) return;
+  editor.historyIdx--;
+  editor.maskData = new Uint8ClampedArray(editor.history[editor.historyIdx]);
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorRedo() {
+  if (editor.historyIdx >= editor.history.length - 1) return;
+  editor.historyIdx++;
+  editor.maskData = new Uint8ClampedArray(editor.history[editor.historyIdx]);
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+  updateEditorStats();
+}
+
+function editorReset() {
+  editor.maskData = new Uint8ClampedArray(editor.originalMask);
+  editorPushHistory();
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+}
+
+function editorInvert() {
+  editorPushHistory();
+  for (let i = 0; i < editor.maskData.length; i++) {
+    editor.maskData[i] = editor.maskData[i] > 0 ? 0 : 255;
+  }
+  const scene = SCENES[currentScene];
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  const previewCanvas = document.getElementById('editorPreviewCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), scene);
+  if (previewCanvas) renderEditorPreview(previewCanvas, scene);
+}
+
+function editorDraw(x, y) {
+  const r = editor.brushSize / 2;
+  const val = editor.tool === 'brush' ? 255 : 0;
+  const r2 = r * r;
+  const x1 = Math.max(0, Math.floor(x - r));
+  const y1 = Math.max(0, Math.floor(y - r));
+  const x2 = Math.min(IMG_W - 1, Math.ceil(x + r));
+  const y2 = Math.min(IMG_H - 1, Math.ceil(y + r));
+  for (let py = y1; py <= y2; py++) {
+    for (let px = x1; px <= x2; px++) {
+      const dx = px - x, dy = py - y;
+      if (dx * dx + dy * dy <= r2) {
+        editor.maskData[py * IMG_W + px] = val;
+      }
+    }
+  }
+  // Live update overlay
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), SCENES[currentScene]);
+}
+
+function editorDrawLine(x0, y0, x1, y1) {
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  const r = editor.brushSize / 2;
+  const val = editor.tool === 'brush' ? 255 : 0;
+  const r2 = r * r;
+  while (true) {
+    // Draw circle at (x0, y0)
+    const px1 = Math.max(0, Math.floor(x0 - r));
+    const py1 = Math.max(0, Math.floor(y0 - r));
+    const px2 = Math.min(IMG_W - 1, Math.ceil(x0 + r));
+    const py2 = Math.min(IMG_H - 1, Math.ceil(y0 + r));
+    for (let py = py1; py <= py2; py++) {
+      for (let px = px1; px <= px2; px++) {
+        const ddx = px - x0, ddy = py - y0;
+        if (ddx * ddx + ddy * ddy <= r2) {
+          editor.maskData[py * IMG_W + px] = val;
+        }
+      }
+    }
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+  // Live update overlay
+  const overlayCanvas = document.getElementById('editorOverlayCanvas');
+  if (overlayCanvas) renderEditorOverlay(overlayCanvas.getContext('2d'), SCENES[currentScene]);
+}
+
+function editorFill(x, y) {
+  const target = editor.maskData[y * IMG_W + x];
+  const fillVal = target > 0 ? 0 : 255;
+  const stack = [[x, y]];
+  const visited = new Uint8Array(IMG_W * IMG_H);
+  while (stack.length > 0) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cx >= IMG_W || cy < 0 || cy >= IMG_H) continue;
+    const idx = cy * IMG_W + cx;
+    if (visited[idx]) continue;
+    if (editor.maskData[idx] !== target) continue;
+    visited[idx] = 1;
+    editor.maskData[idx] = fillVal;
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+}
+
+function renderEditorOverlay(ctx, scene) {
+  ctx.clearRect(0, 0, IMG_W, IMG_H);
+
+  // Draw original mask boundary as dashed line (for reference)
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let y = 1; y < IMG_H - 1; y++) {
+    for (let x = 1; x < IMG_W - 1; x++) {
+      const idx = y * IMG_W + x;
+      if (editor.originalMask[idx] > 128) {
+        const hasEdge = (
+          editor.originalMask[idx - 1] <= 128 ||
+          editor.originalMask[idx + 1] <= 128 ||
+          editor.originalMask[idx - IMG_W] <= 128 ||
+          editor.originalMask[idx + IMG_W] <= 128
+        );
+        if (hasEdge) {
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+  ctx.setLineDash([]);
+
+  // Draw current mask as cyan overlay
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    if (editor.maskData[i] > 128) {
+      imgData.data[i * 4] = 0;       // R
+      imgData.data[i * 4 + 1] = 229; // G
+      imgData.data[i * 4 + 2] = 255; // B
+      imgData.data[i * 4 + 3] = 90;  // A
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Draw current mask edge as solid cyan line
+  for (let y = 1; y < IMG_H - 1; y++) {
+    for (let x = 1; x < IMG_W - 1; x++) {
+      const idx = y * IMG_W + x;
+      if (editor.maskData[idx] > 128) {
+        const hasEdge = (
+          editor.maskData[idx - 1] <= 128 ||
+          editor.maskData[idx + 1] <= 128 ||
+          editor.maskData[idx - IMG_W] <= 128 ||
+          editor.maskData[idx + IMG_W] <= 128
+        );
+        if (hasEdge) {
+          ctx.fillStyle = 'rgba(0,229,255,0.8)';
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+
+  // Highlight differences: added (green) and removed (red)
+  for (let y = 0; y < IMG_H; y++) {
+    for (let x = 0; x < IMG_W; x++) {
+      const idx = y * IMG_W + x;
+      const orig = editor.originalMask[idx] > 128;
+      const curr = editor.maskData[idx] > 128;
+      if (orig !== curr) {
+        // Edge of diff region
+        const isEdge = (
+          x === 0 || x === IMG_W - 1 || y === 0 || y === IMG_H - 1 ||
+          editor.maskData[y * IMG_W + (x - 1)] > 128 !== curr ||
+          editor.maskData[y * IMG_W + (x + 1)] > 128 !== curr ||
+          editor.maskData[(y - 1) * IMG_W + x] > 128 !== curr ||
+          editor.maskData[(y + 1) * IMG_W + x] > 128 !== curr
+        );
+        if (isEdge) {
+          if (curr && !orig) {
+            // Added: green dot
+            ctx.fillStyle = 'rgba(0,230,118,0.9)';
+            ctx.fillRect(x, y, 1, 1);
+          } else {
+            // Removed: red dot
+            ctx.fillStyle = 'rgba(255,82,82,0.9)';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+  }
+}
+
+function renderEditorPreview(canvas, scene) {
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    const v = editor.maskData[i];
+    imgData.data[i * 4] = v;
+    imgData.data[i * 4 + 1] = v;
+    imgData.data[i * 4 + 2] = v;
+    imgData.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function updateEditorStats() {
+  let whiteCount = 0;
+  let diffCount = 0;
+  for (let i = 0; i < editor.maskData.length; i++) {
+    if (editor.maskData[i] > 128) whiteCount++;
+    if (editor.maskData[i] !== editor.originalMask[i]) diffCount++;
+  }
+  const area = (whiteCount / (IMG_W * IMG_H) * 100).toFixed(2);
+  const statWhite = document.getElementById('statWhite');
+  const statArea = document.getElementById('statArea');
+  const statHistory = document.getElementById('statHistory');
+  const statDiff = document.getElementById('statDiff');
+  if (statWhite) statWhite.textContent = whiteCount.toLocaleString();
+  if (statArea) statArea.textContent = area + '%';
+  if (statHistory) statHistory.textContent = editor.history.length;
+  if (statDiff) statDiff.textContent = diffCount.toLocaleString();
+}
+
+function editorDownload(sceneId) {
+  // Export as 960×640 binary mask PNG
+  const exportW = 960, exportH = 640;
+  const canvas = document.createElement('canvas');
+  canvas.width = exportW;
+  canvas.height = exportH;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(IMG_W, IMG_H);
+  for (let i = 0; i < IMG_W * IMG_H; i++) {
+    const v = editor.maskData[i];
+    imgData.data[i * 4] = v;
+    imgData.data[i * 4 + 1] = v;
+    imgData.data[i * 4 + 2] = v;
+    imgData.data[i * 4 + 3] = 255;
+  }
+  // Draw at original size then scale
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = IMG_W;
+  tmpCanvas.height = IMG_H;
+  tmpCanvas.getContext('2d').putImageData(imgData, 0, 0);
+  ctx.drawImage(tmpCanvas, 0, 0, exportW, exportH);
+
+  const link = document.createElement('a');
+  link.download = `${sceneId}_${editor.currentMaskId}_mask_edited.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ════════════════════════════════════════════════
+// Event Binding
+// ════════════════════════════════════════════════
+function bindEvents(scene, img, maskImgs) {
+  // BBox controls
+  const bboxControls = document.getElementById('bboxControls');
+  if (bboxControls) {
+    bboxControls.querySelectorAll('.overlay-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        bboxControls.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const idx = btn.dataset.idx;
+        if (btn.dataset.show === 'all') {
+          drawSceneWithBBoxes(scene, img, maskImgs, -1);
+        } else if (idx === 'walkable') {
+          drawSceneWithBBoxes(scene, img, maskImgs, 'walkable');
+        } else if (idx === 'water') {
+          drawSceneWithBBoxes(scene, img, maskImgs, 'water');
+        } else {
+          drawSceneWithBBoxes(scene, img, maskImgs, parseInt(idx));
+        }
+      });
+    });
+  }
+
+  // Object rows
+  document.querySelectorAll('.obj-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const idx = parseInt(row.dataset.idx);
+      drawSceneWithBBoxes(scene, img, maskImgs, idx);
+    });
+  });
+
+  // Decoder object buttons
+  const decoderBtns = document.getElementById('decoderObjBtns');
+  if (decoderBtns) {
+    decoderBtns.querySelectorAll('.overlay-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        decoderBtns.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        drawDecoder(scene, img, maskImgs, parseInt(btn.dataset.idx));
+      });
+    });
+  }
+
+  // Output controls
+  const outputControls = document.getElementById('outputControls');
+  if (outputControls) {
+    outputControls.querySelectorAll('.overlay-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        outputControls.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const title = document.getElementById('outputLeftTitle');
+        const mode = btn.dataset.mode;
+        const labels = { combo: '组合 Mask 叠加', individual: '逐物体 Mask', walkable: 'Walkable 区域', water: '水面区域', depth: '深度图' };
+        if (title) title.textContent = labels[mode] || mode;
+        drawOutput(scene, img, maskImgs, mode);
+      });
+    });
+
+    const opacitySlider = document.getElementById('opacitySlider');
+    if (opacitySlider) {
+      opacitySlider.addEventListener('input', () => {
+        overlayOpacity = opacitySlider.value / 100;
+        const activeBtn = outputControls.querySelector('.overlay-btn.active');
+        if (activeBtn) drawOutput(scene, img, maskImgs, activeBtn.dataset.mode);
+      });
+    }
+  }
+
+  // Verify object buttons
+  const verifyBtns = document.getElementById('verifyObjBtns');
+  if (verifyBtns) {
+    verifyBtns.querySelectorAll('.overlay-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        verifyBtns.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const idx = parseInt(btn.dataset.idx);
+        drawVerification(scene, img, maskImgs, idx);
+        const label = document.getElementById('verifyObjLabel');
+        if (label && scene.objects[idx]) label.textContent = scene.objects[idx].label;
+      });
+    });
+  }
+}
+
+// ════════════════════════════════════════════════
+// Init
+// ════════════════════════════════════════════════
+renderTabs();
+renderPipeline();
+</script>
+</body>
+</html>
