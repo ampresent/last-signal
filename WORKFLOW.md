@@ -404,15 +404,13 @@ python3 gen_character_views.py --char joker # 单个角色
 
 ### 角色数据
 
-3 角色 × 4 方向 × 6 帧 = 72 张行走帧 PNG。
+3 角色 × 4 方向 × 8 帧 = 96 张行走帧 WebP。
 
 | 角色 | 文件名 |
 |------|--------|
-| Joker | `joker_{dir}_f{0-5}.png` |
-| Kai | `kai_{dir}_f{0-5}.png` |
-| Oracle | `oracle_{dir}_f{0-5}.png` |
-
-Sprite Sheet：`sheet_{character}_{direction}.png`（6 帧水平排列）
+| Joker | `joker_{dir}_f{0-7}.webp` |
+| Kai | `kai_{dir}_f{0-7}.webp` |
+| Oracle | `oracle_{dir}_f{0-7}.webp` |
 
 ### 移动方式
 
@@ -581,7 +579,7 @@ back: frame 194-241
 sprite sheet 的 alpha 只遮了外边框（~10%），alpha=255 区域里包含大量白/灰背景（~65%）和角色（~35%）。需要从 alpha=255 区域中把角色抠出来。
 
 ```
-sheet_kai_{dir}.webp (sprite sheet, RGBA)
+sheet_{char}_{dir}.webp (sprite sheet, RGBA)
        │
        ▼
   ┌─────────────────────────────────────┐
@@ -605,7 +603,7 @@ sheet_kai_{dir}.webp (sprite sheet, RGBA)
   │ Step 3: 合成 RGBA + 清零背景 RGB      │
   │   alpha = 前景 mask (0/255)           │
   │   alpha=0 的像素 RGB 清零             │
-  │   → PNG 输出                          │
+  │   → WebP lossless 输出               │
   └─────────────────────────────────────┘
        │
        ▼
@@ -706,8 +704,8 @@ last-signal/
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_masks.py            # MobileSAM + Omni mask 生成器（交互/可行走/水面 + 叠层验证）
-├── gen_character_views.py   # 角色视角生成（视频→sprite sheet + MobileSAM mask 抠图）
-├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×6帧）
+├── gen_character_views.py   # 角色视角生成（正面→img2img→4方向→抠图）
+├── cutout_from_sheet.py    # 从 sprite sheet 逐帧抠图（颜色距离抠图）
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
@@ -717,10 +715,9 @@ last-signal/
     ├── portrait_*.png       # 角色肖像
     ├── expressions/         # 角色表情变体（3角色×6表情）
     ├── sprites/
-    │   ├── cutout_{char}_{dir}.png    # 角色抠图
+    │   ├── cutout_{char}_{dir}.png    # 角色抠图（原始源文件）
     │   ├── raw_{char}_{dir}.png       # 原始角色图
-    │   ├── sheet_{char}_{dir}.png     # Sprite Sheet（8帧）
-    │   └── {char}_{dir}_f{0-5}.png    # 逐帧 PNG
+    │   └── {char}_{dir}_f{0-7}.webp   # 逐帧 WebP（游戏加载）
     └── masks/
         ├── {scene}_mask.png           # 组合 mask（交互区域并集）
         ├── {scene}_{obj}_mask.png     # 单独物体 mask
@@ -949,8 +946,8 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
 python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成 (含叠层验证)
-python3 gen_character_views.py     # 4. 角色行走 sprite sheet（视频→帧提取→mask 抠图）
-python3 gen_walk_preview.py        # 5. 行走 GIF 预览
+python3 gen_character_views.py     # 4. 角色视角生成（正面→img2img→4方向→抠图）
+python3 cutout_from_sheet.py       # 5. 从 sprite sheet 逐帧抠图
 ```
 
 ### 添加新场景

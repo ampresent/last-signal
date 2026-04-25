@@ -9,7 +9,7 @@ Pipeline:
   4. Cutout each direction
   5. Output: cutout_{char}_{dir}.png for all 4 directions
 
-Then run: python3 dragonbones_rig.py --batch
+Then run: python3 cutout_from_sheet.py
 
 Usage:
     python3 gen_character_views.py              # all characters
@@ -358,7 +358,7 @@ def main():
 
     print(f"\n{'='*55}")
     print(f"✅ 全部完成！")
-    print(f"   下一步: python3 dragonbones_rig.py --batch")
+    print(f"   下一步: python3 cutout_from_sheet.py")
     print(f"{'='*55}")
 
 
