@@ -638,7 +638,7 @@ last-signal/
 ├── lighting-editor.html    # 可视化光照编辑器
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
-├── gen_masks.py            # GrabCut 精细 mask 生成器（统一：交互/可行走/水面）
+├── gen_masks.py            # MobileSAM + Omni mask 生成器（交互/可行走/水面 + 叠层验证）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
 ├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×8帧）
 ├── WORKFLOW.md             # 本文档
@@ -737,9 +737,10 @@ Game.sfx("click"|"pickup"|"door"|"error"|"success");
 
 | 组件 | 用途 | 说明 |
 |------|------|------|
-| MobileSAM (ONNX) | 精确分割 | TinyViT 轻量模型 (~2MB), ONNX Runtime 推理, 无需 GPU |
+| MobileSAM (ONNX) | 精确分割 | encoder (27MB) + decoder (16MB), ONNX Runtime, 无需 GPU |
 | mimo-omni | 物体识别 + mask 验证 | 多模态视觉模型, 识别 bbox + 审查 mask 质量 |
-| GrabCut (降级) | 备选方案 | MobileSAM 不可用时自动降级 |
+
+> **严格模式**: 无降级策略。模型缺失直接报错退出，不回退到 GrabCut。
 
 ### Mask 类型
 
