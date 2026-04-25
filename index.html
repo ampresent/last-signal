@@ -2108,6 +2108,7 @@ const LoadingTracker = {
   barWrap: null,
   barFill: null,
   textEl: null,
+  current: '',
 
   init() {
     this.barWrap = document.getElementById('loading-bar-wrap');
@@ -2115,6 +2116,7 @@ const LoadingTracker = {
     this.textEl = document.getElementById('loading-text');
     this.total = 0;
     this.loaded = 0;
+    this.current = '';
   },
 
   show() {
@@ -2131,11 +2133,23 @@ const LoadingTracker = {
     this.total += n;
   },
 
-  tick() {
-    this.loaded++;
+  setCurrent(label) {
+    this.current = label;
+    this._updateText();
+  },
+
+  _updateText() {
     const pct = this.total > 0 ? Math.floor((this.loaded / this.total) * 100) : 0;
     if (this.barFill) this.barFill.style.width = pct + '%';
-    if (this.textEl) this.textEl.textContent = `LOADING ASSETS · ${pct}%`;
+    if (this.textEl) {
+      const cur = this.current ? ` · ${this.current}` : '';
+      this.textEl.textContent = `LOADING ${pct}%${cur}`;
+    }
+  },
+
+  tick() {
+    this.loaded++;
+    this._updateText();
   },
 
   // 返回一个包装后的图片加载函数，自动追踪进度
@@ -2411,14 +2425,17 @@ const Game = {
     // ── 全局资源 (头像、表情) 与第一个场景并行加载 ──
     const globalDone = (async () => {
       for (const name of ['portrait_kai', 'portrait_oracle', 'portrait_joker']) {
+        LoadingTracker.setCurrent(`portrait ${name}`);
         this.images[name] = await loadImg(`assets/${name}.png`);
       }
       for (const char of ['kai', 'oracle', 'joker']) {
         for (const expr of EXPRESSIONS) {
           const key = `portrait_${char}_${expr}`;
+          LoadingTracker.setCurrent(`expression ${key}`);
           this.images[key] = await loadImg(`assets/expressions/${char}_${expr}.png`);
         }
       }
+      LoadingTracker.setCurrent('portraits done');
     })();
 
     // ── 按场景顺序加载: 背景 → mask → 角色精灵 ──
@@ -2430,18 +2447,21 @@ const Game = {
 
       // 背景
       if (bgName && !this.images[bgName]) {
+        LoadingTracker.setCurrent(`${sceneId} · background`);
         const img = await loadImg(`assets/${bgName}.png`);
         this.images[bgName] = img;
         this.bgFrames[bgName] = img ? [img] : [];
       }
 
       // Walkable mask
+      LoadingTracker.setCurrent(`${sceneId} · walkable mask`);
       const walkMaskPath = `assets/masks/${sceneId}_walkable_mask.png`;
       await loadMask(walkMaskPath).then(m => {
         if (m) this.masks[`${sceneId}_walkable`] = m;
       });
 
       // Scene mask
+      LoadingTracker.setCurrent(`${sceneId} · scene mask`);
       await loadMask(`assets/masks/${sceneId}_mask.png`).then(m => {
         this.masks[sceneId] = m;
       });
@@ -2450,6 +2470,7 @@ const Game = {
       if (scene.hotspots) {
         for (const hs of scene.hotspots) {
           if (hs.maskId) {
+            LoadingTracker.setCurrent(`${sceneId} · mask ${hs.maskId}`);
             await loadMask(`assets/masks/${sceneId}_${hs.maskId}_mask.png`).then(m => {
               if (m) this.objMasks[`${sceneId}_${hs.maskId}`] = m;
             });
@@ -2467,6 +2488,7 @@ const Game = {
           for (const dir of dirs) {
             for (let fi = 0; fi < walkFrameCount; fi++) {
               const key = `${char.id}_${dir}_f${fi}`;
+              LoadingTracker.setCurrent(`${sceneId} · sprite ${key}`);
               const img = await loadImg(`assets/sprites/${key}.png`);
               if (img) {
                 if (!CharSystem.sprites[char.id]) CharSystem.sprites[char.id] = {};
