@@ -389,7 +389,6 @@ await Game.showCasualChat("说话者", "文本", { expression: "happy" });
 ```
 CharacterSystem       — 角色管理（加载、渲染、碰撞）
 gen_character_views.py — 角色视角生成（正面→img2img 三角度）
-gen_character_sprites.py — 旧版行走帧生成（已弃用，保留兼容）
 gen_walk_masks.py     — 可行走区域 mask 生成
 dragonbones_rig.py    — DragonBones 骨骼自动绑定
 ```
@@ -842,10 +841,8 @@ last-signal/
 ├── lighting-editor.html    # 可视化光照编辑器
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
-├── gen_anim_frames.py      # Legacy 动画帧（程序化图像效果，降级方案）
 ├── gen_masks.py            # GrabCut 精细 mask 生成器（统一：交互/可行走/水面）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
-├── gen_character_sprites.py  # 旧版角色行走帧生成（已弃用，保留兼容）
 ├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×8帧）
 ├── dragonbones_rig.py      # DragonBones 骨骼自动绑定 + sprite sheet 生成
 ├── WORKFLOW.md             # 本文档
