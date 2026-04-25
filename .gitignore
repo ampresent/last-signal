@@ -14,3 +14,8 @@ models/
 preview_*.gif
 # 验证临时文件
 _verify_preview.png
+.github-token
+.hf-token
+.s3cfg
+.git-credentials-file
+.git-credential
