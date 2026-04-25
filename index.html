@@ -1136,12 +1136,21 @@ const VFX = {
         rc.width = W;
         rc.height = srcH;
 
-        // 垂直翻转：把源图像倒过来画
-        rctx.save();
-        rctx.translate(0, srcH);
-        rctx.scale(1, -1);
-        rctx.putImageData(imgData, 0, 0);
-        rctx.restore();
+        // 垂直翻转：手动翻转像素数据 (putImageData 忽略 canvas transform)
+        const flipped = new Uint8ClampedArray(imgData.data.length);
+        for (let row = 0; row < srcH; row++) {
+          const srcRow = srcH - 1 - row; // 从底部往上读 → 翻转
+          for (let col = 0; col < W; col++) {
+            const dstIdx = (row * W + col) * 4;
+            const srcIdx = (srcRow * W + col) * 4;
+            flipped[dstIdx]     = imgData.data[srcIdx];
+            flipped[dstIdx + 1] = imgData.data[srcIdx + 1];
+            flipped[dstIdx + 2] = imgData.data[srcIdx + 2];
+            flipped[dstIdx + 3] = imgData.data[srcIdx + 3];
+          }
+        }
+        const flippedImg = new ImageData(flipped, W, srcH);
+        rctx.putImageData(flippedImg, 0, 0);
 
         // 波纹扰动：逐列水平偏移模拟水面波动
         const waveData = rctx.getImageData(0, 0, W, srcH);
@@ -2004,10 +2013,11 @@ const CharSystem = {
     if (!sprite) return; // 精灵图未加载
 
     // 角色尺寸 (根据深度缩放 — 远处小, 近处大)
+    // 精灵帧是 64×128 (宽高比 1:2)，按比例绘制避免拉宽
     const depthScale = 0.6 + (1.0 - depth) * 0.8;
     const baseSize = 960 * char.scale;
-    const w = baseSize * depthScale;
     const h = baseSize * depthScale;
+    const w = h * (sprite.width / sprite.height); // 保持原始宽高比
 
     // 角色位置 (脚部对齐 Y 坐标)
     const px = char.x * 960 - w / 2;
