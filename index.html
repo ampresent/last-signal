@@ -679,6 +679,7 @@ const VFX = {
       turbulenceAmp: 0.15 + Math.random() * 0.35,      // 湍流幅度
       speedVariation: (Math.random() - 0.5) * 0.4,     // 速度微扰
       thickness: 0.6 + Math.random() * 0.8,            // 粗细变化
+      splashCooldown: 0,                                // 硬表面溅起冷却 (ms)
     };
   },
 
@@ -793,6 +794,7 @@ const VFX = {
       drop.x += drop.wind + drop.windOffset + turbX * 0.3;
 
       let splashed = false;
+      let hardSurfaceHit = false;
 
       // 1. 先检查是否落在 water mask 上
       if (waterMask) {
@@ -806,21 +808,28 @@ const VFX = {
         }
       }
 
-      // 2. 硬表面碰撞：深度差检测
+      // 2. 硬表面碰撞：深度差检测 — 溅起但继续下落
       if (!splashed && CharSystem && CharSystem.depthData) {
-        const nx = drop.x / 960;
-        const ny = drop.y / 640;
-        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
-          const depthHere = CharSystem.getDepth(nx, ny);
-          const nyAbove = (drop.y - 6) / 640;
-          const depthAbove = nyAbove >= 0 ? CharSystem.getDepth(nx, nyAbove) : depthHere;
-          if (depthHere - depthAbove > 0.06) {
-            this._spawnSplash(drop.x, drop.y, drop.wind + drop.windOffset, rcfg);
-            splashed = true;
+        // 冷却期内跳过碰撞，防止同一表面反复溅起
+        if (drop.splashCooldown > 0) {
+          drop.splashCooldown -= dt;
+        } else {
+          const nx = drop.x / 960;
+          const ny = drop.y / 640;
+          if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
+            const depthHere = CharSystem.getDepth(nx, ny);
+            const nyAbove = (drop.y - 6) / 640;
+            const depthAbove = nyAbove >= 0 ? CharSystem.getDepth(nx, nyAbove) : depthHere;
+            if (depthHere - depthAbove > 0.06) {
+              this._spawnSplash(drop.x, drop.y, drop.wind + drop.windOffset, rcfg);
+              hardSurfaceHit = true;
+              drop.splashCooldown = 200; // 200ms 冷却，让雨滴穿过表面
+            }
           }
         }
       }
 
+      // 水面碰撞才重置到顶部；硬表面碰撞只溅起，雨滴继续往下
       if (splashed || drop.y > 660) {
         drop.y = -drop.length - Math.random() * 40;
         drop.x = Math.random() * 1000 - 20;
