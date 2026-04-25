@@ -10,12 +10,14 @@ models/
 .git-credentials-file
 .git-credential
 
-# 预览 GIF
-preview_*.gif
 # 验证临时文件
 _verify_preview.png
-.github-token
-.hf-token
-.s3cfg
-.git-credentials-file
-.git-credential
+
+# 图片格式限制：只允许 webp，禁止其他格式
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.gif
+# 例外：行走预览 GIF（sprite sheet 预览）
+!assets/sprites/previews/*.gif
