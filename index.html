@@ -531,9 +531,9 @@ const VFX = {
       flicker: { enabled: true, chance: 0.008, amount: 0.12 },
       scanlines: { enabled: false },
       vignette: { inner: 200, outer: 580, opacity: 0.5 },
-      puddleReflection: { enabled: true, y: 500, opacity: 0.20,
-        specular: [[150, 540, 0.6, [255,80,180]], [480, 560, 0.4, [100,200,255]], [750, 545, 0.5, [80,255,200]]],
-        rippleChance: 0.008, reflectStrength: 0.45 },
+      puddleReflection: { enabled: true, y: 500, opacity: 0.12,
+        specular: [[150, 540, 0.2, [255,80,180]], [480, 560, 0.15, [100,200,255]], [750, 545, 0.18, [80,255,200]]],
+        rippleChance: 0.003, reflectStrength: 0.12 },
       particles: { type: 'steam', count: 8, speed: 0.4, opacity: 0.06 },
     },
     bar: {
@@ -553,9 +553,9 @@ const VFX = {
       scanlines: { enabled: false },
       vignette: { inner: 150, outer: 480, opacity: 0.65 },
       particles: { type: 'drip', count: 5, speed: 1.5, opacity: 0.12 },
-      puddleReflection: { enabled: true, y: 520, opacity: 0.18,
-        specular: [[400, 560, 0.5, [50,230,80]], [150, 545, 0.3, [230,50,60]]],
-        rippleChance: 0.012, reflectStrength: 0.35 },
+      puddleReflection: { enabled: true, y: 520, opacity: 0.10,
+        specular: [[400, 560, 0.15, [50,230,80]], [150, 545, 0.10, [230,50,60]]],
+        rippleChance: 0.004, reflectStrength: 0.10 },
     },
     tower: {
       rain: { count: 160, speed: [5, 9], length: [14, 26], opacity: 0.20, wind: 0.4 },
@@ -565,9 +565,9 @@ const VFX = {
       scanlines: { enabled: false },
       vignette: { inner: 250, outer: 600, opacity: 0.45 },
       particles: { type: 'dust', count: 10, speed: 0.3, opacity: 0.05 },
-      puddleReflection: { enabled: true, y: 530, opacity: 0.12,
-        specular: [[480, 570, 0.3, [180,200,255]]],
-        rippleChance: 0.005, reflectStrength: 0.25 },
+      puddleReflection: { enabled: true, y: 530, opacity: 0.08,
+        specular: [[480, 570, 0.12, [180,200,255]]],
+        rippleChance: 0.002, reflectStrength: 0.08 },
     },
     server: {
       rain: { count: 0 },
@@ -586,9 +586,9 @@ const VFX = {
       scanlines: { enabled: false },
       vignette: { inner: 280, outer: 600, opacity: 0.4 },
       particles: { type: 'wind', count: 10, speed: 1.0, opacity: 0.04 },
-      puddleReflection: { enabled: true, y: 510, opacity: 0.22,
-        specular: [[300, 550, 0.5, [100,180,255]], [660, 540, 0.4, [255,120,60]]],
-        rippleChance: 0.015, reflectStrength: 0.40 },
+      puddleReflection: { enabled: true, y: 510, opacity: 0.10,
+        specular: [[300, 550, 0.15, [100,180,255]], [660, 540, 0.12, [255,120,60]]],
+        rippleChance: 0.004, reflectStrength: 0.10 },
     },
     office: {
       rain: { count: 40, speed: [3, 5], length: [8, 14], opacity: 0.12, wind: 0.2 },
@@ -673,6 +673,12 @@ const VFX = {
       length: rcfg.length[0] + Math.random() * (rcfg.length[1] - rcfg.length[0]),
       opacity: 0.3 + Math.random() * 0.7,
       wind: rcfg.wind || 0,
+      // 每个雨滴独立的随机参数，打破规则感
+      windOffset: (Math.random() - 0.5) * 0.6,        // 风向随机偏移 ±0.3
+      turbulencePhase: Math.random() * Math.PI * 2,    // 湍流相位
+      turbulenceAmp: 0.15 + Math.random() * 0.35,      // 湍流幅度
+      speedVariation: (Math.random() - 0.5) * 0.4,     // 速度微扰
+      thickness: 0.6 + Math.random() * 0.8,            // 粗细变化
     };
   },
 
@@ -777,9 +783,14 @@ const VFX = {
   _renderRain(ctx, dt, rcfg) {
     // 更新雨滴位置 + 碰撞检测
     const waterMask = Game.waterMasks[Game.currentScene];
+    const dtSec = dt / 1000;
     for (const drop of this.raindrops) {
-      drop.y += drop.speed;
-      drop.x += drop.wind;
+      // 速度带微扰，模拟不同大小雨滴
+      const effectiveSpeed = drop.speed + drop.speedVariation * drop.speed * 0.3;
+      drop.y += effectiveSpeed;
+      // 独立风偏移 + 微弱湍流摆动
+      const turbX = Math.sin(drop.y * 0.04 + drop.turbulencePhase) * drop.turbulenceAmp;
+      drop.x += drop.wind + drop.windOffset + turbX * 0.3;
 
       let splashed = false;
 
@@ -804,7 +815,7 @@ const VFX = {
           const nyAbove = (drop.y - 6) / 640;
           const depthAbove = nyAbove >= 0 ? CharSystem.getDepth(nx, nyAbove) : depthHere;
           if (depthHere - depthAbove > 0.06) {
-            this._spawnSplash(drop.x, drop.y, drop.wind, rcfg);
+            this._spawnSplash(drop.x, drop.y, drop.wind + drop.windOffset, rcfg);
             splashed = true;
           }
         }
@@ -813,6 +824,8 @@ const VFX = {
       if (splashed || drop.y > 660) {
         drop.y = -drop.length - Math.random() * 40;
         drop.x = Math.random() * 1000 - 20;
+        // 重置湍流相位，避免模式重复
+        drop.turbulencePhase = Math.random() * Math.PI * 2;
       }
       if (drop.x > 980) drop.x = -20;
     }
@@ -829,15 +842,24 @@ const VFX = {
       const rc = this._rainCanvas.getContext('2d');
       rc.clearRect(0, 0, 960, 640);
 
-      // 在临时 canvas 上画雨丝
-      rc.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
+      // 在临时 canvas 上画雨丝 — 用贝塞尔曲线模拟自然弯曲
       rc.lineWidth = 1;
-      rc.beginPath();
       for (const drop of this.raindrops) {
+        const effectiveWind = drop.wind + drop.windOffset;
+        const midX = drop.x + effectiveWind * drop.length * 0.5;
+        const midY = drop.y + drop.length * 0.5;
+        const endX = drop.x + effectiveWind * drop.length;
+        const endY = drop.y + drop.length;
+        // 湍流弯曲控制点
+        const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
+        const alpha = rcfg.opacity * drop.opacity * drop.thickness;
+        rc.strokeStyle = `rgba(180, 200, 255, ${alpha})`;
+        rc.lineWidth = drop.thickness;
+        rc.beginPath();
         rc.moveTo(drop.x, drop.y);
-        rc.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+        rc.quadraticCurveTo(midX + turb, midY, endX + turb * 0.5, endY);
+        rc.stroke();
       }
-      rc.stroke();
 
       // destination-in：只保留 mask 区域内的像素
       rc.globalCompositeOperation = 'destination-in';
@@ -846,15 +868,22 @@ const VFX = {
       // 画到主 canvas（正常叠加，不破坏背景）
       ctx.drawImage(this._rainCanvas, 0, 0);
     } else {
-      // 室外：全屏雨滴
-      ctx.strokeStyle = 'rgba(180, 200, 255, ' + rcfg.opacity + ')';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
+      // 室外：全屏雨丝 — 贝塞尔曲线 + 湍流
       for (const drop of this.raindrops) {
+        const effectiveWind = drop.wind + drop.windOffset;
+        const midX = drop.x + effectiveWind * drop.length * 0.5;
+        const midY = drop.y + drop.length * 0.5;
+        const endX = drop.x + effectiveWind * drop.length;
+        const endY = drop.y + drop.length;
+        const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
+        const alpha = rcfg.opacity * drop.opacity * drop.thickness;
+        ctx.strokeStyle = `rgba(180, 200, 255, ${alpha})`;
+        ctx.lineWidth = drop.thickness;
+        ctx.beginPath();
         ctx.moveTo(drop.x, drop.y);
-        ctx.lineTo(drop.x + drop.wind * drop.length, drop.y + drop.length);
+        ctx.quadraticCurveTo(midX + turb, midY, endX + turb * 0.5, endY);
+        ctx.stroke();
       }
-      ctx.stroke();
     }
 
     ctx.restore();
@@ -1152,7 +1181,7 @@ const VFX = {
         const flippedImg = new ImageData(flipped, W, srcH);
         rctx.putImageData(flippedImg, 0, 0);
 
-        // 波纹扰动：逐列水平偏移模拟水面波动
+        // 波纹扰动：逐列水平偏移模拟积水微澜
         const waveData = rctx.getImageData(0, 0, W, srcH);
         const pixels = waveData.data;
         const distorted = new Uint8ClampedArray(pixels);
@@ -1161,11 +1190,10 @@ const VFX = {
         for (let row = 0; row < srcH; row++) {
           // 越靠近水面顶部扰动越大，底部衰减
           const depthFade = 1.0 - (row / srcH) * 0.6;
-          // 多频率叠加的波浪
-          const wave1 = Math.sin(row * 0.08 + time * 2.5) * 3.5 * depthFade;
-          const wave2 = Math.sin(row * 0.15 + time * 1.8 + 1.3) * 2.0 * depthFade;
-          const wave3 = Math.sin(row * 0.25 + time * 3.2 + 2.7) * 1.0 * depthFade;
-          const shift = Math.round(wave1 + wave2 + wave3);
+          // 积水：极微弱的扰动，只有 ~1px 级别
+          const wave1 = Math.sin(row * 0.06 + time * 1.2) * 0.8 * depthFade;
+          const wave2 = Math.sin(row * 0.12 + time * 0.9 + 1.3) * 0.4 * depthFade;
+          const shift = Math.round(wave1 + wave2);
 
           for (let col = 0; col < W; col++) {
             let srcCol = col + shift;
@@ -1188,8 +1216,8 @@ const VFX = {
         ctx.globalAlpha = reflectStrength;
         ctx.drawImage(rc, 0, waterY, W, Math.min(waterH, srcH));
 
-        // 蓝色水面色调叠加
-        ctx.globalAlpha = 0.15;
+        // 蓝色水面色调叠加（积水很淡）
+        ctx.globalAlpha = 0.06;
         ctx.fillStyle = '#0a2a3d';
         ctx.fillRect(0, waterY, W, waterH);
 
@@ -1200,29 +1228,29 @@ const VFX = {
     }
 
     // ══════════════════════════════════════════════════
-    // 2. 水面渐变底色（半透明蓝绿）
+    // 2. 水面渐变底色（积水：极淡蓝灰）
     // ══════════════════════════════════════════════════
     const grad = ctx.createLinearGradient(0, waterY, 0, H);
-    grad.addColorStop(0, `rgba(10, 60, 90, ${pcfg.opacity * 0.4})`);
-    grad.addColorStop(0.3, `rgba(5, 50, 80, ${pcfg.opacity * 0.25})`);
-    grad.addColorStop(1, `rgba(0, 30, 50, ${pcfg.opacity * 0.1})`);
+    grad.addColorStop(0, `rgba(10, 50, 70, ${pcfg.opacity * 0.3})`);
+    grad.addColorStop(0.3, `rgba(5, 40, 60, ${pcfg.opacity * 0.18})`);
+    grad.addColorStop(1, `rgba(0, 25, 40, ${pcfg.opacity * 0.06})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, waterY, W, waterH);
 
     // ══════════════════════════════════════════════════
-    // 3. 波纹线（动态涟漪纹理）
+    // 3. 波纹线（积水极微弱涟漪纹理）
     // ══════════════════════════════════════════════════
     const time = ws.wavePhase;
-    ctx.lineWidth = 0.6;
-    for (let i = 0; i < 8; i++) {
-      const baseY = waterY + 10 + i * (waterH / 9);
-      const amp = 1.5 + Math.sin(time * 1.2 + i * 0.9) * 1.0;
-      const alpha = pcfg.opacity * (0.08 + 0.04 * Math.sin(time + i));
+    ctx.lineWidth = 0.4;
+    for (let i = 0; i < 3; i++) {
+      const baseY = waterY + 8 + i * (waterH / 4);
+      const amp = 0.5 + Math.sin(time * 0.6 + i * 1.1) * 0.3;
+      const alpha = pcfg.opacity * (0.06 + 0.03 * Math.sin(time * 0.7 + i));
       ctx.strokeStyle = `rgba(80, 180, 220, ${alpha})`;
       ctx.beginPath();
-      for (let x = 0; x < W; x += 3) {
-        const dy = Math.sin(x * 0.015 + time * 1.8 + i * 0.6) * amp
-                 + Math.sin(x * 0.03 + time * 2.5 + i * 1.2) * amp * 0.5;
+      for (let x = 0; x < W; x += 4) {
+        const dy = Math.sin(x * 0.01 + time * 0.8 + i * 0.7) * amp
+                 + Math.sin(x * 0.02 + time * 1.1 + i * 1.3) * amp * 0.3;
         if (x === 0) ctx.moveTo(x, baseY + dy);
         else ctx.lineTo(x, baseY + dy);
       }
@@ -1239,12 +1267,12 @@ const VFX = {
       const flicker = 0.5 + 0.5 * Math.sin(ws.shimmer * (1.5 + sx * 0.003) + sx * 0.01);
       const alpha = pcfg.opacity * intensity * flicker;
 
-      // 椭圆形光斑
-      const rx = 25 + 10 * Math.sin(time + sx);
-      const ry = 6 + 3 * Math.sin(time * 1.3 + sy);
+      // 椭圆形光斑 — 积水反射很小
+      const rx = 12 + 5 * Math.sin(time + sx);
+      const ry = 3 + 1.5 * Math.sin(time * 1.3 + sy);
       const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, rx);
-      grad.addColorStop(0, `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha * 0.8})`);
-      grad.addColorStop(0.5, `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha * 0.3})`);
+      grad.addColorStop(0, `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha * 0.6})`);
+      grad.addColorStop(0.5, `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha * 0.2})`);
       grad.addColorStop(1, `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0)`);
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -1272,25 +1300,25 @@ const VFX = {
     }
 
     // 渲染 + 老化涟漪
-    ctx.lineWidth = 1.0;
+    ctx.lineWidth = 0.7;
     ws.ripples = ws.ripples.filter(r => {
       r.age += dt;
       if (r.age > r.maxAge) return false;
 
       const progress = r.age / r.maxAge; // 0→1
-      const radius = 8 + progress * 40;
-      const alpha = pcfg.opacity * 0.25 * (1.0 - progress) * (1.0 - progress);
+      const radius = 4 + progress * 18;  // 积水涟漪很小
+      const alpha = pcfg.opacity * 0.18 * (1.0 - progress) * (1.0 - progress);
 
       ctx.strokeStyle = `rgba(120, 200, 240, ${alpha})`;
       ctx.beginPath();
-      ctx.ellipse(r.x, r.y, radius, radius * 0.3, 0, 0, Math.PI * 2);
+      ctx.ellipse(r.x, r.y, radius, radius * 0.25, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 内圈
-      if (radius > 15) {
-        ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.5})`;
+      // 内圈（仅在半径足够时显示）
+      if (radius > 10) {
+        ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.4})`;
         ctx.beginPath();
-        ctx.ellipse(r.x, r.y, radius * 0.6, radius * 0.18, 0, 0, Math.PI * 2);
+        ctx.ellipse(r.x, r.y, radius * 0.5, radius * 0.12, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
 
