@@ -238,7 +238,7 @@ def process_character(char_id):
     direction_frames = {}
 
     for direction in ["down", "left", "right", "up"]:
-        cutout_path = SPRITES_DIR / f"cutout_{char_id}_{direction}.png"
+        cutout_path = SPRITES_DIR / f"cutout_{char_id}_{direction}.webp"
         if not cutout_path.exists():
             print(f"  ⚠️  Missing: {cutout_path}")
             continue
@@ -293,7 +293,7 @@ def main():
     else:
         # Find all characters with cutout images
         chars = set()
-        for f in SPRITES_DIR.glob("cutout_*_down.png"):
+        for f in SPRITES_DIR.glob("cutout_*_down.webp"):
             char_id = f.stem.replace("cutout_", "").replace("_down", "")
             chars.add(char_id)
         for char_id in sorted(chars):

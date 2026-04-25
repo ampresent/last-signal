@@ -7,7 +7,7 @@ cutout_from_sheet.py — 从 sprite sheet 提取逐帧 cutout
   2. 从上边缘采样背景色
   3. alpha=255 且颜色远离背景色 → 前景
   4. 形态学清理
-  5. 清零背景 RGB → PNG
+  5. 清零背景 RGB → WebP (lossless RGBA)
 
 Usage:
     python3 cutout_from_sheet.py
@@ -110,7 +110,7 @@ def process_character(char_id, directions=None, threshold=DEFAULT_THRESHOLD):
         print(f"   背景色: {bg_color.astype(int)}")
 
         for i, frame in enumerate(frames):
-            out_path = os.path.join(SPRITES_DIR, f"cutout_{char_id}_{d}_f{i}.png")
+            out_path = os.path.join(SPRITES_DIR, f"cutout_{char_id}_{d}_f{i}.webp")
             arr = np.array(frame)
 
             mask = color_cutout(frame, bg_color, threshold)
@@ -123,7 +123,7 @@ def process_character(char_id, directions=None, threshold=DEFAULT_THRESHOLD):
             rgba[bg, 1] = 0
             rgba[bg, 2] = 0
 
-            Image.fromarray(rgba).save(out_path, "PNG")
+            Image.fromarray(rgba).save(out_path, "WebP", lossless=True, quality=100)
             fg_pct = 100 * np.sum(mask > 128) / mask.size
             print(f"   f{i}: fg={fg_pct:.0f}% ✓")
 
