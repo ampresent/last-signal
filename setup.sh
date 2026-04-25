@@ -39,30 +39,61 @@ pip3 install --break-system-packages -q \
 echo "  ✓ $(python3 -c 'import requests,cv2,numpy,onnxruntime; print(f"requests {requests.__version__}, cv2 {cv2.__version__}, numpy {numpy.__version__}, ort {onnxruntime.__version__}")')"
 
 # ──────────────────────────────────────────────
-# 2. MobileSAM ONNX 模型
+# 2. MobileSAM ONNX 模型 (从 R2 下载, 国内快)
 # ──────────────────────────────────────────────
 echo "=== [2/5] MobileSAM ONNX 模型 ==="
 
-SAM_MODEL="$PROJECT/models/mobile_sam_vit_t.onnx"
-if [ -f "$SAM_MODEL" ]; then
-  echo "  ✓ MobileSAM 已存在 ($(du -h "$SAM_MODEL" | cut -f1))"
+SAM_ENCODER="$PROJECT/models/mobilesam.encoder.onnx"
+SAM_DECODER="$PROJECT/models/mobile_sam.onnx"
+SAM_OK=true
+
+if [ -f "$SAM_ENCODER" ] && [ -f "$SAM_DECODER" ]; then
+  echo "  ✓ MobileSAM 已存在 (encoder $(du -h "$SAM_ENCODER" | cut -f1), decoder $(du -h "$SAM_DECODER" | cut -f1))"
 else
   mkdir -p "$PROJECT/models"
-  echo "  ⬇️  下载 MobileSAM..."
-  # 优先 hf-mirror.com (国内快)
-  if curl -sL "https://hf-mirror.com/gifty-so/mobilesam-onnx/resolve/main/mobile_sam_vit_t.onnx" \
-       -o "$SAM_MODEL" 2>/dev/null && [ -s "$SAM_MODEL" ]; then
-    echo "  ✓ 下载完成 ($(du -h "$SAM_MODEL" | cut -f1))"
-  else
-    echo "  ⚠️  hf-mirror.com 下载失败, 尝试 HuggingFace 原站..."
-    curl -sL "https://huggingface.co/gifty-so/mobilesam-onnx/resolve/main/mobile_sam_vit_t.onnx" \
-      -o "$SAM_MODEL" 2>/dev/null || true
-    if [ -s "$SAM_MODEL" ]; then
-      echo "  ✓ 下载完成 ($(du -h "$SAM_MODEL" | cut -f1))"
+
+  # 配置 s3cmd (R2)
+  if ! [ -f ~/.s3cfg ]; then
+    python3 -c "
+import re, pathlib
+src = pathlib.Path('$PROJECT/r2mount.py').read_text()
+ak = re.search(r'R2_ACCESS_KEY\s*=\s*\"(.+?)\"', src).group(1)
+sk = re.search(r'R2_SECRET_KEY\s*=\s*\"(.+?)\"', src).group(1)
+ep = re.search(r'R2_ENDPOINT\s*=\s*\"https://(.+?)\"', src).group(1)
+pathlib.Path(pathlib.Path.home() / '.s3cfg').write_text(f'''[default]
+access_key = {ak}
+secret_key = {sk}
+host_base = {ep}
+host_bucket = %(bucket)s.{ep}
+use_https = True
+''')
+" && chmod 600 ~/.s3cfg
+  fi
+
+  echo "  ⬇️  从 R2 下载 MobileSAM..."
+  # encoder (27MB)
+  if ! [ -f "$SAM_ENCODER" ]; then
+    s3cmd --region=auto get s3://mystore/deps/mobilesam.encoder.onnx "$SAM_ENCODER" --force 2>/dev/null
+    if [ -s "$SAM_ENCODER" ]; then
+      echo "  ✓ encoder ($(du -h "$SAM_ENCODER" | cut -f1))"
     else
-      rm -f "$SAM_MODEL"
-      echo "  ⚠️  MobileSAM 下载失败, gen_masks.py 将使用 GrabCut 降级"
+      echo "  ❌ encoder 下载失败"; SAM_OK=false
     fi
+  fi
+  # decoder (16MB)
+  if ! [ -f "$SAM_DECODER" ]; then
+    s3cmd --region=auto get s3://mystore/deps/mobile_sam.onnx "$SAM_DECODER" --force 2>/dev/null
+    if [ -s "$SAM_DECODER" ]; then
+      echo "  ✓ decoder ($(du -h "$SAM_DECODER" | cut -f1))"
+    else
+      echo "  ❌ decoder 下载失败"; SAM_OK=false
+    fi
+  fi
+
+  if $SAM_OK; then
+    echo "  ✓ MobileSAM 就绪"
+  else
+    echo "  ❌ MobileSAM 下载不完整, gen_masks.py 将无法运行"
   fi
 fi
 
@@ -109,10 +140,11 @@ check "import onnxruntime; print(onnxruntime.__version__)" "onnxruntime"
 check "from PIL import Image; print(Image.__version__)" "pillow"
 
 # 检查 MobileSAM 模型
-if [ -f "$SAM_MODEL" ]; then
-  echo "  ✓ MobileSAM 模型 ($(du -h "$SAM_MODEL" | cut -f1))"
+if [ -f "$SAM_ENCODER" ] && [ -f "$SAM_DECODER" ]; then
+  echo "  ✓ MobileSAM 模型 (encoder $(du -h "$SAM_ENCODER" | cut -f1), decoder $(du -h "$SAM_DECODER" | cut -f1))"
 else
-  echo "  ⚠️  MobileSAM 模型不存在 (将使用 GrabCut 降级)"
+  echo "  ❌ MobileSAM 模型不完整 (gen_masks.py 无法运行)"
+  ERR=$((ERR+1))
 fi
 
 # 测试 HF 镜像可达性
