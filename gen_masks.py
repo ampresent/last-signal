@@ -251,7 +251,7 @@ class MobileSAM:
         print(f"  ✓ MobileSAM 就绪")
 
     def _preprocess(self, img_bgr):
-        """BGR→RGB, resize to 1024, normalize, NCHW."""
+        """BGR→RGB, resize to 1024 max, normalize. encoder 需要 HWC, decoder 需要 embeddings."""
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         orig_h, orig_w = img_rgb.shape[:2]
 
@@ -264,12 +264,12 @@ class MobileSAM:
         padded[:new_h, :new_w, :] = resized
 
         normalized = (padded.astype(np.float32) / 255.0 - MEAN) / STD
-        tensor = normalized.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
-        return tensor, scale, (orig_h, orig_w)
+        # encoder 期望 HWC [1024, 1024, 3]
+        return normalized, scale, (orig_h, orig_w)
 
-    def _encode(self, input_tensor):
-        """Image encoder → image embeddings."""
-        return self.encoder.run(None, {"input_image": input_tensor})[0]
+    def _encode(self, input_hwc):
+        """Image encoder → image embeddings. 输入 HWC [1024,1024,3]."""
+        return self.encoder.run(None, {"input_image": input_hwc})[0]
 
     def _decode(self, image_embeddings, scale, orig_size, bbox):
         """Mask decoder: bbox prompt → binary mask."""
@@ -277,11 +277,8 @@ class MobileSAM:
         x1, y1, x2, y2 = bbox
 
         # bbox 缩放到 1024 空间
-        box = np.array([[[x1 * scale, y1 * scale],
-                          [x2 * scale, y2 * scale]]], dtype=np.float32)
-
-        # point_coords: 两个角点 (box prompt 用法)
-        point_coords = box  # [1, 2, 2]
+        point_coords = np.array([[[x1 * scale, y1 * scale],
+                                   [x2 * scale, y2 * scale]]], dtype=np.float32)
         point_labels = np.array([[2, 3]], dtype=np.float32)  # 2=box top-left, 3=box bottom-right
 
         mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
@@ -327,8 +324,8 @@ class MobileSAM:
         bbox: [x1, y1, x2, y2] 基于原图坐标。
         返回: binary mask (原图尺寸, uint8, 0/255)
         """
-        input_tensor, scale, orig_size = self._preprocess(img_bgr)
-        embeddings = self._encode(input_tensor)
+        input_hwc, scale, orig_size = self._preprocess(img_bgr)
+        embeddings = self._encode(input_hwc)
         mask = self._decode(embeddings, scale, orig_size, bbox)
         return mask
 
