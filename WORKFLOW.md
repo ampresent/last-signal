@@ -9,8 +9,6 @@
 - [对话系统](#对话系统)
 - [角色行走系统](#角色行走系统)
 - [Sprite Sheet 生成工作流（视频→sprite sheet）](#sprite-sheet-生成工作流视频sprite-sheet)
-- [DragonBones 骨骼动画](#dragonbones-骨骼动画)
-  - [骨骼点位验证流程](#骨骼点位验证流程)
 - [VFX 实时动效引擎](#vfx-实时动效引擎)
 - [游戏引擎架构](#游戏引擎架构)
 - [Mask 交互系统](#mask-交互系统)
@@ -402,24 +400,11 @@ dragonbones_rig.py    — DragonBones 骨骼自动绑定
 python3 gen_character_views.py              # 全部角色
 python3 gen_character_views.py --char joker # 单个角色
 python3 gen_character_views.py --front-only # 只生成正面
-
-# Step 2: 骨骼绑定 + sprite sheet
-python3 dragonbones_rig.py --batch
 ```
 
 **流程图：**
 ```
 text2img(Pollinations) → raw_{char}_down.png (正面)
-       │
-       ▼
-cutout(rembg/fallback) → cutout_{char}_down.png (正面抠图)
-       │
-       ├──img2img(正面→左) → raw_{char}_left.png → cutout
-       ├──img2img(正面→右) → raw_{char}_right.png → cutout
-       └──img2img(正面→后) → raw_{char}_up.png   → cutout
-       │
-       ▼
-dragonbones_rig.py → 4方向 × 8帧行走动画 + sprite sheet
 ```
 
 **img2img 优势：** 角色外观、配色、服装在四个角度间保持一致，避免独立生成导致的角色"变脸"。
@@ -594,20 +579,7 @@ back: frame 194-241
 
 ### 6. 抠图（去背景）
 
-#### 方案 A：颜色距离法（推荐，背景均匀时）
-
-```python
-# 1. 从四角采样背景色
-# 2. 每个像素与背景色计算欧氏距离
-# 3. 距离 > 阈值 → 保留，否则 → 透明
-# 4. 中值滤波去噪
-```
-
-- 阈值一般 40-55，根据背景复杂度调整
-- 优点：极快，无需下载模型
-- 缺点：仅适用于背景颜色均匀的情况
-
-#### 方案 B：AI 抠图（背景复杂时）
+#### 方案: AI 抠图
 
 ```python
 from rembg import remove
@@ -616,10 +588,6 @@ result = remove(image)
 
 - 优点：通用，背景复杂也能处理
 - 缺点：慢，需下载模型（~176MB）
-
-#### 判断标准
-
-检查帧图四角像素 RGB，如果颜色接近且与角色差异明显 → 用方案 A；否则 → 用方案 B。
 
 ### 7. 裁剪 + 拼合
 
