@@ -572,48 +572,44 @@ back: frame 194-241
 
 ### 6. 抠图（去背景）
 
-#### 方案: MobileSAM Mask 识别 + 图形学抠图
+#### 方案: 颜色距离抠图
 
-复用项目已有的 MobileSAM mask 识别管线，无需额外下载模型。
+从 sprite sheet 逐帧提取角色 cutout。用颜色距离区分角色和背景——角色颜色与背景差异大，距离阈值即可分离。
 
-**流程：**
+**原理：**
+
+sprite sheet 的 alpha 只遮了外边框（~10%），alpha=255 区域里包含大量白/灰背景（~65%）和角色（~35%）。需要从 alpha=255 区域中把角色抠出来。
 
 ```
-原始帧 (RGB)
+sheet_kai_{dir}.webp (sprite sheet, RGBA)
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 1: MobileSAM 前景分割           │
-  │   TinyViT encoder → image embedding │
-  │   自动 prompt (全图 bbox) → mask     │
-  │   → 粗略前景 mask                    │
+  │ Step 1: 拆帧                         │
+  │   检测 alpha 列间隙 → 逐帧裁切       │
+  │   连续 strip → 按 64px 等宽切分       │
+  │   → 8 帧 × 64×128 RGBA              │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 2: 形态学精修                   │
-  │   morphological close (填补孔洞)     │
-  │   morphological open (去除噪点)      │
-  │   → 干净的二值 mask                  │
+  │ Step 2: 颜色距离抠图                  │
+  │   从上边缘 (前5行) 采样背景色          │
+  │   每个像素与背景色的欧氏距离           │
+  │   dist > threshold → 前景             │
+  │   形态学开/闭运算清理                  │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 3: GrabCut 精修边缘             │
-  │   以 MobileSAM mask 作为初始标注     │
-  │   mask==255 → GC_FGD (确定前景)      │
-  │   mask==0   → GC_BGD (确定背景)      │
-  │   边缘 5px 膨胀区域 → GC_PR_FGD      │
-  │   → 精确前景 mask（边缘锐利）        │
+  │ Step 3: 合成 RGBA + 清零背景 RGB      │
+  │   alpha = 前景 mask (0/255)           │
+  │   alpha=0 的像素 RGB 清零             │
+  │   → PNG 输出                          │
   └─────────────────────────────────────┘
        │
        ▼
-  ┌─────────────────────────────────────┐
-  │ Step 4: 生成 alpha 通道              │
-  │   精修 mask → alpha channel          │
-  │   边缘 2px 做 anti-alias 渐变        │
-  │   → RGBA 图像（透明背景）            │
-  └─────────────────────────────────────┘
+  输出: assets/sprites/cutout_kai_{dir}_f{0-7}.png
 ```
 
 **Python 实现：**
@@ -622,43 +618,42 @@ back: frame 194-241
 import cv2
 import numpy as np
 
-def mask_cutout(image_bgr, sam_mask):
+def color_cutout(frame_rgba, bg_color, threshold=20):
     """
-    image_bgr: 原始帧 (BGR)
-    sam_mask:  MobileSAM 输出的二值 mask (0/255)
+    颜色距离抠图。
+    frame_rgba: PIL RGBA Image (单帧)
+    bg_color: 背景色 (float32 array, 从上边缘采样)
+    threshold: 颜色距离阈值
     """
-    # 1. 形态学精修
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    mask = cv2.morphologyEx(sam_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    arr = np.array(frame_rgba)
+    rgb = arr[:, :, :3].astype(np.float32)
+    alpha = arr[:, :, 3]
 
-    # 2. GrabCut 精修边缘
-    gc_mask = np.zeros(image_bgr.shape[:2], np.uint8)
-    gc_mask[mask == 255] = cv2.GC_FGD        # 确定前景
-    gc_mask[mask == 0] = cv2.GC_BGD          # 确定背景
-    border = cv2.dilate(mask, kernel, iterations=1) - mask
-    gc_mask[border > 0] = cv2.GC_PR_FGD      # 边缘区域：可能前景
+    # 颜色距离
+    dist = np.sqrt(np.sum((rgb - bg_color) ** 2, axis=2))
 
-    bgd_model = np.zeros((1, 65), np.float64)
-    fgd_model = np.zeros((1, 65), np.float64)
-    cv2.grabCut(image_bgr, gc_mask, None, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_MASK)
+    # 前景 = alpha=255 且颜色远离背景色
+    fg_mask = ((alpha == 255) & (dist > threshold)).astype(np.uint8) * 255
 
-    refined = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+    # 形态学清理
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-    # 3. Anti-alias 边缘
-    alpha = cv2.GaussianBlur(refined.astype(np.float32), (3, 3), 0)
-    alpha = np.clip(alpha, 0, 255).astype(np.uint8)
-
-    # 4. 合成 RGBA
-    rgba = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2BGRA)
-    rgba[:, :, 3] = alpha
-    return rgba
+    return fg_mask
 ```
 
-**优势：**
-- 复用已有 MobileSAM 模型（~2MB），无需额外下载
-- GrabCut 精修让边缘锐利，避免 MobileSAM 粗 mask 的锯齿
-- 纯 OpenCV 图形学算法，无需 GPU，速度快
+**使用：**
+
+```bash
+python3 cutout_from_sheet.py --char kai          # 全部方向
+python3 cutout_from_sheet.py --char kai --dir down  # 单方向
+python3 cutout_from_sheet.py --char kai --threshold 25  # 调整阈值
+```
+
+**注意：**
+- 不用 WebP：libwebp 会恢复 alpha=0 像素的 RGB，导致白边。用 PNG。
+- 不用 MobileSAM/GrabCut：帧太小（64×128），SAM 返回全前景，GrabCut 反而扩大前景。颜色距离阈值更可控。
 
 ### 7. 裁剪 + 拼合
 

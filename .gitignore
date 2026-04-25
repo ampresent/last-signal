@@ -19,5 +19,5 @@ _verify_preview.png
 *.jpeg
 *.bmp
 *.gif
-# 例外：行走预览 GIF（sprite sheet 预览）
-!assets/sprites/previews/*.gif
+# 例外：cutout 逐帧 PNG（WebP 无法正确处理 alpha=0 的 RGB 清零）
+!assets/sprites/cutout_*.png
