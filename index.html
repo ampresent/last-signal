@@ -2041,6 +2041,52 @@ const CharSystem = {
     ctx.ellipse(char.x * 960, char.y * 640, w * 0.3, h * 0.06, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // ── 手电筒光锥 ──
+    // 从角色胸部位置向面朝方向投射，走路时随步态微微上下摆动
+    const hasFlashlight = (char.id === 'kai' || char.id === 'joker');
+    if (hasFlashlight) {
+      const cx = char.x * 960;
+      const cy = char.y * 640 - h * 0.55; // 胸部高度
+
+      // 方向角度 (弧度)
+      const dirAngles = { down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 };
+      const baseAngle = dirAngles[char.dir] || Math.PI / 2;
+
+      // 走路时上下摆动: 用正弦波模拟手持晃动
+      const bobPhase = (char.frame / this.WALK_FRAMES) * Math.PI * 2;
+      const bobAmount = char.walking ? Math.sin(bobPhase) * 0.08 : 0;
+      const angle = baseAngle + bobAmount;
+
+      // 光锥参数
+      const coneLen = h * 2.5; // 光锥长度
+      const coneSpread = 0.35; // 锥角的一半 (弧度)
+
+      // 锥形三角形: 起点 → 左边缘 → 右边缘
+      const tipX = cx + Math.cos(angle) * coneLen;
+      const tipY = cy + Math.sin(angle) * coneLen;
+      const leftX = cx + Math.cos(angle + coneSpread) * coneLen;
+      const leftY = cy + Math.sin(angle + coneSpread) * coneLen;
+      const rightX = cx + Math.cos(angle - coneSpread) * coneLen;
+      const rightY = cy + Math.sin(angle - coneSpread) * coneLen;
+
+      // 径向渐变: 从角色位置到光锥末端
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coneLen);
+      grad.addColorStop(0, 'rgba(255, 240, 200, 0.25)');
+      grad.addColorStop(0.3, 'rgba(255, 235, 180, 0.12)');
+      grad.addColorStop(0.7, 'rgba(255, 230, 160, 0.04)');
+      grad.addColorStop(1, 'rgba(255, 220, 140, 0.0)');
+
+      ctx.globalAlpha = occlusion;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(leftX, leftY);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(rightX, rightY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     ctx.restore();
   },
 
