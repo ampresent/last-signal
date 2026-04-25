@@ -2341,8 +2341,7 @@ const Game = {
     // ── 显示进度条 ──
     LoadingTracker.show();
 
-    await this.loadImages();
-    await this.loadMasks();
+    await this.loadAssets();
     this.buildInventoryUI();
     JokerFace.init();
 
@@ -2350,37 +2349,26 @@ const Game = {
     LoadingTracker.done();
   },
 
-  // 统计需要加载的素材总数
+  // 统计需要加载的素材总数 (从 SCENES 动态推导)
   _countAssets() {
-    const sceneBgs = [
-      'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
-      'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
-    ];
+    const sceneIds = Object.keys(SCENES);
     const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
 
     let count = 0;
 
-    // 背景单帧 (每个场景只加载 1 帧)
-    count += sceneBgs.length;
+    // 每个场景: 背景 + walkable mask + scene mask
+    count += sceneIds.length * 3;
 
-    // 头像
-    count += portraits.length;
-
-    // 表情变体
-    count += 3 * EXPRESSIONS.length;
+    // 头像 + 表情
+    count += portraits.length + 3 * EXPRESSIONS.length;
 
     // 行走精灵图
     const walkFrameCount = CharSystem.WALK_FRAMES || 8;
     count += 3 * 4 * walkFrameCount;
 
-    // 场景 mask
-    count += sceneIds.length;
-
-    // 对象 mask (动态，先估算一个上限)
-    // 遍历 SCENES 中的 hotspots 带 maskId 的
-    for (const [sceneId, scene] of Object.entries(SCENES)) {
+    // 对象 mask
+    for (const scene of Object.values(SCENES)) {
       if (!scene.hotspots) continue;
       for (const hs of scene.hotspots) {
         if (hs.maskId) count++;
@@ -2412,103 +2400,88 @@ const Game = {
     }
   },
 
-  async loadImages() {
-    const sceneBgs = [
-      'bg_apartment', 'bg_street', 'bg_bar', 'bg_alley',
-      'bg_tower_exterior', 'bg_server_room', 'bg_rooftop', 'bg_office'
-    ];
-    const portraits = ['portrait_kai', 'portrait_oracle', 'portrait_joker'];
+  // ── 按场景顺序异步加载全部资源 ──
+  // 场景顺序从 SCENES 对象的 key 顺序推导，先加载排在前面的场景
+  async loadAssets() {
+    const loadImg = (src) => LoadingTracker.loadImage(src);
+    const loadMask = (url) => LoadingTracker.loadMask(url);
+    const sceneIds = Object.keys(SCENES);
     const EXPRESSIONS = ['happy', 'angry', 'sad', 'surprised', 'thinking', 'smirk'];
 
-    const loadImg = (src) => LoadingTracker.loadImage(src);
-
-    const promises = [];
-
-    // 只加载单帧静态背景（不再加载 24 帧动画序列）
-    for (const bgName of sceneBgs) {
-      promises.push(
-        loadImg(`assets/${bgName}.png`).then(img => {
-          this.images[bgName] = img;
-          this.bgFrames[bgName] = img ? [img] : [];
-        })
-      );
-    }
-
-    for (const name of portraits) {
-      promises.push(loadImg(`assets/${name}.png`).then(img => { this.images[name] = img; }));
-    }
-
-    for (const char of ['kai', 'oracle', 'joker']) {
-      for (const expr of EXPRESSIONS) {
-        const key = `portrait_${char}_${expr}`;
-        promises.push(loadImg(`assets/expressions/${char}_${expr}.png`).then(img => { this.images[key] = img; }));
+    // ── 全局资源 (头像、表情) 与第一个场景并行加载 ──
+    const globalDone = (async () => {
+      for (const name of ['portrait_kai', 'portrait_oracle', 'portrait_joker']) {
+        this.images[name] = await loadImg(`assets/${name}.png`);
       }
-    }
-
-    await Promise.all(promises);
-
-    for (const bgName of sceneBgs) {
-      const count = (this.bgFrames[bgName] || []).length;
-      if (count > 1) {
-        console.log(`🎬 ${bgName}: ${count} 帧 (AI 动画模式)`);
-      } else {
-        console.log(`🖼️ ${bgName}: 1 帧 (静态 + VFX 模式)`);
+      for (const char of ['kai', 'oracle', 'joker']) {
+        for (const expr of EXPRESSIONS) {
+          const key = `portrait_${char}_${expr}`;
+          this.images[key] = await loadImg(`assets/expressions/${char}_${expr}.png`);
+        }
       }
-    }
+    })();
 
-    // ── 加载角色行走精灵图 (v2: 8帧) ──
-    const spriteChars = ['kai', 'oracle', 'joker'];
-    const spriteDirs = ['down', 'left', 'right', 'up'];
-    const walkFrameCount = CharSystem.WALK_FRAMES || 8;
-    for (const charId of spriteChars) {
-      for (const dir of spriteDirs) {
-        for (let fi = 0; fi < walkFrameCount; fi++) {
-          const key = `${charId}_${dir}_f${fi}`;
-          promises.push(loadImg(`assets/sprites/${key}.png`).then(img => {
-            if (img) {
-              if (!CharSystem.sprites[charId]) CharSystem.sprites[charId] = {};
-              CharSystem.sprites[charId][`${dir}_f${fi}`] = img;
+    // ── 按场景顺序加载: 背景 → mask → 角色精灵 ──
+    const loadedSprites = new Set(); // 避免重复加载同一角色的精灵
+
+    for (const sceneId of sceneIds) {
+      const scene = SCENES[sceneId];
+      const bgName = scene.background;
+
+      // 背景
+      if (bgName && !this.images[bgName]) {
+        const img = await loadImg(`assets/${bgName}.png`);
+        this.images[bgName] = img;
+        this.bgFrames[bgName] = img ? [img] : [];
+      }
+
+      // Walkable mask
+      const walkMaskPath = `assets/masks/${sceneId}_walkable_mask.png`;
+      await loadMask(walkMaskPath).then(m => {
+        if (m) this.masks[`${sceneId}_walkable`] = m;
+      });
+
+      // Scene mask
+      await loadMask(`assets/masks/${sceneId}_mask.png`).then(m => {
+        this.masks[sceneId] = m;
+      });
+
+      // Object masks
+      if (scene.hotspots) {
+        for (const hs of scene.hotspots) {
+          if (hs.maskId) {
+            await loadMask(`assets/masks/${sceneId}_${hs.maskId}_mask.png`).then(m => {
+              if (m) this.objMasks[`${sceneId}_${hs.maskId}`] = m;
+            });
+          }
+        }
+      }
+
+      // 本场景角色的行走精灵
+      if (scene.characters) {
+        const dirs = ['down', 'left', 'right', 'up'];
+        const walkFrameCount = CharSystem.WALK_FRAMES || 8;
+        for (const char of scene.characters) {
+          if (loadedSprites.has(char.id)) continue;
+          loadedSprites.add(char.id);
+          for (const dir of dirs) {
+            for (let fi = 0; fi < walkFrameCount; fi++) {
+              const key = `${char.id}_${dir}_f${fi}`;
+              const img = await loadImg(`assets/sprites/${key}.png`);
+              if (img) {
+                if (!CharSystem.sprites[char.id]) CharSystem.sprites[char.id] = {};
+                CharSystem.sprites[char.id][`${dir}_f${fi}`] = img;
+              }
             }
-          }));
+          }
         }
       }
     }
-    await Promise.all(promises);
 
-    for (const charId of spriteChars) {
-      const count = Object.keys(CharSystem.sprites[charId] || {}).length;
-      if (count > 0) {
-        console.log(`🚶 ${charId}: ${count} 帧行走帧`);
-      }
-    }
-  },
+    // 等全局资源也完成
+    await globalDone;
 
-  async loadMasks() {
-    const sceneIds = ['apartment', 'street', 'bar', 'alley', 'tower', 'server', 'rooftop', 'office'];
-
-    const loadMask = (url) => LoadingTracker.loadMask(url);
-
-    const comboPromises = sceneIds.map(id =>
-      loadMask(`assets/masks/${id}_mask.png`).then(m => { this.masks[id] = m; })
-    );
-
-    const objMaskList = [];
-    for (const [sceneId, scene] of Object.entries(SCENES)) {
-      if (!sceneIds.includes(sceneId)) continue; // 跳过没有 mask 的场景
-      if (!scene.hotspots) continue;
-      for (const hs of scene.hotspots) {
-        if (hs.maskId) objMaskList.push({ sceneId, objId: hs.maskId });
-      }
-    }
-    const objPromises = objMaskList.map(({ sceneId, objId }) =>
-      loadMask(`assets/masks/${sceneId}_${objId}_mask.png`).then(m => {
-        if (m) this.objMasks[`${sceneId}_${objId}`] = m;
-      })
-    );
-
-    await Promise.all([...comboPromises, ...objPromises]);
-
-    // 预计算边缘像素、标签位置、遮罩层
+    // ── 预计算 mask 边缘、标签、遮罩层 ──
     for (const id of sceneIds) {
       const mask = this.masks[id];
       if (!mask) continue;
@@ -2546,6 +2519,14 @@ const Game = {
         }
       }
       this._overlayCache[id] = oc;
+    }
+
+    // 日志
+    for (const id of sceneIds) {
+      const bgName = SCENES[id].background;
+      const frames = (this.bgFrames[bgName] || []).length;
+      const chars = SCENES[id].characters?.map(c => c.id).join(', ') || '无';
+      console.log(`📦 ${id}: ${frames}帧背景, mask=${!!this.masks[id]}, 角色=${chars}`);
     }
   },
 
