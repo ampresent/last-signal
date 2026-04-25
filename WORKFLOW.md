@@ -774,7 +774,6 @@ bg_{scene}.png (场景原图)
   │   → 精确二值 mask (非矩形)           │
   │   + 形态学清理 (close/open)          │
   │   + 质量检查 (面积比 0.05%~35%)      │
-  │   降级: GrabCut (MobileSAM 不可用)   │
   └─────────────────────────────────────┘
        │
        ▼
@@ -810,9 +809,6 @@ python3 gen_masks.py --skip-verify
 # 不自动 push
 python3 gen_masks.py --no-push
 
-# 只用 GrabCut (不下载 MobileSAM)
-python3 gen_masks.py --grabcut-only
-
 # 单个场景
 python3 gen_masks.py --scene apartment
 
@@ -837,11 +833,20 @@ python3 gen_masks.py --scene bar --skip-verify --no-push
 
 | 依赖 | 大小 | 用途 |
 |------|------|------|
-| `onnxruntime` | ~15MB | MobileSAM ONNX 推理 |
-| `opencv-python-headless` | ~30MB | 图像处理 + GrabCut 降级 |
+| `onnxruntime` | ~15MB | MobileSAM ONNX 推理引擎 |
+| `opencv-python-headless` | ~30MB | 图像处理 |
 | `pillow` | ~3MB | 图片读写 |
 | `numpy` | ~30MB | 数值计算 |
-| `mobile_sam_vit_t.onnx` | ~2MB | MobileSAM TinyViT 模型权重 |
+| `mobilesam.encoder.onnx` | 27MB | MobileSAM 图像编码器 (R2 下载) |
+| `mobile_sam.onnx` | 16MB | MobileSAM mask 解码器 (R2 下载) |
+
+### 模型下载
+
+模型存放在 `models/` 目录，通过 R2 加速下载 (国内快):
+```bash
+bash setup.sh   # 自动从 R2 下载 encoder + decoder
+```
+首次运行 `gen_masks.py` 时如果模型不存在，会报错提示运行 `setup.sh`。
 
 ### 运行时使用
 
@@ -873,7 +878,7 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 
 python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
-python3 gen_masks.py               # 3. 生成统一 mask（交互/可行走/水面）
+python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成 (含叠层验证)
 python3 gen_walk_preview.py        # 4. 行走 GIF 预览
 ```
 
@@ -932,6 +937,26 @@ export HF_ENDPOINT=https://hf-mirror.com
 **原因**：Ubuntu 24.04 的 Python 被系统管理
 **解决**：所有 pip 命令加 `--break-system-packages`
 
+### 7. MobileSAM ONNX encoder 输入格式是 HWC 不是 NCHW
+
+**现象**：`Invalid rank for input: input_image Got: 4 Expected: 3`
+**原因**：PulpCut 导出的 MobileSAM encoder 期望 `[H, W, 3]` (HWC) 而非标准的 `[N, C, H, W]` (NCHW)
+**解决**：预处理时 encoder 输入用 `normalized` (HWC float32), 不要 transpose 成 NCHW
+```python
+# ✗ 错误: tensor = normalized.transpose(2, 0, 1)[np.newaxis, ...]
+# ✓ 正确: 直接传 normalized (shape [1024, 1024, 3])
+```
+decoder 的 `image_embeddings` 输入仍是 `[1, 256, 64, 64]` (4D)。
+
+### 8. MobileSAM ONNX 模型需要 encoder + decoder 两个文件
+
+**现象**：`External data path validation failed` 或推理结果全黑
+**原因**：某些 HuggingFace 上的 MobileSAM ONNX 模型只有图结构, 权重在 `.data` 文件中未上传
+**解决**：使用 PulpCut/mobilesam-onnx 的两个独立文件 (均已内嵌全部权重):
+- `mobilesam.encoder.onnx` (27MB) — 图像编码器
+- `mobile_sam.onnx` (16MB) — mask 解码器
+存放于 R2 `s3://mystore/deps/`, `setup.sh` 自动下载。
+
 ---
 
 ## 部署到 GitHub Pages
@@ -958,6 +983,6 @@ git add . && git commit -m "init" && git push -u origin main
 
 ---
 
-*文档更新：2026-04-25*
+*文档更新：2026-04-26*
 *仓库：https://github.com/ampresent/last-signal*
 *在线：https://ampresent.github.io/last-signal/*
