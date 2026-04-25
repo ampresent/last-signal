@@ -110,7 +110,7 @@ def process_character(char_id, directions=None, threshold=DEFAULT_THRESHOLD):
         print(f"   背景色: {bg_color.astype(int)}")
 
         for i, frame in enumerate(frames):
-            out_path = os.path.join(SPRITES_DIR, f"cutout_{char_id}_{d}_f{i}.webp")
+            out_path = os.path.join(SPRITES_DIR, f"{char_id}_{d}_f{i}.webp")
             arr = np.array(frame)
 
             mask = color_cutout(frame, bg_color, threshold)
