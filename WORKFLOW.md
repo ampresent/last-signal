@@ -29,7 +29,7 @@
 | 技术栈 | 纯 HTML5 + Canvas + JavaScript（零依赖） |
 | 图片生成 | Pollinations.AI（完全免费，无需 API Key，国内可用） |
 | 深度估计 | Depth-Anything-V2-Large（hf-mirror.com 下载 + 本地推理） |
-| 动画系统 | Depth Lighting (深度光照) + VFX 粒子引擎 |
+| 动画系统 | Depth Lighting (深度光照) + VFX 粒子引擎 + 视频→Sprite Sheet 角色动画 |
 | 部署 | GitHub Pages（静态托管） |
 
 ---
@@ -386,39 +386,33 @@ await Game.showCasualChat("说话者", "文本", { expression: "happy" });
 
 ```
 CharacterSystem       — 角色管理（加载、渲染、碰撞）
-gen_character_views.py — 角色视角生成（正面→img2img）
+gen_character_views.py — 角色视角生成（视频→sprite sheet，统一管线）
 gen_walk_masks.py     — 可行走区域 mask 生成
 ```
 
-### 生成流程（v2：正面→img2img）
+### 生成流程（视频→Sprite Sheet）
 
-**核心思路：先生成高质量正面图，再用 img2img 保持角色一致性地生成其他角度。**
+**核心思路：用 AI 平台生成各方向角色行走视频，再通过帧提取、方向识别、关键帧选取、MobileSAM mask 抠图，最终拼合成 sprite sheet。**
+
+> 旧方案（img2img 逐帧生成）已废弃。当前唯一推荐流程见下方 [Sprite Sheet 生成工作流](#sprite-sheet-生成工作流视频sprite-sheet)。
 
 ```bash
-# Step 1: 生成角色正面 + img2img 其他角度
+# 完整流程（视频→sprite sheet + mask 抠图）
 python3 gen_character_views.py              # 全部角色
 python3 gen_character_views.py --char joker # 单个角色
-python3 gen_character_views.py --front-only # 只生成正面
 ```
-
-**流程图：**
-```
-text2img(Pollinations) → raw_{char}_down.png (正面)
-```
-
-**img2img 优势：** 角色外观、配色、服装在四个角度间保持一致，避免独立生成导致的角色"变脸"。
 
 ### 角色数据
 
-3 角色 × 4 方向 × 8 帧 = 96 张行走帧 PNG。
+3 角色 × 4 方向 × 6 帧 = 72 张行走帧 PNG。
 
 | 角色 | 文件名 |
 |------|--------|
-| Joker | `joker_{dir}_f{0-7}.png` |
-| Kai | `kai_{dir}_f{0-7}.png` |
-| Oracle | `oracle_{dir}_f{0-7}.png` |
+| Joker | `joker_{dir}_f{0-5}.png` |
+| Kai | `kai_{dir}_f{0-5}.png` |
+| Oracle | `oracle_{dir}_f{0-5}.png` |
 
-Sprite Sheet：`sheet_{character}_{direction}.png`（8 帧水平排列）
+Sprite Sheet：`sheet_{character}_{direction}.png`（6 帧水平排列）
 
 ### 移动方式
 
@@ -445,7 +439,7 @@ python3 gen_walk_masks.py --scene bar  # 单个场景
 
 ## Sprite Sheet 生成工作流（视频→sprite sheet）
 
-将角色行走/动画视频转换为带方向的 sprite sheet。与 `gen_character_views.py`（img2img 方案）互补——当有实拍/录屏动画时，用此流程提取。
+将角色行走视频转换为带方向的 sprite sheet。这是角色动画素材的**唯一生成管线**。
 
 ### 0. 素材准备：生成方向视频（必须先完成）
 
@@ -456,7 +450,7 @@ python3 gen_walk_masks.py --scene bar  # 单个场景
 **生成流程：**
 
 1. **生成角色正面图** — 在 AI 平台用文生图生成角色正面立绘
-2. **img2img 生成四个方向图** — 以正面图为基础，用图生图分别生成 front / back / left / right 四个方向的角色图
+2. **图生图生成四个方向图** — 以正面图为基础，用图生图分别生成 front / back / left / right 四个方向的角色图
 3. **方向图生视频** — 对每个方向的图，使用以下提示词生成行走视频：
 
 ```
@@ -578,15 +572,93 @@ back: frame 194-241
 
 ### 6. 抠图（去背景）
 
-#### 方案: AI 抠图
+#### 方案: MobileSAM Mask 识别 + 图形学抠图
 
-```python
-from rembg import remove
-result = remove(image)
+复用项目已有的 MobileSAM mask 识别管线，无需额外下载模型。
+
+**流程：**
+
+```
+原始帧 (RGB)
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 1: MobileSAM 前景分割           │
+  │   TinyViT encoder → image embedding │
+  │   自动 prompt (全图 bbox) → mask     │
+  │   → 粗略前景 mask                    │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 2: 形态学精修                   │
+  │   morphological close (填补孔洞)     │
+  │   morphological open (去除噪点)      │
+  │   → 干净的二值 mask                  │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 3: GrabCut 精修边缘             │
+  │   以 MobileSAM mask 作为初始标注     │
+  │   mask==255 → GC_FGD (确定前景)      │
+  │   mask==0   → GC_BGD (确定背景)      │
+  │   边缘 5px 膨胀区域 → GC_PR_FGD      │
+  │   → 精确前景 mask（边缘锐利）        │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 4: 生成 alpha 通道              │
+  │   精修 mask → alpha channel          │
+  │   边缘 2px 做 anti-alias 渐变        │
+  │   → RGBA 图像（透明背景）            │
+  └─────────────────────────────────────┘
 ```
 
-- 优点：通用，背景复杂也能处理
-- 缺点：慢，需下载模型（~176MB）
+**Python 实现：**
+
+```python
+import cv2
+import numpy as np
+
+def mask_cutout(image_bgr, sam_mask):
+    """
+    image_bgr: 原始帧 (BGR)
+    sam_mask:  MobileSAM 输出的二值 mask (0/255)
+    """
+    # 1. 形态学精修
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(sam_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    # 2. GrabCut 精修边缘
+    gc_mask = np.zeros(image_bgr.shape[:2], np.uint8)
+    gc_mask[mask == 255] = cv2.GC_FGD        # 确定前景
+    gc_mask[mask == 0] = cv2.GC_BGD          # 确定背景
+    border = cv2.dilate(mask, kernel, iterations=1) - mask
+    gc_mask[border > 0] = cv2.GC_PR_FGD      # 边缘区域：可能前景
+
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+    cv2.grabCut(image_bgr, gc_mask, None, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_MASK)
+
+    refined = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+
+    # 3. Anti-alias 边缘
+    alpha = cv2.GaussianBlur(refined.astype(np.float32), (3, 3), 0)
+    alpha = np.clip(alpha, 0, 255).astype(np.uint8)
+
+    # 4. 合成 RGBA
+    rgba = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2BGRA)
+    rgba[:, :, 3] = alpha
+    return rgba
+```
+
+**优势：**
+- 复用已有 MobileSAM 模型（~2MB），无需额外下载
+- GrabCut 精修让边缘锐利，避免 MobileSAM 粗 mask 的锯齿
+- 纯 OpenCV 图形学算法，无需 GPU，速度快
 
 ### 7. 裁剪 + 拼合
 
@@ -619,7 +691,7 @@ Row 3: Back    [L-contact] [L-mid] [L-behind] [R-contact] [R-mid] [R-behind]
 |---|---|
 | 方向不纯（含转身帧） | 收紧帧范围，排除 turning 帧 |
 | 各方向速度不一致 | 检查是否用了相同帧数，是否抽帧了 |
-| 抠图残留背景 | 调高阈值或换 AI 抠图 |
+| 抠图残留背景 | 调整形态学 kernel 大小或增加 GrabCut 迭代次数；确保 MobileSAM mask 覆盖完整 |
 | 镜像方向看起来不对 | 确认镜像的是正确方向（通常镜像侧身即可） |
 | sprite sheet 尺寸过大 | 降低单帧分辨率（ffmpeg scale）或减少帧数 |
 | 关键帧判断不准 | 只选纯方向最中间的帧，远离转身区；宁可少帧 |
@@ -639,8 +711,8 @@ last-signal/
 ├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_masks.py            # MobileSAM + Omni mask 生成器（交互/可行走/水面 + 叠层验证）
-├── gen_character_views.py   # 角色视角生成（正面→img2img，推荐）
-├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×8帧）
+├── gen_character_views.py   # 角色视角生成（视频→sprite sheet + MobileSAM mask 抠图）
+├── gen_walk_preview.py     # 行走 GIF 预览生成器（4方向×6帧）
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
@@ -653,7 +725,7 @@ last-signal/
     │   ├── cutout_{char}_{dir}.png    # 角色抠图
     │   ├── raw_{char}_{dir}.png       # 原始角色图
     │   ├── sheet_{char}_{dir}.png     # Sprite Sheet（8帧）
-    │   └── {char}_{dir}_f{0-7}.png    # 逐帧 PNG
+    │   └── {char}_{dir}_f{0-5}.png    # 逐帧 PNG
     └── masks/
         ├── {scene}_mask.png           # 组合 mask（交互区域并集）
         ├── {scene}_{obj}_mask.png     # 单独物体 mask
@@ -882,7 +954,8 @@ export HF_ENDPOINT=https://hf-mirror.com  # 设置 HF 镜像
 python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
 python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成 (含叠层验证)
-python3 gen_walk_preview.py        # 4. 行走 GIF 预览
+python3 gen_character_views.py     # 4. 角色行走 sprite sheet（视频→帧提取→mask 抠图）
+python3 gen_walk_preview.py        # 5. 行走 GIF 预览
 ```
 
 ### 添加新场景
