@@ -1805,7 +1805,7 @@ const CharSystem = {
       for (const dir of dirs) {
         for (let fi = 0; fi < this.WALK_FRAMES; fi++) {
           const key = `${dir}_f${fi}`;
-          const path = `assets/sprites/${id}_${key}.png`;
+          const path = `assets/sprites/${id}_${key}.webp`;
           promises.push(
             loadImg(path).then(img => {
               if (img) this.sprites[id][key] = img;
@@ -1823,8 +1823,8 @@ const CharSystem = {
     this.walkMask = null;
     // 优先使用 walkable mask，否则使用场景交互 mask
     const maskNames = [
-      `assets/masks/${sceneId}_walkable_mask.png`,
-      `assets/masks/${sceneId}_mask.png`,
+      `assets/masks/${sceneId}_walkable_mask.webp`,
+      `assets/masks/${sceneId}_mask.webp`,
     ];
 
     for (const path of maskNames) {
@@ -1855,7 +1855,7 @@ const CharSystem = {
   async _loadDepthMap(sceneId) {
     this.depthData = null;
     const depthNames = [
-      `assets/${sceneId}_depth.png`,
+      `assets/${sceneId}_depth.webp`,
       `assets/depth_${sceneId}.png`,
     ];
 
@@ -2380,13 +2380,13 @@ const Game = {
     const globalDone = (async () => {
       for (const name of ['portrait_kai', 'portrait_oracle', 'portrait_joker']) {
         LoadingTracker.setCurrent(`portrait ${name}`);
-        this.images[name] = await loadImg(`assets/${name}.png`);
+        this.images[name] = await loadImg(`assets/${name}.webp`);
       }
       for (const char of ['kai', 'oracle', 'joker']) {
         for (const expr of EXPRESSIONS) {
           const key = `portrait_${char}_${expr}`;
           LoadingTracker.setCurrent(`expression ${key}`);
-          this.images[key] = await loadImg(`assets/expressions/${char}_${expr}.png`);
+          this.images[key] = await loadImg(`assets/expressions/${char}_${expr}.webp`);
         }
       }
       LoadingTracker.setCurrent('portraits done');
@@ -2402,21 +2402,21 @@ const Game = {
       // 背景
       if (bgName && !this.images[bgName]) {
         LoadingTracker.setCurrent(`${sceneId} · background`);
-        const img = await loadImg(`assets/${bgName}.png`);
+        const img = await loadImg(`assets/${bgName}.webp`);
         this.images[bgName] = img;
         this.bgFrames[bgName] = img ? [img] : [];
       }
 
       // Walkable mask
       LoadingTracker.setCurrent(`${sceneId} · walkable mask`);
-      const walkMaskPath = `assets/masks/${sceneId}_walkable_mask.png`;
+      const walkMaskPath = `assets/masks/${sceneId}_walkable_mask.webp`;
       await loadMask(walkMaskPath).then(m => {
         if (m) this.masks[`${sceneId}_walkable`] = m;
       });
 
       // Scene mask
       LoadingTracker.setCurrent(`${sceneId} · scene mask`);
-      await loadMask(`assets/masks/${sceneId}_mask.png`).then(m => {
+      await loadMask(`assets/masks/${sceneId}_mask.webp`).then(m => {
         this.masks[sceneId] = m;
       });
 
@@ -2425,7 +2425,7 @@ const Game = {
         for (const hs of scene.hotspots) {
           if (hs.maskId) {
             LoadingTracker.setCurrent(`${sceneId} · mask ${hs.maskId}`);
-            await loadMask(`assets/masks/${sceneId}_${hs.maskId}_mask.png`).then(m => {
+            await loadMask(`assets/masks/${sceneId}_${hs.maskId}_mask.webp`).then(m => {
               if (m) this.objMasks[`${sceneId}_${hs.maskId}`] = m;
             });
           }
@@ -2443,7 +2443,7 @@ const Game = {
             for (let fi = 0; fi < walkFrameCount; fi++) {
               const key = `${char.id}_${dir}_f${fi}`;
               LoadingTracker.setCurrent(`${sceneId} · sprite ${key}`);
-              const img = await loadImg(`assets/sprites/${key}.png`);
+              const img = await loadImg(`assets/sprites/${key}.webp`);
               if (img) {
                 if (!CharSystem.sprites[char.id]) CharSystem.sprites[char.id] = {};
                 CharSystem.sprites[char.id][`${dir}_f${fi}`] = img;
