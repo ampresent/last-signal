@@ -1903,7 +1903,9 @@ const CharSystem = {
     const py = Math.floor(ny * 640);
     if (px < 0 || px >= 960 || py < 0 || py >= 640) return 0.5;
     const idx = (py * 960 + px) * 4;
-    return this.depthData.data[idx] / 255;
+    // Depth-Anything 输出: white=near, black=far
+    // 游戏需要: 0=near, 1=far → 取反
+    return 1.0 - (this.depthData.data[idx] / 255);
   },
 
   // ── 移动角色到目标位置 ──
