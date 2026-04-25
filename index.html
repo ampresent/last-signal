@@ -485,6 +485,7 @@
     <div class="subtitle">最 后 的 信 号</div>
     <div id="loading-bar-wrap"><div id="loading-bar-fill"></div></div>
     <div id="loading-text">LOADING ASSETS · 0%</div>
+    <div id="debug-panel" style="display:none; position:fixed; top:10px; right:10px; width:420px; max-height:80vh; overflow-y:auto; background:rgba(0,0,0,0.92); border:1px solid #00ff88; color:#c0c0c0; font:11px/1.4 'Courier New',monospace; padding:12px; z-index:9999; border-radius:4px; box-shadow:0 0 20px rgba(0,255,136,0.2);"></div>
     <button class="start-btn" id="start-btn" style="display:none" onclick="Game.start()">▶ 开 始 游 戏</button>
     <div class="credits">A POINT & CLICK ADVENTURE</div>
   </div>
@@ -1778,12 +1779,12 @@ const CharSystem = {
 
   // ── 加载精灵图 ──
   async _loadSprites(images) {
-    const loadImg = (src) => new Promise(resolve => {
+    const loadImg = (src) => { DebugLogger._startLoad(src, 'sprite'); return new Promise(resolve => {
       const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
+      img.onload = () => { DebugLogger._endLoad(src, true); resolve(img); };
+      img.onerror = () => { DebugLogger._endLoad(src, false, { reason: 'load error' }); resolve(null); };
       img.src = src;
-    });
+    }); };
 
     const dirs = ['down', 'left', 'right', 'up'];
     const promises = [];
@@ -1818,6 +1819,7 @@ const CharSystem = {
     ];
 
     for (const path of maskNames) {
+      DebugLogger._startLoad(path, 'walk-mask');
       try {
         const img = new Image();
         const loaded = await new Promise(resolve => {
@@ -1831,9 +1833,12 @@ const CharSystem = {
           const cx = c.getContext('2d', { willReadFrequently: true });
           cx.drawImage(img, 0, 0, 960, 640);
           this.walkMask = cx.getImageData(0, 0, 960, 640);
+          DebugLogger._endLoad(path, true, { size: '960x640' });
           break;
+        } else {
+          DebugLogger._endLoad(path, false, { reason: 'not found (fallback)' });
         }
-      } catch (e) { /* continue */ }
+      } catch (e) { DebugLogger._endLoad(path, false, { reason: e.message }); /* continue */ }
     }
   },
 
@@ -1846,6 +1851,7 @@ const CharSystem = {
     ];
 
     for (const path of depthNames) {
+      DebugLogger._startLoad(path, 'depth-map');
       try {
         const img = new Image();
         const loaded = await new Promise(resolve => {
@@ -1859,9 +1865,12 @@ const CharSystem = {
           const cx = c.getContext('2d', { willReadFrequently: true });
           cx.drawImage(img, 0, 0, 960, 640);
           this.depthData = cx.getImageData(0, 0, 960, 640);
+          DebugLogger._endLoad(path, true, { size: '960x640' });
           break;
+        } else {
+          DebugLogger._endLoad(path, false, { reason: 'not found (fallback)' });
         }
-      } catch (e) { /* continue */ }
+      } catch (e) { DebugLogger._endLoad(path, false, { reason: e.message }); /* continue */ }
     }
   },
 
@@ -2075,16 +2084,18 @@ const LoadingTracker = {
 
   // 返回一个包装后的图片加载函数，自动追踪进度
   loadImage(src) {
+    DebugLogger._startLoad(src, 'image');
     return new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => { this.tick(); resolve(img); };
-      img.onerror = () => { this.tick(); resolve(null); };
+      img.onload = () => { this.tick(); DebugLogger._endLoad(src, true); resolve(img); };
+      img.onerror = () => { this.tick(); DebugLogger._endLoad(src, false, { reason: 'load error' }); resolve(null); };
       img.src = src;
     });
   },
 
   // 返回一个包装后的 mask 加载函数
   loadMask(url) {
+    DebugLogger._startLoad(url, 'mask');
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -2094,9 +2105,10 @@ const LoadingTracker = {
         cx.drawImage(img, 0, 0, 960, 640);
         const data = cx.getImageData(0, 0, 960, 640);
         this.tick();
+        DebugLogger._endLoad(url, true, { size: '960x640' });
         resolve({ canvas: c, ctx: cx, data });
       };
-      img.onerror = () => { this.tick(); resolve(null); };
+      img.onerror = () => { this.tick(); DebugLogger._endLoad(url, false, { reason: 'load error' }); resolve(null); };
       img.src = url;
     });
   },
@@ -2104,12 +2116,122 @@ const LoadingTracker = {
   done() {
     if (this.barFill) this.barFill.style.width = '100%';
     if (this.textEl) this.textEl.textContent = 'LOADING COMPLETE';
+    // 调试模式：打印加载摘要
+    if (DebugLogger.enabled) DebugLogger.printSummary();
     // 短暂延迟后隐藏，显示开始按钮
     setTimeout(() => {
       this.hide();
       const btn = document.getElementById('start-btn');
       if (btn) btn.style.display = '';
     }, 400);
+  },
+};
+
+
+// ============================================================
+// DEBUG LOGGER — 调试模式：追踪所有资源加载
+// 启用方式: URL 加 ?debug 参数 (例: index.html?debug)
+// ============================================================
+const DebugLogger = {
+  enabled: new URLSearchParams(window.location.search).has('debug'),
+  entries: [],
+  _pending: new Map(),  // src -> { startTime }
+
+  _startLoad(src, type) {
+    if (!this.enabled) return;
+    this._pending.set(src, { type, startTime: performance.now() });
+  },
+
+  _endLoad(src, success, extra) {
+    if (!this.enabled) return;
+    const p = this._pending.get(src);
+    if (!p) return;
+    this._pending.delete(src);
+    const elapsed = performance.now() - p.startTime;
+    this.entries.push({
+      src,
+      type: p.type,
+      success,
+      elapsed: Math.round(elapsed),
+      size: extra?.size || null,
+      reason: extra?.reason || null,
+    });
+  },
+
+  printSummary() {
+    if (!this.enabled) return;
+    const ok = this.entries.filter(e => e.success);
+    const fail = this.entries.filter(e => !e.success);
+    const totalMs = Math.round(ok.reduce((s, e) => s + e.elapsed, 0));
+
+    // ── 控制台输出 ──
+    console.log('%c╔══════════════════════════════════════════════════╗', 'color:#00ff88;font-weight:bold');
+    console.log('%c║   🔍 DEBUG MODE — 资源加载报告                  ║', 'color:#00ff88;font-weight:bold');
+    console.log('%c╚══════════════════════════════════════════════════╝', 'color:#00ff88;font-weight:bold');
+    console.log(`%c总计加载: ${this.entries.length} 个资源  |  成功: ${ok.length}  |  失败: ${fail.length}  |  总耗时: ${totalMs}ms`, 'color:#c0c0c0');
+    console.log('');
+
+    // 按类型分组
+    const groups = {};
+    for (const e of this.entries) {
+      const g = e.type || 'other';
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(e);
+    }
+
+    for (const [type, items] of Object.entries(groups)) {
+      const typeOk = items.filter(i => i.success).length;
+      const typeFail = items.filter(i => !i.success).length;
+      console.log(`%c── ${type} (${items.length}) ── 成功:${typeOk} 失败:${typeFail}`, 'color:#00ff88;font-weight:bold');
+      for (const item of items) {
+        const icon = item.success ? '✅' : '❌';
+        const ms = item.elapsed + 'ms';
+        const sizeStr = item.size ? ` (${item.size})` : '';
+        const failStr = item.reason ? ` [${item.reason}]` : '';
+        console.log(`  ${icon} ${item.src}${sizeStr} — ${ms}${failStr}`);
+      }
+      console.log('');
+    }
+
+    // 汇总分析
+    console.log('%c── 📊 加载分析 ──', 'color:#ffaa00;font-weight:bold');
+    const byType = {};
+    for (const e of ok) {
+      if (!byType[e.type]) byType[e.type] = { count: 0, totalMs: 0 };
+      byType[e.type].count++;
+      byType[e.type].totalMs += e.elapsed;
+    }
+    for (const [t, v] of Object.entries(byType)) {
+      console.log(`  ${t}: ${v.count} 个, 累计 ${v.totalMs}ms, 平均 ${Math.round(v.totalMs / v.count)}ms`);
+    }
+    if (fail.length > 0) {
+      console.log(`%c  ⚠️ ${fail.length} 个资源加载失败（可能是可选资源）`, 'color:#ff4444');
+    }
+    console.log('%c─────────────────────────────────────────────────────', 'color:#00ff88');
+
+    // ── 页面面板输出 ──
+    this._renderPanel(ok, fail, totalMs, groups);
+  },
+
+  _renderPanel(ok, fail, totalMs, groups) {
+    const panel = document.getElementById('debug-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    let html = `<div style="color:#00ff88;font-weight:bold;font-size:13px;margin-bottom:8px">🔍 DEBUG — 资源加载报告</div>`;
+    html += `<div style="margin-bottom:8px;color:#888">总计:${this.entries.length} ✅${ok.length} ❌${fail.length} ⏱${totalMs}ms</div>`;
+
+    for (const [type, items] of Object.entries(groups)) {
+      const typeOk = items.filter(i => i.success).length;
+      html += `<div style="color:#00ff88;font-weight:bold;margin:6px 0 2px">── ${type} (${items.length}) ── ✅${typeOk}</div>`;
+      for (const item of items) {
+        const icon = item.success ? '✅' : '❌';
+        const color = item.success ? '#aaa' : '#ff4444';
+        const name = item.src.split('/').pop();
+        html += `<div style="color:${color};padding:1px 0">${icon} ${name} <span style="color:#666">${item.elapsed}ms</span>${item.reason ? ` <span style="color:#ff4444">[${item.reason}]</span>` : ''}</div>`;
+      }
+    }
+    panel.innerHTML = html;
   },
 };
 
@@ -2225,8 +2347,10 @@ const Game = {
       this.lightingEngine = new LightingEngine(this.lightingCanvas);
 
       // Load lighting config
+      DebugLogger._startLoad('lighting-config.json', 'config');
       const resp = await fetch('lighting-config.json');
       this.lightingConfig = await resp.json();
+      DebugLogger._endLoad('lighting-config.json', true, { size: 'json' });
 
       console.log('💡 Real-time lighting engine initialized');
     } catch (err) {
