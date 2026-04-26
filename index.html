@@ -2774,10 +2774,10 @@ const Game = {
 
     // ── 随机出生点：从 walkable mask 中随机选取 ──
     const [sx, sy] = this.getRandomSpawn(sceneId);
-    const scene = SCENES[sceneId];
-    if (scene && scene.characters && scene.characters[0]) {
-      scene.characters[0].x = sx;
-      scene.characters[0].y = sy;
+    const firstChar = SCENES[sceneId]?.characters?.[0];
+    if (firstChar) {
+      firstChar.x = sx;
+      firstChar.y = sy;
     }
 
     this.currentScene = sceneId;
