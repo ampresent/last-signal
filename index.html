@@ -1167,7 +1167,7 @@ const VFX = {
         // 创建临时 canvas 做反射
         if (!this._reflectCanvas) {
           this._reflectCanvas = document.createElement('canvas');
-          this._reflectCtx = this._reflectCanvas.getContext('2d');
+          this._reflectCtx = this._reflectCanvas.getContext('2d', { willReadFrequently: true });
         }
         const rc = this._reflectCanvas;
         const rctx = this._reflectCtx;
@@ -2110,6 +2110,7 @@ const LoadingTracker = {
     this.total = 0;
     this.loaded = 0;
     this.current = '';
+    this._doneCalled = false;
   },
 
   show() {
@@ -2132,7 +2133,7 @@ const LoadingTracker = {
   },
 
   _updateText() {
-    const pct = this.total > 0 ? Math.floor((this.loaded / this.total) * 100) : 0;
+    const pct = this.total > 0 ? Math.min(100, Math.floor((this.loaded / this.total) * 100)) : 0;
     if (this.barFill) this.barFill.style.width = pct + '%';
     if (this.textEl) {
       const cur = this.current ? ` · ${this.current}` : '';
@@ -2143,6 +2144,11 @@ const LoadingTracker = {
   tick() {
     this.loaded++;
     this._updateText();
+    // 安全机制：如果 loaded >= total 但 done() 未被调用，自动触发完成
+    if (this.total > 0 && this.loaded >= this.total && !this._doneCalled) {
+      this._doneCalled = true;
+      this.done();
+    }
   },
 
   // 返回一个包装后的图片加载函数，自动追踪进度
@@ -2177,6 +2183,8 @@ const LoadingTracker = {
   },
 
   done() {
+    if (this._doneCalled) return; // 防止重复调用
+    this._doneCalled = true;
     if (this.barFill) this.barFill.style.width = '100%';
     if (this.textEl) this.textEl.textContent = 'LOADING COMPLETE';
     // 调试模式：打印加载摘要
@@ -2499,7 +2507,24 @@ const Game = {
     // ══════════════════════════════════════════════════
     // Phase 2: 后台异步加载 — 不阻塞游戏启动
     // ══════════════════════════════════════════════════
-    this._backgroundLoadAssets(sceneIds.slice(1));
+    // 先统计后台资产数量，加入 total，防止 loaded 超过 total 导致进度条卡住
+    const remainingIds = sceneIds.slice(1);
+    let bgCount = 0;
+    for (const sid of remainingIds) {
+      const sc = SCENES[sid];
+      bgCount += 1; // background
+      bgCount += 2; // walkable mask + scene mask
+      if (sc.hotspots) {
+        for (const hs of sc.hotspots) {
+          if (hs.maskId) bgCount++;
+        }
+      }
+      const dirs = ['down', 'left', 'right', 'up'];
+      const wfc = CharSystem.WALK_FRAMES || 8;
+      if (sc.characters && sc.characters.length > 0) bgCount += dirs.length * wfc;
+    }
+    LoadingTracker.addTotal(bgCount);
+    this._backgroundLoadAssets(remainingIds);
   },
 
   // ── 后台加载剩余场景 ──
