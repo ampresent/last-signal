@@ -55,3 +55,6 @@ python3 gen_assets.py              # 1. 基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting
 python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成
 ```
+
+---
+**Related references:** [asset-pipeline](../reference/asset-pipeline.md) · [lighting-system](../reference/lighting-system.md)

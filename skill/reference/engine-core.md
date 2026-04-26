@@ -149,3 +149,6 @@ Characters sorted by Y coordinate (depth) for proper occlusion:
 // Higher Y = closer, drawn last (on top)
 characters.sort((a, b) => a.y - b.y);
 ```
+
+---
+**Related workflow chapters:** [11-engine-architecture](../workflow/11-engine-architecture.md) · [01-project-overview](../workflow/01-project-overview.md)

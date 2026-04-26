@@ -112,3 +112,6 @@ git add -A && git commit -m "description" && git push
 # - .github-token, .hf-token, .s3cfg
 # - models/, __pycache__/
 ```
+
+---
+**Related workflow chapters:** [10-deployment](../workflow/10-deployment.md) · [14-image-format](../workflow/14-image-format.md)

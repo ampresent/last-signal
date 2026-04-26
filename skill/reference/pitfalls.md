@@ -110,3 +110,6 @@ cached to `~/.cache/huggingface/`, subsequent runs skip (~3s load).
 - Cursor changes to `pointer` on hover
 - Hint text appears at top
 - VFX rain can clip to masks via `clipToMask`
+
+---
+**Related workflow chapter:** [12-pitfalls](../workflow/12-pitfalls.md)

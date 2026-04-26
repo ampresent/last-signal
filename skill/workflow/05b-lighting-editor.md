@@ -32,3 +32,6 @@
 4. 用滑块调整参数（颜色、强度、半径、相位、噪声）
 5. 用 3D Gizmo 直接在画布上拖拽位置
 6. 点击 💾 保存到 `lighting-config.json`
+
+---
+**Related reference:** [lighting-system](../reference/lighting-system.md)

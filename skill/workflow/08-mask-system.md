@@ -46,3 +46,6 @@ python3 gen_masks.py --scene apartment   # 单场景
 python3 gen_masks.py --skip-omni-detect  # 跳过识别
 python3 gen_masks.py --skip-verify       # 跳过验证
 ```
+
+---
+**Related reference:** [asset-pipeline](../reference/asset-pipeline.md)

@@ -48,3 +48,6 @@ python3 build.py              # PNG→WebP 转换 + 更新引用
 python3 build.py --dry-run    # 仅统计
 python3 build.py --restore    # 恢复 .png 引用
 ```
+
+---
+**Related reference:** [deployment](../reference/deployment.md)

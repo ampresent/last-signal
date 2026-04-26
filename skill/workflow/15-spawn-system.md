@@ -43,3 +43,6 @@ apartment ←→ street ←→ bar
 1. 在 `SPAWN_MAP` 中添加目标场景的出生点配置
 2. 配置所有可能来源场景的入口位置
 3. 在来源场景的 `goScene` 调用中传入 `'source_scene_id'`
+
+---
+**Related reference:** [gameplay](../reference/gameplay.md)

@@ -21,16 +21,29 @@ Complete development workflow for the LAST SIGNAL cyberpunk point-and-click adve
 ## Chapter Index
 
 See `skill/workflow/` for detailed documentation split by topic:
+
+**Core Systems:**
 - `01-project-overview.md` — Project structure and tech stack
 - `02-ai-image-generation.md` — Pollinations.AI text2img
 - `03-depth-lighting.md` — Depth-Anything + programmatic lighting
 - `04-vfx-engine.md` — Canvas particle system
 - `05-lighting-engine.md` — WebGL real-time lighting
+- `05b-lighting-editor.md` — Visual lighting parameter editor
+
+**Gameplay:**
 - `06-dialogue-system.md` — Dialogue API and expressions
-- `07-character-system.md` — Sprite workflow and movement
+- `07-character-system.md` — Character sprite workflow and movement
+- `07b-sprite-sheet.md` — Full video-to-sprite-sheet pipeline (8 steps)
 - `08-mask-system.md` — MobileSAM + Omni mask pipeline
+- `15-spawn-system.md` — Character spawn point system
+
+**Infrastructure:**
 - `09-asset-pipeline.md` — Generation scripts and build
 - `10-deployment.md` — GitHub Pages deployment
+- `11-engine-architecture.md` — File structure, core modules, performance patterns
+- `12-pitfalls.md` — Battle-tested solutions for common issues
+- `13-reuse-guide.md` — How to build a new game with this engine
+- `14-image-format.md` — WebP-only format rules
 
 ## Engine Reference
 

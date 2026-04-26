@@ -44,3 +44,6 @@ def green_screen_cutout(img_rgb):
 ```
 
 **关键**：在 128px 宽度下处理，完成后缩放到 64px。不做边缘腐蚀。
+
+---
+**Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)

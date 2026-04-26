@@ -104,3 +104,6 @@ VFX.SCENE_CONFIG = {
 - Depth map sampling uses pre-loaded ImageData
 - Water mask sampling uses pre-loaded ImageData
 - No DOM manipulation during render loop
+
+---
+**Related workflow chapter:** [04-vfx-engine](../workflow/04-vfx-engine.md)

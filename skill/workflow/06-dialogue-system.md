@@ -38,3 +38,6 @@ await Game.showCasualChat("说话者", "文本", { expression: "happy" });
 | 酒吧 | 点唱机 | 点击 |
 | 小巷 | 流浪猫 | 点击 |
 | 塔楼 | 玻璃碎片 | 点击 |
+
+---
+**Related reference:** [gameplay](../reference/gameplay.md)

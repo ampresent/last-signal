@@ -159,3 +159,6 @@ Visual editor (`lighting-editor.html`) for real-time parameter tuning:
 | `D` | Toggle depth overlay |
 | `Shift+drag` | 3D Gizmo Z-axis |
 | `Delete` | Remove selected light |
+
+---
+**Related workflow chapters:** [03-depth-lighting](../workflow/03-depth-lighting.md) · [05-lighting-engine](../workflow/05-lighting-engine.md) · [05b-lighting-editor](../workflow/05b-lighting-editor.md)

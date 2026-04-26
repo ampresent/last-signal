@@ -236,3 +236,6 @@ python3 build.py --restore    # Revert to .png references
 6. Add lighting config to `lighting-config.json`
 7. Run generation scripts
 8. `git add -A && git commit && git push`
+
+---
+**Related workflow chapters:** [02-ai-image-generation](../workflow/02-ai-image-generation.md) · [03-depth-lighting](../workflow/03-depth-lighting.md) · [07-character-system](../workflow/07-character-system.md) · [07b-sprite-sheet](../workflow/07b-sprite-sheet.md) · [08-mask-system](../workflow/08-mask-system.md) · [09-asset-pipeline](../workflow/09-asset-pipeline.md)

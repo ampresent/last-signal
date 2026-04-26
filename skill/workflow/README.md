@@ -11,8 +11,10 @@ This directory contains the complete workflow documentation for LAST SIGNAL, spl
 | `03-depth-lighting.md` | Depth-Anything + programmatic lighting |
 | `04-vfx-engine.md` | Canvas particle system |
 | `05-lighting-engine.md` | WebGL real-time lighting |
+| `05b-lighting-editor.md` | Visual lighting parameter editor |
 | `06-dialogue-system.md` | Dialogue API, expressions, casual chat |
 | `07-character-system.md` | Sprite workflow, movement, collision |
+| `07b-sprite-sheet.md` | Full video-to-sprite-sheet pipeline (8 steps) |
 | `08-mask-system.md` | MobileSAM + Omni mask pipeline |
 | `09-asset-pipeline.md` | Generation scripts + build |
 | `10-deployment.md` | GitHub Pages deployment |
