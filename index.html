@@ -666,13 +666,20 @@ const VFX = {
   },
 
   _newRaindrop(rcfg) {
+    const speed = rcfg.speed[0] + Math.random() * (rcfg.speed[1] - rcfg.speed[0]);
+    const wind = rcfg.wind || 0;
+    // 倾角：从竖直方向偏转，基于风速 + 小范围随机抖动 (±8°)
+    const baseAngle = Math.atan2(wind, speed);
+    const jitter = (Math.random() - 0.5) * (16 * Math.PI / 180); // ±8°
+    const tiltAngle = baseAngle + jitter;
     return {
       x: Math.random() * 1000 - 20,
       y: Math.random() * 680 - 40,
-      speed: rcfg.speed[0] + Math.random() * (rcfg.speed[1] - rcfg.speed[0]),
+      speed: speed,
       length: rcfg.length[0] + Math.random() * (rcfg.length[1] - rcfg.length[0]),
       opacity: 0.3 + Math.random() * 0.7,
-      wind: rcfg.wind || 0,
+      wind: wind,
+      tiltAngle: tiltAngle,
       // 每个雨滴独立的随机参数，打破规则感
       windOffset: (Math.random() - 0.5) * 0.6,        // 风向随机偏移 ±0.3
       turbulencePhase: Math.random() * Math.PI * 2,    // 湍流相位
@@ -854,11 +861,13 @@ const VFX = {
       // 在临时 canvas 上画雨丝 — 用贝塞尔曲线模拟自然弯曲
       rc.lineWidth = 1;
       for (const drop of this.raindrops) {
-        const effectiveWind = drop.wind + drop.windOffset;
-        const midX = drop.x + effectiveWind * drop.length * 0.5;
-        const midY = drop.y + drop.length * 0.5;
-        const endX = drop.x + effectiveWind * drop.length;
-        const endY = drop.y + drop.length;
+        // 倾角决定雨丝方向，湍流只叠加微弱弯曲
+        const dx = Math.sin(drop.tiltAngle) * drop.length;
+        const dy = Math.cos(drop.tiltAngle) * drop.length;
+        const endX = drop.x + dx;
+        const endY = drop.y + dy;
+        const midX = drop.x + dx * 0.5;
+        const midY = drop.y + dy * 0.5;
         // 湍流弯曲控制点
         const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
         const alpha = rcfg.opacity * drop.opacity * drop.thickness;
@@ -879,11 +888,13 @@ const VFX = {
     } else {
       // 室外：全屏雨丝 — 贝塞尔曲线 + 湍流
       for (const drop of this.raindrops) {
-        const effectiveWind = drop.wind + drop.windOffset;
-        const midX = drop.x + effectiveWind * drop.length * 0.5;
-        const midY = drop.y + drop.length * 0.5;
-        const endX = drop.x + effectiveWind * drop.length;
-        const endY = drop.y + drop.length;
+        // 倾角决定雨丝方向，湍流只叠加微弱弯曲
+        const dx = Math.sin(drop.tiltAngle) * drop.length;
+        const dy = Math.cos(drop.tiltAngle) * drop.length;
+        const endX = drop.x + dx;
+        const endY = drop.y + dy;
+        const midX = drop.x + dx * 0.5;
+        const midY = drop.y + dy * 0.5;
         const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
         const alpha = rcfg.opacity * drop.opacity * drop.thickness;
         ctx.strokeStyle = `rgba(180, 200, 255, ${alpha})`;
