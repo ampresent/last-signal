@@ -8,8 +8,8 @@
   "scenes": {
     "apartment": {
       "name": "公寓",
-      "base": "bg_apartment.png",
-      "depth": "apartment_depth.png",
+      "base": "bg_apartment.webp",
+      "depth": "apartment_depth.webp",
       "lights": [
         {
           "id": "screen1",
@@ -77,8 +77,8 @@
     },
     "street": {
       "name": "霓虹街",
-      "base": "bg_street.png",
-      "depth": "street_depth.png",
+      "base": "bg_street.webp",
+      "depth": "street_depth.webp",
       "lights": [
         {
           "id": "neon_magenta",
@@ -115,8 +115,8 @@
     },
     "bar": {
       "name": "The Rust 酒吧",
-      "base": "bg_bar.png",
-      "depth": "bar_depth.png",
+      "base": "bg_bar.webp",
+      "depth": "bar_depth.webp",
       "lights": [
         {
           "id": "neon_purple",
@@ -201,8 +201,8 @@
     },
     "alley": {
       "name": "暗巷",
-      "base": "bg_alley.png",
-      "depth": "alley_depth.png",
+      "base": "bg_alley.webp",
+      "depth": "alley_depth.webp",
       "lights": [
         {
           "id": "neon_green",
@@ -301,8 +301,8 @@
     },
     "tower": {
       "name": "ECHO 塔楼",
-      "base": "bg_tower_exterior.png",
-      "depth": "tower_exterior_depth.png",
+      "base": "bg_tower_exterior.webp",
+      "depth": "tower_exterior_depth.webp",
       "lights": [
         {
           "id": "lobby",
@@ -366,8 +366,8 @@
     },
     "server": {
       "name": "服务器室",
-      "base": "bg_server_room.png",
-      "depth": "server_room_depth.png",
+      "base": "bg_server_room.webp",
+      "depth": "server_room_depth.webp",
       "lights": [
         {
           "id": "led_blue",
@@ -453,8 +453,8 @@
     },
     "rooftop": {
       "name": "楼顶",
-      "base": "bg_rooftop.png",
-      "depth": "rooftop_depth.png",
+      "base": "bg_rooftop.webp",
+      "depth": "rooftop_depth.webp",
       "lights": [
         {
           "id": "city_glow",
@@ -517,8 +517,8 @@
     },
     "office": {
       "name": "办公室",
-      "base": "bg_office.png",
-      "depth": "office_depth.png",
+      "base": "bg_office.webp",
+      "depth": "office_depth.webp",
       "lights": [
         {
           "id": "holo",
@@ -583,8 +583,8 @@
     },
     "underground": {
       "name": "B7 地下实验室",
-      "base": "bg_server_room.png",
-      "depth": "server_room_depth.png",
+      "base": "bg_server_room.webp",
+      "depth": "server_room_depth.webp",
       "lights": [
         {
           "id": "emergency_red_l",
@@ -691,8 +691,8 @@
     },
     "core": {
       "name": "B7 核心控制室",
-      "base": "bg_rooftop.png",
-      "depth": "rooftop_depth.png",
+      "base": "bg_rooftop.webp",
+      "depth": "rooftop_depth.webp",
       "lights": [
         {
           "id": "holo_ring",
