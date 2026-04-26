@@ -51,3 +51,6 @@
 **规则**：相位函数用整数倍频率，保证 frame 0 == frame N
 
 详见 `skill/reference/pitfalls.md` 获取完整解决方案。
+
+---
+**Related reference:** [pitfalls](../reference/pitfalls.md)

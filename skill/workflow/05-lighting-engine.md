@@ -46,3 +46,6 @@ await engine.loadScene('apartment', config);
 engine.setLights(config.scenes.apartment.lights);
 engine.start();
 ```
+
+---
+**Related reference:** [lighting-system](../reference/lighting-system.md)

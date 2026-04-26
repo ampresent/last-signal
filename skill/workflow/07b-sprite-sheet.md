@@ -113,3 +113,6 @@ Row 3: Back   [...]
 | 切掉细节 | 不腐蚀边缘，窄范围 HSV |
 | 关键帧不准 | 只选中间帧，宁可少帧 |
 | 转身帧混入 | 宁愿丢帧保证纯度 |
+
+---
+**Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)

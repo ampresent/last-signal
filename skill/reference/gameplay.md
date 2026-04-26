@@ -136,3 +136,6 @@ Characters sorted by Y coordinate. Lower Y (further away) drawn first.
 // Manual transition
 Game.goScene("target_scene", "source_scene");
 ```
+
+---
+**Related workflow chapters:** [06-dialogue-system](../workflow/06-dialogue-system.md) · [07-character-system](../workflow/07-character-system.md) · [15-spawn-system](../workflow/15-spawn-system.md)

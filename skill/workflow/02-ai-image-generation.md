@@ -33,3 +33,6 @@ curl -X POST \
 python3 gen_assets.py          # 基础场景图 + 角色肖像
 python3 gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
 ```
+
+---
+**Related reference:** [asset-pipeline](../reference/asset-pipeline.md)

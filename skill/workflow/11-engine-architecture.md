@@ -95,3 +95,6 @@ goScene(sceneId) → VFX.init(sceneId) → startRenderLoop()
 Game.addItem("datachip");  Game.hasItem("datachip");
 Game.sfx("click"|"pickup"|"door"|"error"|"success");
 ```
+
+---
+**Related reference:** [engine-core](../reference/engine-core.md)

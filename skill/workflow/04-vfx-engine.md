@@ -36,3 +36,6 @@ Canvas 粒子系统，在 AI 帧之上叠加实时效果。60fps，零额外文�
 - 室外场景：全屏雨滴
 - 室内场景（apartment）：雨滴只在窗口 mask 区域内显示
 - 配置：`rain: { clipToMask: 'apartment_window' }`
+
+---
+**Related reference:** [vfx-system](../reference/vfx-system.md)
