@@ -16,6 +16,11 @@ This directory contains the complete workflow documentation for LAST SIGNAL, spl
 | `08-mask-system.md` | MobileSAM + Omni mask pipeline |
 | `09-asset-pipeline.md` | Generation scripts + build |
 | `10-deployment.md` | GitHub Pages deployment |
+| `11-engine-architecture.md` | File structure, core modules, performance patterns |
+| `12-pitfalls.md` | Battle-tested solutions for common issues |
+| `13-reuse-guide.md` | How to build a new game with this engine |
+| `14-image-format.md` | WebP-only format rules |
+| `15-spawn-system.md` | Character spawn point system |
 
 ## Full Document
 
