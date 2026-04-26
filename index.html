@@ -2295,7 +2295,7 @@ const LoadingTracker = {
 // 启用方式: URL 加 ?debug 参数 (例: index.html?debug)
 // ============================================================
 const DebugLogger = {
-  enabled: new URLSearchParams(window.location.search).has('debug'),
+  enabled: true,
   entries: [],
   _pending: new Map(),  // src -> { startTime }
 
@@ -2921,7 +2921,99 @@ const Game = {
     // ★ VFX 实时粒子动效叠加 ★
     VFX.render(this.ctx, dt, this.currentScene);
 
-    // mask 静默 — 仅用于交互检测，不绘制视觉效果
+    // ── DEBUG: mask 叠层 + 边缘 + 标签 ──
+    if (DebugLogger.enabled) {
+      const c = this.ctx;
+      const t = performance.now();
+
+      // walkable mask 半透明叠层
+      const overlay = this._overlayCache[this.currentScene];
+      if (overlay) c.drawImage(overlay, 0, 0);
+
+      // mask 边缘呼吸虚线
+      const edges = this._edgeCache[this.currentScene];
+      if (edges && edges.length > 0) {
+        const breath = 0.4 + 0.6 * Math.abs(Math.sin(t / 600));
+        c.save();
+        c.strokeStyle = `rgba(0,255,136,${(0.5 + 0.5 * breath).toFixed(2)})`;
+        c.lineWidth = 1.2;
+        c.setLineDash([6, 4]);
+        c.lineDashOffset = -(t / 40) % 10;
+        c.beginPath();
+        for (let i = 0; i < edges.length; i += 2) {
+          const ex = edges[i], ey = edges[i + 1];
+          if (i === 0) c.moveTo(ex, ey); else c.lineTo(ex, ey);
+        }
+        c.stroke();
+        c.restore();
+      }
+
+      // walkable mask 中心标签
+      const labelPos = this._labelCache[this.currentScene];
+      if (labelPos) {
+        c.save();
+        c.font = '11px Courier New';
+        c.textAlign = 'center';
+        c.fillStyle = 'rgba(0,255,136,0.7)';
+        c.fillText('walkable', labelPos.x, labelPos.y);
+        c.restore();
+      }
+
+      // 对象 mask 叠层 + 边缘 + 标签
+      const hs = scene.hotspots;
+      if (hs) {
+        c.save();
+        for (const h of hs) {
+          if (!h.maskId) continue;
+          const key = `${this.currentScene}_${h.maskId}`;
+          const om = this.objMasks[key];
+          if (!om) continue;
+
+          // 半透明叠层
+          c.globalAlpha = 0.18;
+          c.drawImage(om.canvas, 0, 0);
+          c.globalAlpha = 1;
+
+          // 对象 mask 边缘
+          const od = om.data.data;
+          c.strokeStyle = 'rgba(255,200,0,0.7)';
+          c.lineWidth = 1;
+          c.setLineDash([4, 3]);
+          c.lineDashOffset = -(t / 50) % 7;
+          c.beginPath();
+          for (let y = 1; y < 639; y += 2) {
+            for (let x = 1; x < 959; x += 2) {
+              if (od[(y * 960 + x) * 4] > 128) {
+                if (od[((y) * 960 + x - 2) * 4] <= 128 ||
+                    od[((y) * 960 + x + 2) * 4] <= 128 ||
+                    od[((y - 2) * 960 + x) * 4] <= 128 ||
+                    od[((y + 2) * 960 + x) * 4] <= 128) {
+                  c.moveTo(x, y);
+                  c.lineTo(x + 1, y);
+                }
+              }
+            }
+          }
+          c.stroke();
+
+          // 对象标签
+          let cx = 0, cy = 0, cn = 0;
+          for (let y = 0; y < 640; y += 6) {
+            for (let x = 0; x < 960; x += 6) {
+              if (od[(y * 960 + x) * 4] > 128) { cx += x; cy += y; cn++; }
+            }
+          }
+          if (cn > 0) {
+            cx /= cn; cy /= cn;
+            c.font = 'bold 10px Courier New';
+            c.textAlign = 'center';
+            c.fillStyle = 'rgba(255,200,0,0.85)';
+            c.fillText(h.maskId, cx, cy);
+          }
+        }
+        c.restore();
+      }
+    }
 
     document.getElementById('scene-name').textContent = scene.name || '';
   },
