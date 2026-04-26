@@ -31,8 +31,8 @@
 
 ### 🟡 P1 — 逻辑偏差
 
-#### Fix 4: gen_walk_masks.py 场景命名与游戏引擎不一致
-- **文件**: `gen_walk_masks.py`
+#### Fix 4: gen_masks.py (原 gen_walk_masks.py 已合并至此) 场景命名与游戏引擎不一致
+- **文件**: `gen_masks.py (原 gen_walk_masks.py 已合并至此)`
 - **问题**: `tower_exterior` → 应为 `tower`，`server_room` → 应为 `server`
 - **影响**: tower 场景的 walkable mask 文件名为 `tower_exterior_walkable_mask.webp`，游戏引擎找不到
 - **修复**: 重命名 SCENE_WALK 中的 key，同步重命名磁盘上的文件
@@ -42,8 +42,8 @@
 - **问题**: metadata 写 `masks/xxx_mask.png`，实际文件是 `.webp`
 - **修复**: 修改 `save_metadata()` 输出 `.webp` 扩展名
 
-#### Fix 6: gen_walk_masks.py 硬编码绝对路径
-- **文件**: `gen_walk_masks.py` L16-17
+#### Fix 6: gen_masks.py (原 gen_walk_masks.py 已合并至此) 硬编码绝对路径
+- **文件**: `gen_masks.py (原 gen_walk_masks.py 已合并至此)` L16-17
 - **问题**: `MASK_DIR = "/root/.openclaw/workspace/last-signal/assets/masks"`
 - **修复**: 改为基于 `__file__` 的相对路径
 
