@@ -85,7 +85,7 @@ right: frame 98-168
 
 ## 6. 抠图（绿幕）
 
-> **⚠️ 必须使用项目脚本 `greenscreen_cutout.py`，不要自己写 GrabCut。**
+> **⚠️ 必须使用项目脚本 `scripts/greenscreen_cutout.py`，不要自己写 GrabCut。**
 >
 > GrabCut 在此场景下会侵蚀角色边缘。项目脚本使用纯 HSV 阈值移除绿色，
 > 已经过 left/right/up 三个方向验证，自带 omni 模型自动验证循环。
@@ -105,10 +105,10 @@ Image.fromarray(crop).save(f'selected/frame_{idx:04d}.png')
 ### 6.2 运行抠图脚本
 
 ```bash
-python3 greenscreen_cutout.py <direction> <cropped_frames_dir>
+python3 scripts/greenscreen_cutout.py <direction> <cropped_frames_dir>
 
 # 示例：
-python3 greenscreen_cutout.py down down_selected
+python3 scripts/greenscreen_cutout.py down down_selected
 ```
 
 脚本自动流程：
@@ -160,7 +160,7 @@ Row 3: Back   [...]
 | 关键帧不准 | 只选中间帧，宁可少帧 |
 | 转身帧混入 | 宁愿丢帧保证纯度 |
 | **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
-| **GrabCut 吃边缘** | **不要用 GrabCut，用 `greenscreen_cutout.py`** |
+| **GrabCut 吃边缘** | **不要用 GrabCut，用 `scripts/greenscreen_cutout.py`** |
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)

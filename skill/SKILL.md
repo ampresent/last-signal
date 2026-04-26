@@ -11,11 +11,11 @@ Complete development workflow for the LAST SIGNAL cyberpunk point-and-click adve
 
 | Task | Command |
 |------|---------|
-| Generate base assets | `python3 gen_assets.py` |
-| Generate depth + lighting | `python3 gen_depth_lighting.py` |
-| Generate masks | `python3 gen_masks.py` |
-| Generate character sprites | `python3 gen_character_views.py` |
-| Build (PNG→WebP) | `python3 build.py` |
+| Generate base assets | `python3 scripts/gen_assets.py` |
+| Generate depth + lighting | `python3 scripts/gen_depth_lighting.py` |
+| Generate masks | `python3 scripts/gen_masks.py` |
+| Generate character sprites | `python3 scripts/gen_character_views.py` |
+| Build (PNG→WebP) | `python3 scripts/build.py` |
 | Local test | `python3 -m http.server 8765` |
 
 ## Chapter Index
@@ -56,6 +56,23 @@ See `skill/reference/` for reusable component documentation:
 - `deployment.md` — Build and deploy
 - `pitfalls.md` — Known issues and solutions
 
+## Bundled Scripts
+
+Essential scripts are bundled in `skill/scripts/` so the skill directory is self-contained:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/gen_assets.py` | Scene image + portrait generation (Pollinations.AI) |
+| `scripts/gen_depth_lighting.py` | Depth maps + programmatic lighting |
+| `scripts/gen_masks.py` | MobileSAM + Omni mask pipeline |
+| `scripts/gen_character_views.py` | Character perspective generation |
+| `scripts/cutout_from_sheet.py` | Sprite sheet frame cutout |
+| `scripts/greenscreen_cutout.py` | HSV green-screen removal + Omni verification |
+| `scripts/build.py` | PNG→WebP build |
+| `scripts/setup.sh` | Environment setup |
+
+> **Note:** Scripts must be run from the project root. See `skill/scripts/README.md`.
+
 ## Environment Setup
 
 ```bash
@@ -66,7 +83,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 pip3 install --break-system-packages onnxruntime numpy opencv-python-headless requests pillow
 
 # MobileSAM models
-bash setup.sh
+bash scripts/setup.sh
 ```
 
 ## Key Configuration Files
@@ -74,8 +91,8 @@ bash setup.sh
 | File | Purpose |
 |------|---------|
 | `lighting-config.json` | Per-scene light source definitions |
-| `gen_assets.py` SCENE_PROMPTS | Scene image generation prompts |
-| `gen_depth_lighting.py` SCENE_LIGHTS | Lighting frame parameters |
-| `gen_masks.py` SCENES | Object bboxes + walkable/water zones |
+| `scripts/gen_assets.py` SCENE_PROMPTS | Scene image generation prompts |
+| `scripts/gen_depth_lighting.py` SCENE_LIGHTS | Lighting frame parameters |
+| `scripts/gen_masks.py` SCENES | Object bboxes + walkable/water zones |
 | `index.html` SCENES | Game scene definitions + hotspots |
 | `index.html` VFX.SCENE_CONFIG | Per-scene particle effects |
