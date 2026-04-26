@@ -55,13 +55,13 @@ DECODER_PATH = os.path.join(MODELS_DIR, "mobile_sam.onnx")
 SCENES = {
     "apartment": {
         "image": "bg_apartment.png",
-        "spawn": [0.52, 0.57],  # 归一化坐标, walkable 区域中心
+        "spawn": [0.48, 0.78],  # 归一化坐标, walkable 区域中心
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [500, 380, 900, 627]},
             {"id": "window", "label": "窗户", "bbox": [10, 140, 460, 590]},
             {"id": "door", "label": "门", "bbox": [760, 140, 938, 600]},
         ],
-        "walkable": {"bbox": [60, 180, 900, 627], "label": "房间地面"},
+        "walkable": {"bbox": [60, 400, 900, 627], "label": "房间地面"},
         "water": None,
         "edge_transitions": [
             {"id": "to_street", "label": "出门", "zone": "bottom",
