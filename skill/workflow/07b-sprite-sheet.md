@@ -2,6 +2,22 @@
 
 将角色行走视频转换为带方向的 sprite sheet。这是角色动画素材的**唯一生成管线**。
 
+> **⚠️ 第零步：用视觉模型确认素材内容**
+>
+> 在任何处理之前，**必须先用多模态模型（omni）看一眼原始视频帧**，确认：
+> 1. 角色外观和实际尺寸（全尺寸角色 vs 像素小人）
+> 2. 背景类型（纯绿幕 / 自然草地 / 其他）
+> 3. 角色在画面中的位置和占比
+>
+> **不要凭缩略图或文字描述猜测画面内容。** 错误的前提假设会导致整个流程走偏，
+> 浪费大量时间在不匹配的算法参数上。3 秒的视觉确认可以省去 30 分钟的无效调试。
+>
+> ```bash
+> # 提取一帧，用 omni 确认
+> ffmpeg -y -i input.mov -vf "select=eq(n\,30)" -frames:v 1 check.png
+> bash mimo_api.sh image check.png "描述图中角色的外观、尺寸、位置和背景类型"
+> ```
+
 ## 0. 素材准备：生成方向视频
 
 > ⚠️ 在执行后续步骤之前，需要先在 AI 平台生成各方向的角色行走视频。
@@ -67,25 +83,55 @@ right: frame 98-168
 
 水平镜像补全反方向（right → left，left → right）。
 
-## 6. 抠图（绿幕 GrabCut）
+## 6. 抠图（绿幕）
 
-```
-video.mov → 帧提取(128px) → HSV绿色检测 → GrabCut → 合成 → 64px WebP
-```
+> **⚠️ 必须使用项目脚本 `greenscreen_cutout.py`，不要自己写 GrabCut。**
+>
+> GrabCut 在此场景下会侵蚀角色边缘。项目脚本使用纯 HSV 阈值移除绿色，
+> 已经过 left/right/up 三个方向验证，自带 omni 模型自动验证循环。
 
-关键代码：
+### 6.1 裁剪角色区域（关键步骤）
+
+**脚本要求输入是裁剪好的角色帧，不是全帧视频。** 直接传全帧会导致输出空文件
+（512×910 贴到 64×128 画布上，什么都看不见）。
+
 ```python
-def green_screen_cutout(img_rgb):
-    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
-    green_mask = cv2.inRange(hsv, [35,50,50], [85,255,255])
-    gc_mask = np.zeros(hsv.shape[:2], np.uint8)
-    gc_mask[green_mask > 0] = cv2.GC_BGD
-    gc_mask[green_mask == 0] = cv2.GC_PR_FGD
-    cv2.grabCut(img_rgb, gc_mask, None, bgd, fgd, 3, cv2.GC_INIT_WITH_MASK)
-    return alpha
+# 从全帧中裁剪角色区域（用 omni 模型确认角色位置）
+# 示例：角色在 720x1280 帧中大约 x=315-410, y=735-920
+crop = frame[y1:y2, x1:x2]
+Image.fromarray(crop).save(f'selected/frame_{idx:04d}.png')
 ```
 
-**必须**：128px 处理 → 缩放 64px。不做边缘腐蚀。不做亮绿补充。
+### 6.2 运行抠图脚本
+
+```bash
+python3 greenscreen_cutout.py <direction> <cropped_frames_dir>
+
+# 示例：
+python3 greenscreen_cutout.py down down_selected
+```
+
+脚本自动流程：
+1. 纯 HSV 绿色检测（H=35-85, S≥50, V≥50）
+2. 逐帧用 omni 模型验证（无绿边 + 角色完整 + 背景透明）
+3. 验证失败则自动扩大绿色范围重试（最多 5 轮）
+4. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
+
+### 6.3 如果脚本输出空文件
+
+检查输入帧是否已裁剪到角色区域。脚本的 `process_frame` 直接将输入帧
+贴到 64×128 画布，不做缩放——输入必须接近或小于 64×128。
+
+**不做**：GrabCut、边缘腐蚀、亮绿补充、形态学开运算。
+
+### 6.4 验证
+
+提交前**必须**用 omni 模型检查至少一张输出：
+
+```bash
+bash mimo_api.sh image assets/sprites/kai_down_f0.webp \
+  "角色可见吗？背景透明吗？边缘有绿边吗？简短回答。"
+```
 
 ## 7. 裁剪 + 拼合
 
@@ -109,10 +155,12 @@ Row 3: Back   [...]
 |------|------|
 | 方向不纯 | 收紧帧范围，排除 turning 帧 |
 | 速度不一致 | 检查帧数是否相同 |
-| 绿色杂边 | 128px 下 GrabCut + 确保绿幕 |
+| 绿色杂边 | 提高 S/V 阈值（S≥70, V≥70） |
 | 切掉细节 | 不腐蚀边缘，窄范围 HSV |
 | 关键帧不准 | 只选中间帧，宁可少帧 |
 | 转身帧混入 | 宁愿丢帧保证纯度 |
+| **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
+| **GrabCut 吃边缘** | **不要用 GrabCut，用 `greenscreen_cutout.py`** |
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)
