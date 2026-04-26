@@ -2418,6 +2418,7 @@ const Game = {
   waterMasks: {},
   selectedItem: null,
   dialogueActive: false,
+  _pendingHotspot: null,
   mouseX: 0,
   mouseY: 0,
   audioCtx: null,
@@ -2747,6 +2748,7 @@ const Game = {
   renderLoop: null,
 
   async goScene(sceneId) {
+    this._pendingHotspot = null;
     const fade = document.getElementById('fade-overlay');
     fade.classList.add('active');
 
@@ -2862,6 +2864,21 @@ const Game = {
     // ★ 角色渲染 (深度排序) ★
     KeyMove.update(dt);
     CharSystem.update(dt);
+
+    // ── 到达检测：角色停下时触发待执行的交互 ──
+    if (this._pendingHotspot) {
+      const scene = SCENES[this.currentScene];
+      if (scene && scene.characters && scene.characters.length > 0) {
+        const playerChar = scene.characters[0];
+        const charState = CharSystem.chars[playerChar.id];
+        if (charState && !charState.walking) {
+          const hs = this._pendingHotspot;
+          this._pendingHotspot = null;
+          hs.action();
+        }
+      }
+    }
+
     CharSystem.render(this.ctx);
 
     // ★ VFX 实时粒子动效叠加 ★
@@ -2907,6 +2924,7 @@ const Game = {
         const ny = y / 640;
         if (CharSystem.isWalkable(nx, ny)) {
           CharSystem.moveTo(playerChar.id, nx, ny);
+          this._pendingHotspot = null; // 取消待执行的交互
           return; // 行走优先于热点
         }
       }
@@ -2914,8 +2932,82 @@ const Game = {
 
     const hotspot = this.getHotspotAt(x, y);
     if (hotspot) {
+      // 出口类热点：立即执行（不需要走近）
+      if (hotspot.isExit) {
+        this._pendingHotspot = null;
+        hotspot.action();
+        return;
+      }
+
+      // 交互类热点：角色走过去再交互
+      const scene = SCENES[this.currentScene];
+      if (scene && scene.characters && scene.characters.length > 0) {
+        const playerChar = scene.characters[0];
+        if (playerChar) {
+          const charState = CharSystem.chars[playerChar.id];
+          if (charState && charState.visible) {
+            // 计算热点中心点
+            let cx, cy;
+            if (hotspot.x != null && hotspot.w != null) {
+              cx = (hotspot.x + hotspot.w / 2) / 960;
+              cy = (hotspot.y + hotspot.h) / 640; // 底部中心（角色站着面对）
+            } else if (hotspot.maskId) {
+              const key = `${this.currentScene}_${hotspot.maskId}`;
+              const objMask = this.objMasks[key];
+              if (objMask) {
+                cx = charState.x; // fallback 到角色当前位置
+                cy = charState.y;
+              }
+            } else {
+              hotspot.action();
+              return;
+            }
+
+            // 寻找最近的可行走位置
+            const walkTarget = this._findWalkableNear(cx, cy, charState.x, charState.y);
+            if (walkTarget) {
+              this._pendingHotspot = hotspot;
+              CharSystem.moveTo(playerChar.id, walkTarget[0], walkTarget[1]);
+            } else {
+              // 找不到可行走位置，直接执行
+              hotspot.action();
+            }
+            return;
+          }
+        }
+      }
+
+      // 无角色场景：直接执行
       hotspot.action();
     }
+  },
+
+  // ── 在目标附近寻找可行走位置 ──
+  _findWalkableNear(tx, ty, fallbackX, fallbackY) {
+    // 目标本身可行走
+    if (CharSystem.isWalkable(tx, ty)) return [tx, ty];
+    // 螺旋搜索附近格子
+    for (let r = 1; r <= 8; r++) {
+      const step = 0.02 * r;
+      const candidates = [
+        [tx, ty + step],     // 下方
+        [tx - step, ty],     // 左
+        [tx + step, ty],     // 右
+        [tx, ty - step],     // 上
+        [tx - step, ty + step],
+        [tx + step, ty + step],
+        [tx - step, ty - step],
+        [tx + step, ty - step],
+      ];
+      for (const [cx, cy] of candidates) {
+        if (cx >= 0 && cx <= 1 && cy >= 0 && cy <= 1 && CharSystem.isWalkable(cx, cy)) {
+          return [cx, cy];
+        }
+      }
+    }
+    // 全部不可行走，用角色当前位置（不移动）
+    if (CharSystem.isWalkable(fallbackX, fallbackY)) return [fallbackX, fallbackY];
+    return null;
   },
 
   getHotspot() {
@@ -3352,6 +3444,7 @@ const SCENES = {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 门',
         maskId: 'door',
+        isExit: true,
         action() {
           Game.showDialogue('凯', '该走了。', [
             { text: '出门前往街道' },
@@ -3434,6 +3527,7 @@ const SCENES = {
         x: 100, y: 200, w: 300, h: 350,
         label: '▸ The Rust 酒吧',
         maskId: 'bar_entrance',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('bar');
@@ -3443,6 +3537,7 @@ const SCENES = {
         x: 600, y: 150, w: 300, h: 400,
         label: '▸ 通往旧工业带的路',
         maskId: 'road_right',
+        isExit: true,
         action() {
           if (Game.hasItem('keycard')) {
             Game.showDialogue('凯', '有了安全卡，应该能进 ECHO 大楼了。').then(() => {
@@ -3458,6 +3553,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 小巷',
         maskId: 'alley_entrance',
+        isExit: true,
         action() {
           Game.sfx('click');
           Game.goScene('alley');
@@ -3602,6 +3698,7 @@ const SCENES = {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 出口',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -3709,6 +3806,7 @@ const SCENES = {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -3839,6 +3937,7 @@ const SCENES = {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street');
@@ -3938,6 +4037,7 @@ const SCENES = {
         x: 800, y: 200, w: 120, h: 300,
         label: '▸ 通往楼顶的通道',
         maskId: 'rooftop_exit',
+        isExit: true,
         action() {
           if (Game.flags.oracle_rooftop) {
             Game.showDialogue('凯', '最后一步了。', [
@@ -3958,6 +4058,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 返回大厅',
         maskId: 'lobby_exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('tower');
@@ -4236,6 +4337,7 @@ const SCENES = {
         x: 700, y: 200, w: 200, h: 300,
         label: '▸ 深层通道',
         maskId: 'rooftop_exit',
+        isExit: true,
         action() {
           if (Game.hasItem('neural_linker')) {
             Game.showDialogue('凯', '通道尽头是核心控制室。\n\n如果 Oracle 在网络里，那里就是接入点。', [
@@ -4256,6 +4358,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 返回地面',
         maskId: 'lobby_exit',
+        isExit: true,
         action() {
           Game.showDialogue('凯', '要离开吗？那些人还连着……', [
             { text: '先上去' },
@@ -4522,6 +4625,9 @@ const KeyMove = {
       }
       return;
     }
+
+    // 键盘移动时取消待执行的交互
+    Game._pendingHotspot = null;
 
     // 归一化方向
     const len = Math.sqrt(dx * dx + dy * dy);
