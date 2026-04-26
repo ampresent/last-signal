@@ -2055,6 +2055,19 @@ const CharSystem = {
   },
 
   // ── 绘制单个角色 ──
+  // ── 场景主色调映射 ──
+  SCENE_TINT: {
+    apartment: { r: 80, g: 255, b: 180, strength: 0.08 },   // 暖绿台灯光
+    street:    { r: 0, g: 200, b: 255, strength: 0.12 },     // 霓虹青
+    bar:       { r: 200, g: 50, b: 180, strength: 0.15 },    // 紫红霓虹
+    alley:     { r: 50, g: 255, b: 100, strength: 0.10 },    // 绿色全息屏
+    tower:     { r: 180, g: 60, b: 60, strength: 0.10 },     // 红色扫描仪
+    server:    { r: 0, g: 255, b: 136, strength: 0.08 },     // 服务器绿灯
+    rooftop:   { r: 100, g: 140, b: 255, strength: 0.10 },   // 城市冷蓝光
+    underground: { r: 200, g: 40, b: 40, strength: 0.14 },   // 红色应急灯
+    core:      { r: 0, g: 255, b: 136, strength: 0.18 },     // 核心绿光
+  },
+
   _drawChar(ctx, char, depth) {
     const spriteKey = `${char.dir}_f${char.frame}`;
     let sprite = this.sprites[char.id]?.[spriteKey];
@@ -2072,24 +2085,92 @@ const CharSystem = {
     // 角色位置 (脚部对齐 Y 坐标)
     const px = char.x * 960 - w / 2;
     const py = char.y * 640 - h;
+    const footY = char.y * 640;
 
     // 深度遮挡：如果角色深度 > 场景深度，降低不透明度 (被遮挡)
     const sceneDepth = this.getDepth(char.x, char.y);
     const occlusion = depth > sceneDepth + this.DEPTH_THRESHOLD ? 0.4 : 1.0;
 
-    ctx.save();
-    ctx.globalAlpha = occlusion;
+    // 获取场景色调
+    const sceneId = Game.currentScene || 'apartment';
+    const tint = this.SCENE_TINT[sceneId] || this.SCENE_TINT.apartment;
+    const hasRain = VFX?.SCENE_CONFIG?.[sceneId]?.rain?.count > 0;
+    const hasPuddle = VFX?.SCENE_CONFIG?.[sceneId]?.puddleReflection?.enabled;
 
-    // 像素风渲染
+    ctx.save();
+
+    // ═══ 1. 角色倒影 (雨天/积水场景) ═══
+    if ((hasRain || hasPuddle) && occlusion > 0.5) {
+      ctx.save();
+
+      // 用离屏 canvas 绘制倒影，避免 destination-out 擦掉主 canvas 背景
+      if (!this._reflectBuf) {
+        this._reflectBuf = document.createElement('canvas');
+        this._reflectBuf.width = 960;
+        this._reflectBuf.height = 640;
+      }
+      const rbuf = this._reflectBuf;
+      const rctx = rbuf.getContext('2d');
+      rctx.clearRect(0, 0, 960, 640);
+
+      // 在离屏 canvas 上绘制翻转的角色
+      rctx.save();
+      rctx.globalAlpha = 0.15;
+      rctx.translate(0, footY * 2);
+      rctx.scale(1, -1);
+      rctx.imageSmoothingEnabled = false;
+      rctx.drawImage(sprite, px, py, w, h);
+      rctx.restore();
+
+      // 用渐隐蒙版擦除倒影下半部分（从脚部向下淡出）
+      const fadeGrad = rctx.createLinearGradient(0, footY, 0, footY + h * 0.5);
+      fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
+      rctx.globalCompositeOperation = 'destination-out';
+      rctx.fillStyle = fadeGrad;
+      rctx.fillRect(px - 2, footY, w + 4, h * 0.5);
+
+      // 将离屏 canvas 合成到主 canvas
+      ctx.globalAlpha = occlusion;
+      ctx.globalCompositeOperation = 'screen';
+      ctx.drawImage(rbuf, 0, 0);
+
+      ctx.restore();
+    }
+
+    // ═══ 2. 角色阴影 (脚下椭圆 — 增强版) ═══
+    ctx.globalAlpha = 0.4 * occlusion;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(char.x * 960, footY, w * 0.35, h * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 雨天场景加一层环境色阴影
+    if (hasRain) {
+      ctx.globalAlpha = 0.08 * occlusion;
+      ctx.fillStyle = `rgb(${tint.r}, ${tint.g}, ${tint.b})`;
+      ctx.beginPath();
+      ctx.ellipse(char.x * 960, footY + 1, w * 0.4, h * 0.04, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ═══ 3. 角色本体 + 环境光映射 ═══
+    ctx.globalAlpha = occlusion;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(sprite, px, py, w, h);
 
-    // 角色阴影 (脚下椭圆)
-    ctx.globalAlpha = 0.3 * occlusion;
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.ellipse(char.x * 960, char.y * 640, w * 0.3, h * 0.06, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 环境光叠加：用 screen 混合模式叠一层场景色调
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = tint.strength * occlusion;
+    ctx.drawImage(sprite, px, py, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+
+    // 用场景色调给角色边缘加一圈微弱光晕
+    ctx.globalAlpha = tint.strength * 0.6 * occlusion;
+    ctx.shadowColor = `rgb(${tint.r}, ${tint.g}, ${tint.b})`;
+    ctx.shadowBlur = 8;
+    ctx.drawImage(sprite, px, py, w, h);
+    ctx.shadowBlur = 0;
 
     ctx.restore();
   },
