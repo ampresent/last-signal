@@ -1080,6 +1080,7 @@ async function renderPipeline() {
           <div>覆盖面积: <span id="statArea">—</span></div>
           <div>操作历史: <span id="statHistory">0</span> 步</div>
           <div>修改量: <span id="statDiff" style="color:var(--orange)">0</span> px</div>
+
         </div>
         <div class="viz-grid">
           <div class="viz-panel">
@@ -1722,6 +1723,7 @@ function loadEditorMask(scene, maskImgs, maskId) {
     }
   }
 
+
   editor.originalMask = new Uint8ClampedArray(editor.maskData);
   editor.history = [];
   editor.historyIdx = -1;
@@ -1887,6 +1889,7 @@ function renderEditorOverlay(ctx, scene) {
   ctx.setLineDash([]);
 
   // Draw current mask as cyan overlay
+
   const imgData = ctx.createImageData(IMG_W, IMG_H);
   for (let i = 0; i < IMG_W * IMG_H; i++) {
     if (editor.maskData[i] > 128) {
@@ -1894,11 +1897,13 @@ function renderEditorOverlay(ctx, scene) {
       imgData.data[i * 4 + 1] = 229; // G
       imgData.data[i * 4 + 2] = 255; // B
       imgData.data[i * 4 + 3] = 90;  // A
+
     }
   }
   ctx.putImageData(imgData, 0, 0);
 
   // Draw current mask edge as solid cyan line
+
   for (let y = 1; y < IMG_H - 1; y++) {
     for (let x = 1; x < IMG_W - 1; x++) {
       const idx = y * IMG_W + x;
@@ -1911,6 +1916,7 @@ function renderEditorOverlay(ctx, scene) {
         );
         if (hasEdge) {
           ctx.fillStyle = 'rgba(0,229,255,0.8)';
+
           ctx.fillRect(x, y, 1, 1);
         }
       }
@@ -1945,6 +1951,7 @@ function renderEditorOverlay(ctx, scene) {
         }
       }
     }
+
   }
 }
 
@@ -1967,6 +1974,7 @@ function updateEditorStats() {
   for (let i = 0; i < editor.maskData.length; i++) {
     if (editor.maskData[i] > 128) whiteCount++;
     if (editor.maskData[i] !== editor.originalMask[i]) diffCount++;
+
   }
   const area = (whiteCount / (IMG_W * IMG_H) * 100).toFixed(2);
   const statWhite = document.getElementById('statWhite');
@@ -1977,6 +1985,7 @@ function updateEditorStats() {
   if (statArea) statArea.textContent = area + '%';
   if (statHistory) statHistory.textContent = editor.history.length;
   if (statDiff) statDiff.textContent = diffCount.toLocaleString();
+
 }
 
 function editorDownload(sceneId) {

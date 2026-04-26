@@ -7,9 +7,9 @@ Pipeline:
   2. Cutout → RGBA transparent background
   3. Use front cutout as init image for img2img → left, right, back views
   4. Cutout each direction
-  5. Output: cutout_{char}_{dir}.png for all 4 directions
+  5. Output: cutout_{char}_{dir}.webp for all 4 directions
 
-Then run: python3 dragonbones_rig.py --batch
+Then run: python3 cutout_from_sheet.py
 
 Usage:
     python3 gen_character_views.py              # all characters
@@ -173,7 +173,7 @@ def img2img(init_image_path, prompt, output_path, seed=None, width=None, height=
 # ── Cutout (rembg → fallback) ──────────────────────────────────────
 
 def cutout(input_path, output_path):
-    """Remove background → RGBA transparent PNG."""
+    """Remove background → RGBA transparent WebP."""
     if os.path.exists(output_path) and os.path.getsize(output_path) > 5000:
         print(f"   ⏭️  抠图已有: {os.path.basename(output_path)}")
         return True
@@ -184,9 +184,12 @@ def cutout(input_path, output_path):
         with open(input_path, "rb") as f:
             input_data = f.read()
         output_data = remove(input_data)
-        with open(output_path, "wb") as f:
-            f.write(output_data)
-        print(f"   🎭 抠图完成 (rembg): {os.path.basename(output_path)} ({len(output_data)//1024}KB)")
+        # rembg outputs PNG, convert to WebP
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(output_data)).convert("RGBA")
+        img.save(output_path, "WebP", lossless=True, quality=100)
+        print(f"   🎭 抠图完成 (rembg): {os.path.basename(output_path)} ({os.path.getsize(output_path)//1024}KB)")
         return True
     except ImportError:
         pass
@@ -222,7 +225,7 @@ def cutout(input_path, output_path):
 
         arr[:, :, 3] = alpha
         result = Image.fromarray(arr)
-        result.save(output_path)
+        result.save(output_path, "WebP", lossless=True, quality=100)
         print(f"   🎭 抠图完成 (fallback): {os.path.basename(output_path)}")
         return True
     except Exception as e:
@@ -237,9 +240,9 @@ def process_character(char_id, front_only=False, force=False):
 
     Flow:
       1. text2img → raw_{char}_down.png (front)
-      2. cutout → cutout_{char}_down.png
+      2. cutout → cutout_{char}_down.webp
       3. img2img(front) → raw_{char}_{left,right,up}.png
-      4. cutout → cutout_{char}_{left,right,up}.png
+      4. cutout → cutout_{char}_{left,right,up}.webp
     """
     char = CHARACTERS[char_id]
     print(f"\n{'='*55}")
@@ -248,7 +251,7 @@ def process_character(char_id, front_only=False, force=False):
 
     # ── Step 1: Generate front (down) ──
     front_raw = os.path.join(OUTPUT_DIR, f"raw_{char_id}_down.png")
-    front_cutout = os.path.join(OUTPUT_DIR, f"cutout_{char_id}_down.png")
+    front_cutout = os.path.join(OUTPUT_DIR, f"cutout_{char_id}_down.webp")
 
     front_prompt = (
         f"{SPRITE_STYLE}, {char['desc']}, "
@@ -287,7 +290,7 @@ def process_character(char_id, front_only=False, force=False):
         print(f"\n   ── {direction} (img2img from front) ──")
 
         other_raw = os.path.join(OUTPUT_DIR, f"raw_{char_id}_{direction}.png")
-        other_cutout = os.path.join(OUTPUT_DIR, f"cutout_{char_id}_{direction}.png")
+        other_cutout = os.path.join(OUTPUT_DIR, f"cutout_{char_id}_{direction}.webp")
 
         if not force and os.path.exists(other_cutout) and os.path.getsize(other_cutout) > 5000:
             print(f"   ⏭️  {direction} 已有")
@@ -358,7 +361,7 @@ def main():
 
     print(f"\n{'='*55}")
     print(f"✅ 全部完成！")
-    print(f"   下一步: python3 dragonbones_rig.py --batch")
+    print(f"   下一步: python3 cutout_from_sheet.py")
     print(f"{'='*55}")
 
 
