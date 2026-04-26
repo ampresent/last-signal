@@ -7,13 +7,13 @@
   "ambient": 0.02,
   "scenes": {
     "apartment": {
-      "name": "公寓",
+      "name": "\u516c\u5bd3",
       "base": "bg_apartment.webp",
       "depth": "apartment_depth.webp",
       "lights": [
         {
           "id": "screen1",
-          "name": "屏幕 A",
+          "name": "\u5c4f\u5e55 A",
           "type": "point",
           "x": 0.81,
           "y": 0.615,
@@ -22,8 +22,8 @@
             0.9215686274509803,
             0.7490196078431373
           ],
-          "radius": 95,
-          "intensity": 4.02,
+          "radius": 350,
+          "intensity": 1.8,
           "phase": {
             "type": "burst",
             "speed": 2.85,
@@ -44,7 +44,7 @@
         },
         {
           "id": "screen2",
-          "name": "屏幕 B",
+          "name": "\u5c4f\u5e55 B",
           "type": "point",
           "x": 0.3,
           "y": 0.385,
@@ -76,13 +76,13 @@
       ]
     },
     "street": {
-      "name": "霓虹街",
+      "name": "\u9713\u8679\u8857",
       "base": "bg_street.webp",
       "depth": "street_depth.webp",
       "lights": [
         {
           "id": "neon_magenta",
-          "name": "品红霓虹",
+          "name": "\u54c1\u7ea2\u9713\u8679",
           "type": "point",
           "x": 0.15,
           "y": 0.605,
@@ -114,13 +114,13 @@
       ]
     },
     "bar": {
-      "name": "The Rust 酒吧",
+      "name": "The Rust \u9152\u5427",
       "base": "bg_bar.webp",
       "depth": "bar_depth.webp",
       "lights": [
         {
           "id": "neon_purple",
-          "name": "紫霓虹",
+          "name": "\u7d2b\u9713\u8679",
           "type": "point",
           "x": 0.5,
           "y": 0.2,
@@ -140,7 +140,7 @@
         },
         {
           "id": "neon_red",
-          "name": "红霓虹",
+          "name": "\u7ea2\u9713\u8679",
           "type": "point",
           "x": 0.2,
           "y": 0.35,
@@ -149,8 +149,8 @@
             0.15,
             0.15
           ],
-          "radius": 160,
-          "intensity": 0.3,
+          "radius": 280,
+          "intensity": 0.45,
           "phase": {
             "type": "pulse",
             "speed": 1,
@@ -160,7 +160,7 @@
         },
         {
           "id": "bar_backlight",
-          "name": "吧台背光",
+          "name": "\u5427\u53f0\u80cc\u5149",
           "type": "point",
           "x": 0.5,
           "y": 0.55,
@@ -169,8 +169,8 @@
             0.75,
             0.3
           ],
-          "radius": 180,
-          "intensity": 0.25,
+          "radius": 300,
+          "intensity": 0.4,
           "phase": {
             "type": "steady",
             "min": 0.2,
@@ -179,7 +179,7 @@
         },
         {
           "id": "tv_screen",
-          "name": "电视",
+          "name": "\u7535\u89c6",
           "type": "point",
           "x": 0.8,
           "y": 0.3,
@@ -188,8 +188,8 @@
             0.6,
             1
           ],
-          "radius": 100,
-          "intensity": 0.2,
+          "radius": 250,
+          "intensity": 0.35,
           "phase": {
             "type": "flicker",
             "speed": 3,
@@ -200,13 +200,13 @@
       ]
     },
     "alley": {
-      "name": "暗巷",
+      "name": "\u6697\u5df7",
       "base": "bg_alley.webp",
       "depth": "alley_depth.webp",
       "lights": [
         {
           "id": "neon_green",
-          "name": "绿霓虹",
+          "name": "\u7eff\u9713\u8679",
           "type": "point",
           "x": 0.675,
           "y": 0.235,
@@ -215,8 +215,8 @@
             0.9215686274509803,
             0.7490196078431373
           ],
-          "radius": 50,
-          "intensity": 5,
+          "radius": 300,
+          "intensity": 3.0,
           "phase": {
             "type": "flicker",
             "speed": 2.75,
@@ -237,7 +237,7 @@
         },
         {
           "id": "emergency",
-          "name": "应急灯",
+          "name": "\u5e94\u6025\u706f",
           "type": "point",
           "x": 0.43,
           "y": 0.605,
@@ -268,7 +268,7 @@
         },
         {
           "id": "distant_warm",
-          "name": "远处街灯",
+          "name": "\u8fdc\u5904\u8857\u706f",
           "type": "point",
           "x": 0.99,
           "y": 0.645,
@@ -300,13 +300,13 @@
       ]
     },
     "tower": {
-      "name": "ECHO 塔楼",
+      "name": "ECHO \u5854\u697c",
       "base": "bg_tower_exterior.webp",
       "depth": "tower_exterior_depth.webp",
       "lights": [
         {
           "id": "lobby",
-          "name": "大厅灯光",
+          "name": "\u5927\u5385\u706f\u5149",
           "type": "point",
           "x": 0.5,
           "y": 0.6,
@@ -325,7 +325,7 @@
         },
         {
           "id": "glass_refl",
-          "name": "玻璃反射",
+          "name": "\u73bb\u7483\u53cd\u5c04",
           "type": "point",
           "x": 0.4,
           "y": 0.3,
@@ -334,8 +334,8 @@
             0.5,
             0.7
           ],
-          "radius": 160,
-          "intensity": 0.15,
+          "radius": 280,
+          "intensity": 0.25,
           "phase": {
             "type": "sine",
             "speed": 0.3,
@@ -345,7 +345,7 @@
         },
         {
           "id": "guard",
-          "name": "岗亭灯",
+          "name": "\u5c97\u4ead\u706f",
           "type": "point",
           "x": 0.65,
           "y": 0.75,
@@ -354,8 +354,8 @@
             0.8,
             0.4
           ],
-          "radius": 80,
-          "intensity": 0.2,
+          "radius": 250,
+          "intensity": 0.35,
           "phase": {
             "type": "steady",
             "min": 0.18,
@@ -365,13 +365,13 @@
       ]
     },
     "server": {
-      "name": "服务器室",
+      "name": "\u670d\u52a1\u5668\u5ba4",
       "base": "bg_server_room.webp",
       "depth": "server_room_depth.webp",
       "lights": [
         {
           "id": "led_blue",
-          "name": "蓝色 LED",
+          "name": "\u84dd\u8272 LED",
           "type": "point",
           "x": 0.3,
           "y": 0.4,
@@ -380,8 +380,8 @@
             0.3,
             1
           ],
-          "radius": 140,
-          "intensity": 0.3,
+          "radius": 250,
+          "intensity": 0.45,
           "phase": {
             "type": "flicker",
             "speed": 2.5,
@@ -391,7 +391,7 @@
         },
         {
           "id": "led_green",
-          "name": "绿色 LED",
+          "name": "\u7eff\u8272 LED",
           "type": "point",
           "x": 0.7,
           "y": 0.35,
@@ -400,8 +400,8 @@
             0.9,
             0.2
           ],
-          "radius": 120,
-          "intensity": 0.25,
+          "radius": 250,
+          "intensity": 0.4,
           "phase": {
             "type": "flicker",
             "speed": 1.8,
@@ -411,7 +411,7 @@
         },
         {
           "id": "fluorescent",
-          "name": "荧光灯",
+          "name": "\u8367\u5149\u706f",
           "type": "point",
           "x": 0.5,
           "y": 0.1,
@@ -431,7 +431,7 @@
         },
         {
           "id": "terminal",
-          "name": "终端绿光",
+          "name": "\u7ec8\u7aef\u7eff\u5149",
           "type": "point",
           "x": 0.5,
           "y": 0.55,
@@ -440,8 +440,8 @@
             0.8,
             0.3
           ],
-          "radius": 100,
-          "intensity": 0.2,
+          "radius": 250,
+          "intensity": 0.35,
           "phase": {
             "type": "sine",
             "speed": 1,
@@ -452,13 +452,13 @@
       ]
     },
     "rooftop": {
-      "name": "楼顶",
+      "name": "\u697c\u9876",
       "base": "bg_rooftop.webp",
       "depth": "rooftop_depth.webp",
       "lights": [
         {
           "id": "city_glow",
-          "name": "城市霓虹",
+          "name": "\u57ce\u5e02\u9713\u8679",
           "type": "point",
           "x": 0.5,
           "y": 0.7,
@@ -478,7 +478,7 @@
         },
         {
           "id": "lightning",
-          "name": "闪电",
+          "name": "\u95ea\u7535",
           "type": "global",
           "color": [
             0.9,
@@ -491,11 +491,12 @@
             "speed": 0.3,
             "min": 0,
             "max": 0.6
-          }
+          },
+          "radius": 960
         },
         {
           "id": "antenna",
-          "name": "天线灯",
+          "name": "\u5929\u7ebf\u706f",
           "type": "point",
           "x": 0.8,
           "y": 0.15,
@@ -504,8 +505,8 @@
             0.1,
             0.1
           ],
-          "radius": 60,
-          "intensity": 0.4,
+          "radius": 200,
+          "intensity": 0.5,
           "phase": {
             "type": "pulse",
             "speed": 2,
@@ -516,13 +517,13 @@
       ]
     },
     "office": {
-      "name": "办公室",
+      "name": "\u529e\u516c\u5ba4",
       "base": "bg_office.webp",
       "depth": "office_depth.webp",
       "lights": [
         {
           "id": "holo",
-          "name": "全息屏",
+          "name": "\u5168\u606f\u5c4f",
           "type": "point",
           "x": 0.5,
           "y": 0.35,
@@ -531,8 +532,8 @@
             0.5,
             1
           ],
-          "radius": 160,
-          "intensity": 0.3,
+          "radius": 280,
+          "intensity": 0.45,
           "phase": {
             "type": "flicker",
             "speed": 1.5,
@@ -542,7 +543,7 @@
         },
         {
           "id": "desk_lamp",
-          "name": "台灯",
+          "name": "\u53f0\u706f",
           "type": "point",
           "x": 0.35,
           "y": 0.5,
@@ -551,8 +552,8 @@
             0.85,
             0.5
           ],
-          "radius": 120,
-          "intensity": 0.25,
+          "radius": 250,
+          "intensity": 0.4,
           "phase": {
             "type": "steady",
             "min": 0.2,
@@ -561,7 +562,7 @@
         },
         {
           "id": "city_window",
-          "name": "窗外城市",
+          "name": "\u7a97\u5916\u57ce\u5e02",
           "type": "point",
           "x": 0.8,
           "y": 0.3,
@@ -582,13 +583,13 @@
       ]
     },
     "underground": {
-      "name": "B7 地下实验室",
+      "name": "B7 \u5730\u4e0b\u5b9e\u9a8c\u5ba4",
       "base": "bg_server_room.webp",
       "depth": "server_room_depth.webp",
       "lights": [
         {
           "id": "emergency_red_l",
-          "name": "左侧应急灯",
+          "name": "\u5de6\u4fa7\u5e94\u6025\u706f",
           "type": "point",
           "x": 0.15,
           "y": 0.15,
@@ -608,7 +609,7 @@
         },
         {
           "id": "emergency_red_r",
-          "name": "右侧应急灯",
+          "name": "\u53f3\u4fa7\u5e94\u6025\u706f",
           "type": "point",
           "x": 0.85,
           "y": 0.15,
@@ -629,7 +630,7 @@
         },
         {
           "id": "pod_glow",
-          "name": "实验舱冷光",
+          "name": "\u5b9e\u9a8c\u8231\u51b7\u5149",
           "type": "point",
           "x": 0.5,
           "y": 0.45,
@@ -649,7 +650,7 @@
         },
         {
           "id": "biometric",
-          "name": "生物识别器",
+          "name": "\u751f\u7269\u8bc6\u522b\u5668",
           "type": "point",
           "x": 0.75,
           "y": 0.6,
@@ -658,8 +659,8 @@
             0.9,
             0.3
           ],
-          "radius": 80,
-          "intensity": 0.3,
+          "radius": 250,
+          "intensity": 0.4,
           "phase": {
             "type": "flicker",
             "speed": 3,
@@ -669,7 +670,7 @@
         },
         {
           "id": "sterile_overhead",
-          "name": "顶部消毒灯",
+          "name": "\u9876\u90e8\u6d88\u6bd2\u706f",
           "type": "point",
           "x": 0.5,
           "y": 0.05,
@@ -690,13 +691,13 @@
       ]
     },
     "core": {
-      "name": "B7 核心控制室",
+      "name": "B7 \u6838\u5fc3\u63a7\u5236\u5ba4",
       "base": "bg_rooftop.webp",
       "depth": "rooftop_depth.webp",
       "lights": [
         {
           "id": "holo_ring",
-          "name": "全息环幕",
+          "name": "\u5168\u606f\u73af\u5e55",
           "type": "point",
           "x": 0.5,
           "y": 0.35,
@@ -716,24 +717,25 @@
         },
         {
           "id": "neural_pulse",
-          "name": "神经信号脉冲",
+          "name": "\u795e\u7ecf\u4fe1\u53f7\u8109\u51b2",
           "type": "global",
           "color": [
             0.3,
             0.15,
             0.8
           ],
-          "intensity": 0.15,
+          "intensity": 0.25,
           "phase": {
             "type": "pulse",
             "speed": 2,
             "min": 0,
             "max": 0.2
-          }
+          },
+          "radius": 400
         },
         {
           "id": "console_cyan",
-          "name": "控制台青光",
+          "name": "\u63a7\u5236\u53f0\u9752\u5149",
           "type": "point",
           "x": 0.3,
           "y": 0.55,
@@ -742,8 +744,8 @@
             0.8,
             0.9
           ],
-          "radius": 180,
-          "intensity": 0.3,
+          "radius": 280,
+          "intensity": 0.4,
           "phase": {
             "type": "flicker",
             "speed": 1.8,
@@ -753,7 +755,7 @@
         },
         {
           "id": "warning_amber",
-          "name": "警告灯",
+          "name": "\u8b66\u544a\u706f",
           "type": "point",
           "x": 0.8,
           "y": 0.2,
@@ -762,8 +764,8 @@
             0.65,
             0.1
           ],
-          "radius": 120,
-          "intensity": 0.25,
+          "radius": 250,
+          "intensity": 0.35,
           "phase": {
             "type": "pulse",
             "speed": 1,
@@ -773,7 +775,7 @@
         },
         {
           "id": "pod_status",
-          "name": "容器状态灯",
+          "name": "\u5bb9\u5668\u72b6\u6001\u706f",
           "type": "point",
           "x": 0.5,
           "y": 0.7,
