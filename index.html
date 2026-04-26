@@ -12,6 +12,13 @@
     src: local('Courier New');
   }
 
+  :root {
+    --accent: #00ff88;
+    --accent-dim: rgba(0, 255, 136, 0.27);
+    --accent-glow: rgba(0, 255, 136, 0.3);
+    --accent-bar: linear-gradient(90deg, #00ff88, #00cc66);
+  }
+
   body {
     background: #000;
     display: flex;
@@ -46,8 +53,8 @@
     left: 0;
     right: 0;
     background: rgba(10, 10, 20, 0.95);
-    border-top: 2px solid #00ff88;
-    border-bottom: 2px solid #00ff88;
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
     padding: 15px 20px;
     min-height: 120px;
     display: none;
@@ -63,20 +70,20 @@
   #dialogue-portrait {
     width: 80px;
     height: 80px;
-    border: 2px solid #00ff88;
+    border: 2px solid var(--accent);
     image-rendering: pixelated;
     flex-shrink: 0;
     display: none;
-    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 12px var(--accent-glow);
   }
 
   #dialogue-portrait-canvas {
     width: 80px;
     height: 80px;
-    border: 2px solid #00ff88;
+    border: 2px solid var(--accent);
     flex-shrink: 0;
     display: none;
-    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 12px var(--accent-glow);
     image-rendering: pixelated;
   }
 
@@ -147,7 +154,7 @@
   }
 
   #dialogue-speaker {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 14px;
     font-weight: bold;
     margin-bottom: 8px;
@@ -173,7 +180,7 @@
   .kw-buzz {
     display: inline-block;
     animation: kw-buzz 0.35s ease-in-out 2;
-    color: #00ff88;
+    color: var(--accent);
     text-shadow: 0 0 6px rgba(0, 255, 136, 0.35);
     font-weight: bold;
   }
@@ -187,8 +194,8 @@
     width: 100%;
     text-align: left;
     background: rgba(0, 255, 136, 0.08);
-    border: 1px solid #00ff8844;
-    color: #00ff88;
+    border: 1px solid var(--accent-dim);
+    color: var(--accent);
     padding: 8px 15px;
     margin: 4px 0;
     cursor: pointer;
@@ -199,7 +206,7 @@
 
   .choice-btn:hover {
     background: rgba(0, 255, 136, 0.2);
-    border-color: #00ff88;
+    border-color: var(--accent);
     padding-left: 20px;
   }
 
@@ -240,7 +247,7 @@
   }
 
   .inv-slot.has-item {
-    border-color: #00ff88;
+    border-color: var(--accent);
     background: rgba(0, 255, 136, 0.05);
   }
 
@@ -261,12 +268,12 @@
     left: 50%;
     transform: translateX(-50%);
     background: #111;
-    border: 1px solid #00ff88;
+    border: 1px solid var(--accent);
     padding: 5px 10px;
     font-size: 11px;
     white-space: nowrap;
     z-index: 20;
-    color: #00ff88;
+    color: var(--accent);
   }
 
   .inv-slot:hover .inv-tooltip {
@@ -288,11 +295,11 @@
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    color: #00ff88;
+    color: var(--accent);
     font-size: 13px;
     background: rgba(0,0,0,0.8);
     padding: 5px 15px;
-    border: 1px solid #00ff8844;
+    border: 1px solid var(--accent-dim);
     z-index: 15;
     display: none;
     text-align: center;
@@ -312,12 +319,12 @@
   }
 
   #title-screen h1 {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 48px;
     letter-spacing: 12px;
     text-transform: uppercase;
     margin-bottom: 10px;
-    text-shadow: 0 0 20px #00ff8844;
+    text-shadow: 0 0 20px var(--accent-dim);
   }
 
   #title-screen .subtitle {
@@ -328,12 +335,12 @@
   }
 
   #title-screen .start-btn {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 16px;
     cursor: pointer;
     letter-spacing: 3px;
     animation: blink 1.5s infinite;
-    border: 1px solid #00ff8844;
+    border: 1px solid var(--accent-dim);
     padding: 12px 40px;
     background: none;
     font-family: inherit;
@@ -353,7 +360,7 @@
     width: 320px;
     height: 6px;
     background: #111;
-    border: 1px solid #00ff8833;
+    border: 1px solid var(--accent-dim);
     border-radius: 3px;
     margin-top: 40px;
     overflow: hidden;
@@ -363,14 +370,14 @@
   #loading-bar-fill {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #00ff88, #00cc66);
-    box-shadow: 0 0 8px #00ff8866;
+    background: var(--accent-bar);
+    box-shadow: 0 0 8px var(--accent-glow);
     transition: width 0.15s ease-out;
     border-radius: 3px;
   }
 
   #loading-text {
-    color: #00ff8888;
+    color: var(--accent-dim);
     font-size: 11px;
     letter-spacing: 2px;
     margin-top: 10px;
@@ -423,7 +430,7 @@
   }
 
   #ending-screen h2 {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 28px;
     letter-spacing: 6px;
     margin-bottom: 30px;
@@ -450,8 +457,8 @@
   }
 
   #ending-screen .restart-btn:hover {
-    border-color: #00ff88;
-    color: #00ff88;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>
 </head>
@@ -2675,6 +2682,9 @@ const Game = {
     // 初始化 VFX 引擎
     VFX.init(sceneId);
 
+    // ── 应用场景 UI 主题色 ──
+    this._applySceneTheme(sceneId);
+
     // ── 初始化角色系统 ──
     await CharSystem.initScene(sceneId, this.images);
 
@@ -3081,6 +3091,36 @@ const Game = {
 
   updateHUD() {
     this.updateInventoryUI();
+  },
+
+  // ── 场景 UI 主题色 ──
+  SCENE_ACCENT: {
+    apartment:   { h: 150, s: 100, l: 50 },  // #00ff88 经典绿
+    street:      { h: 185, s: 100, l: 50 },  // 霓虹青
+    bar:         { h: 310, s: 80, l: 50 },   // 紫红
+    alley:       { h: 140, s: 100, l: 60 },  // 浅绿全息
+    tower:       { h: 0, s: 80, l: 55 },     // 红色扫描
+    server:      { h: 160, s: 100, l: 50 },  // 服务器绿
+    rooftop:     { h: 220, s: 100, l: 65 },  // 冷蓝
+    underground: { h: 0, s: 85, l: 50 },     // 应急红
+    core:        { h: 150, s: 100, l: 50 },  // 核心绿
+  },
+
+  _applySceneTheme(sceneId) {
+    const accent = this.SCENE_ACCENT[sceneId] || this.SCENE_ACCENT.apartment;
+    const { h, s, l } = accent;
+    const root = document.documentElement;
+    root.style.setProperty('--accent', `hsl(${h}, ${s}%, ${l}%)`);
+    root.style.setProperty('--accent-dim', `hsla(${h}, ${s}%, ${l}%, 0.27)`);
+    root.style.setProperty('--accent-glow', `hsla(${h}, ${s}%, ${l}%, 0.3)`);
+    root.style.setProperty('--accent-bar', `linear-gradient(90deg, hsl(${h}, ${s}%, ${l}%), hsl(${h}, ${s}%, ${Math.max(20, l - 15)}%))`);
+
+    // 更新头像边框颜色 (portrait canvas 和 portrait img)
+    const portraits = document.querySelectorAll('#dialogue-portrait, #dialogue-portrait-canvas');
+    portraits.forEach(el => {
+      el.style.borderColor = `hsl(${h}, ${s}%, ${l}%)`;
+      el.style.boxShadow = `0 0 12px hsla(${h}, ${s}%, ${l}%, 0.3)`;
+    });
   },
 
   showHint(text, duration = 2000) {
