@@ -2754,7 +2754,46 @@ const Game = {
 
   renderLoop: null,
 
-  async goScene(sceneId) {
+  // ── 根据来源场景的出生点映射 ──
+  // 格式: { 目标场景: { 来源场景: [归一化x, 归一化y] } }
+  // 未配置的来源场景使用场景默认 spawn 位置
+  SPAWN_MAP: {
+    apartment: {
+      rooftop: [0.52, 0.57],   // 从楼顶回来 → 公寓中央
+    },
+    street: {
+      apartment: [0.15, 0.70],  // 从公寓出门 → 街道左侧
+      bar: [0.22, 0.65],        // 从酒吧出来 → 酒吧门口
+      tower: [0.85, 0.70], // 从塔楼回来 → 街道右侧
+      alley: [0.10, 0.70],      // 从小巷出来 → 小巷入口旁
+    },
+    bar: {
+      street: [0.85, 0.75],     // 从街道进来 → 酒吧出口附近
+    },
+    alley: {
+      street: [0.85, 0.75],     // 从街道进来 → 小巷出口附近
+    },
+    tower: {
+      street: [0.20, 0.70],     // 从街道过来 → 塔楼左侧入口
+      server: [0.50, 0.80], // 从服务器室上来 → 中央
+      underground: [0.50, 0.80], // 从地下上来 → 中央
+    },
+    server: {
+      tower: [0.20, 0.85], // 从塔楼进来 → 左侧入口
+      rooftop: [0.80, 0.85],        // 从楼顶下来 → 右侧通道口
+    },
+    rooftop: {
+      server: [0.50, 0.80], // 从服务器室上来 → 中央
+    },
+    underground: {
+      tower: [0.50, 0.80], // 从塔楼进来 → 中央入口
+    },
+    core: {
+      underground: [0.50, 0.80], // 从地下实验室进来 → 中央
+    },
+  },
+
+  async goScene(sceneId, fromScene) {
     this._pendingHotspot = null;
     const fade = document.getElementById('fade-overlay');
     fade.classList.add('active');
@@ -2772,6 +2811,19 @@ const Game = {
     }
 
     await this.sleep(600);
+
+    // ── 根据来源场景动态设置角色出生点 ──
+    if (fromScene) {
+      const spawnPos = this.SPAWN_MAP[sceneId]?.[fromScene];
+      if (spawnPos) {
+        const scene = SCENES[sceneId];
+        if (scene && scene.characters && scene.characters[0]) {
+          scene.characters[0].x = spawnPos[0];
+          scene.characters[0].y = spawnPos[1];
+        }
+      }
+    }
+
     this.currentScene = sceneId;
     this.selectedItem = null;
     this.hideDialogue();
@@ -3492,7 +3544,7 @@ const SCENES = {
           ]).then(choice => {
             if (choice === 0) {
               Game.sfx('door');
-              Game.goScene('street');
+              Game.goScene('street', 'apartment');
             }
           });
         }
@@ -3570,7 +3622,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('door');
-          Game.goScene('bar');
+          Game.goScene('bar', 'street');
         }
       },
       {
@@ -3582,7 +3634,7 @@ const SCENES = {
           if (Game.hasItem('keycard')) {
             Game.showDialogue('凯', '有了安全卡，应该能进 ECHO 大楼了。').then(() => {
               Game.sfx('door');
-              Game.goScene('tower');
+              Game.goScene('tower', 'street');
             });
           } else {
             Game.showDialogue('凯', '旧工业带在那个方向。但 ECHO 公司的大楼需要安全卡才能进入。\n\n也许酒吧里有人知道怎么弄到。');
@@ -3596,7 +3648,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('click');
-          Game.goScene('alley');
+          Game.goScene('alley', 'street');
         }
       },
       {
@@ -3741,7 +3793,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('door');
-          Game.goScene('street');
+          Game.goScene('street', 'bar');
         }
       },
       {
@@ -3849,7 +3901,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('door');
-          Game.goScene('street');
+          Game.goScene('street', 'alley');
         }
       },
       {
@@ -3916,7 +3968,7 @@ const SCENES = {
               return Game.showDialogue('凯', '进去了。服务器在地下三层。');
             }).then(() => {
               Game.sfx('door');
-              Game.goScene('server');
+              Game.goScene('server', 'tower');
             });
           } else {
             Game.sfx('error');
@@ -3945,7 +3997,7 @@ const SCENES = {
               }).then(choice => {
                 if (choice === 0) {
                   Game.sfx('door');
-                  Game.goScene('underground');
+                  Game.goScene('underground', 'tower');
                 }
               });
             } else {
@@ -3955,7 +4007,7 @@ const SCENES = {
               ]).then(choice => {
                 if (choice === 0) {
                   Game.sfx('door');
-                  Game.goScene('underground');
+                  Game.goScene('underground', 'tower');
                 }
               });
             }
@@ -3980,7 +4032,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('door');
-          Game.goScene('street');
+          Game.goScene('street', 'tower');
         }
       },
       {
@@ -4086,7 +4138,7 @@ const SCENES = {
             ]).then(choice => {
               if (choice === 0) {
                 Game.sfx('door');
-                Game.goScene('rooftop');
+                Game.goScene('rooftop', 'server');
               }
             });
           } else {
@@ -4101,7 +4153,7 @@ const SCENES = {
         isExit: true,
         action() {
           Game.sfx('door');
-          Game.goScene('tower');
+          Game.goScene('tower', 'server');
         }
       },
     ]
@@ -4131,10 +4183,10 @@ const SCENES = {
           ]).then(choice => {
             if (choice === 0) {
               Game.sfx('door');
-              Game.goScene('tower');
+              Game.goScene('tower', 'rooftop');
             } else {
               Game.sfx('door');
-              Game.goScene('apartment');
+              Game.goScene('apartment', 'rooftop');
             }
           });
         });
@@ -4183,7 +4235,7 @@ const SCENES = {
               return Game.showDialogue(null, '三周后——\n\nOracle 失联了。');
             }).then(() => {
               Game.sfx('door');
-              Game.goScene('rooftop');
+              Game.goScene('rooftop', 'rooftop');
             });
           } else {
             Game.sfx('error');
@@ -4386,7 +4438,7 @@ const SCENES = {
             ]).then(choice => {
               if (choice === 0) {
                 Game.sfx('door');
-                Game.goScene('core');
+                Game.goScene('core', 'underground');
               }
             });
           } else {
@@ -4406,7 +4458,7 @@ const SCENES = {
           ]).then(choice => {
             if (choice === 0) {
               Game.sfx('door');
-              Game.goScene('tower');
+              Game.goScene('tower', 'underground');
             }
           });
         }
