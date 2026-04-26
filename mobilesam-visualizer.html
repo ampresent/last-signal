@@ -1075,9 +1075,12 @@ async function renderPipeline() {
           <button class="editor-tool success" id="toolDownload" title="下载编辑后的 Mask">💾</button>
         </div>
         <div class="editor-stats" id="editorStats">
+          <div>来源: <span id="statSource" style="color:var(--green)">—</span></div>
           <div>白色像素: <span id="statWhite">—</span></div>
           <div>覆盖面积: <span id="statArea">—</span></div>
           <div>操作历史: <span id="statHistory">0</span> 步</div>
+          <div>修改量: <span id="statDiff" style="color:var(--orange)">0</span> px</div>
+
         </div>
         <div class="viz-grid">
           <div class="viz-panel">
@@ -1664,15 +1667,63 @@ function loadEditorMask(scene, maskImgs, maskId) {
   const tmpCtx = tmpCanvas.getContext('2d');
 
   if (maskImg) {
+    // Draw the mask image onto a temp canvas to read pixels
+    tmpCtx.clearRect(0, 0, IMG_W, IMG_H);
     tmpCtx.drawImage(maskImg, 0, 0, IMG_W, IMG_H);
     const imgData = tmpCtx.getImageData(0, 0, IMG_W, IMG_H);
+    const pixels = imgData.data; // RGBA
+
     editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H);
+    let whiteCount = 0;
+
+    // Extract mask: check alpha channel first, then luminance
     for (let i = 0; i < IMG_W * IMG_H; i++) {
-      editor.maskData[i] = imgData.data[i * 4 + 3] > 128 ? 255 : 0;
+      const r = pixels[i * 4];
+      const g = pixels[i * 4 + 1];
+      const b = pixels[i * 4 + 2];
+      const a = pixels[i * 4 + 3];
+
+      let isMask = false;
+      if (a < 128) {
+        // Transparent pixel → background
+        isMask = false;
+      } else if (a >= 200) {
+        // Opaque pixel → check if it's white/bright (mask) or dark (background)
+        const lum = (r + g + b) / 3;
+        isMask = lum > 128;
+      } else {
+        // Semi-transparent → treat as mask edge, include it
+        isMask = true;
+      }
+
+      editor.maskData[i] = isMask ? 255 : 0;
+      if (isMask) whiteCount++;
     }
+
+    const sourceLabel = document.getElementById('statSource');
+    if (sourceLabel) sourceLabel.textContent = `已加载 ${maskId} (${whiteCount.toLocaleString()} px)`;
   } else {
-    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H); // all black
+    // No mask image available — try to generate from bbox
+    editor.maskData = new Uint8ClampedArray(IMG_W * IMG_H);
+    const obj = scene.objects.find(o => o.id === maskId);
+    if (obj) {
+      const [x1, y1, x2, y2] = obj.bbox;
+      for (let y = y1; y < y2; y++) {
+        for (let x = x1; x < x2; x++) {
+          if (x >= 0 && x < IMG_W && y >= 0 && y < IMG_H) {
+            editor.maskData[y * IMG_W + x] = 255;
+          }
+        }
+      }
+      const sourceLabel = document.getElementById('statSource');
+      if (sourceLabel) sourceLabel.textContent = `从 bbox 生成 (${maskId})`;
+    } else {
+      const sourceLabel = document.getElementById('statSource');
+      if (sourceLabel) sourceLabel.textContent = `空白画布`;
+    }
   }
+
+
   editor.originalMask = new Uint8ClampedArray(editor.maskData);
   editor.history = [];
   editor.historyIdx = -1;
@@ -1813,22 +1864,46 @@ function editorFill(x, y) {
 
 function renderEditorOverlay(ctx, scene) {
   ctx.clearRect(0, 0, IMG_W, IMG_H);
-  // Draw mask as semi-transparent cyan overlay
+
+  // Draw original mask boundary as dashed line (for reference)
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let y = 1; y < IMG_H - 1; y++) {
+    for (let x = 1; x < IMG_W - 1; x++) {
+      const idx = y * IMG_W + x;
+      if (editor.originalMask[idx] > 128) {
+        const hasEdge = (
+          editor.originalMask[idx - 1] <= 128 ||
+          editor.originalMask[idx + 1] <= 128 ||
+          editor.originalMask[idx - IMG_W] <= 128 ||
+          editor.originalMask[idx + IMG_W] <= 128
+        );
+        if (hasEdge) {
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+  ctx.setLineDash([]);
+
+  // Draw current mask as cyan overlay
+
   const imgData = ctx.createImageData(IMG_W, IMG_H);
   for (let i = 0; i < IMG_W * IMG_H; i++) {
     if (editor.maskData[i] > 128) {
       imgData.data[i * 4] = 0;       // R
       imgData.data[i * 4 + 1] = 229; // G
       imgData.data[i * 4 + 2] = 255; // B
-      imgData.data[i * 4 + 3] = 100; // A
+      imgData.data[i * 4 + 3] = 90;  // A
+
     }
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // Draw mask edge
-  ctx.strokeStyle = 'rgba(0,229,255,0.8)';
-  ctx.lineWidth = 1;
-  // Simple edge detection: if pixel is mask but neighbor isn't
+  // Draw current mask edge as solid cyan line
+
   for (let y = 1; y < IMG_H - 1; y++) {
     for (let x = 1; x < IMG_W - 1; x++) {
       const idx = y * IMG_W + x;
@@ -1840,20 +1915,43 @@ function renderEditorOverlay(ctx, scene) {
           editor.maskData[idx + IMG_W] <= 128
         );
         if (hasEdge) {
-          ctx.fillStyle = 'rgba(0,229,255,0.7)';
+          ctx.fillStyle = 'rgba(0,229,255,0.8)';
+
           ctx.fillRect(x, y, 1, 1);
         }
       }
     }
   }
 
-  // Draw brush preview circle at current position
-  if (editor.tool === 'brush' || editor.tool === 'eraser') {
-    ctx.strokeStyle = editor.tool === 'brush' ? 'rgba(0,229,255,0.5)' : 'rgba(255,82,82,0.5)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    // We don't draw the cursor circle here — it's done by the CSS cursor div
-    ctx.setLineDash([]);
+  // Highlight differences: added (green) and removed (red)
+  for (let y = 0; y < IMG_H; y++) {
+    for (let x = 0; x < IMG_W; x++) {
+      const idx = y * IMG_W + x;
+      const orig = editor.originalMask[idx] > 128;
+      const curr = editor.maskData[idx] > 128;
+      if (orig !== curr) {
+        // Edge of diff region
+        const isEdge = (
+          x === 0 || x === IMG_W - 1 || y === 0 || y === IMG_H - 1 ||
+          editor.maskData[y * IMG_W + (x - 1)] > 128 !== curr ||
+          editor.maskData[y * IMG_W + (x + 1)] > 128 !== curr ||
+          editor.maskData[(y - 1) * IMG_W + x] > 128 !== curr ||
+          editor.maskData[(y + 1) * IMG_W + x] > 128 !== curr
+        );
+        if (isEdge) {
+          if (curr && !orig) {
+            // Added: green dot
+            ctx.fillStyle = 'rgba(0,230,118,0.9)';
+            ctx.fillRect(x, y, 1, 1);
+          } else {
+            // Removed: red dot
+            ctx.fillStyle = 'rgba(255,82,82,0.9)';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+
   }
 }
 
@@ -1872,16 +1970,22 @@ function renderEditorPreview(canvas, scene) {
 
 function updateEditorStats() {
   let whiteCount = 0;
+  let diffCount = 0;
   for (let i = 0; i < editor.maskData.length; i++) {
     if (editor.maskData[i] > 128) whiteCount++;
+    if (editor.maskData[i] !== editor.originalMask[i]) diffCount++;
+
   }
   const area = (whiteCount / (IMG_W * IMG_H) * 100).toFixed(2);
   const statWhite = document.getElementById('statWhite');
   const statArea = document.getElementById('statArea');
   const statHistory = document.getElementById('statHistory');
+  const statDiff = document.getElementById('statDiff');
   if (statWhite) statWhite.textContent = whiteCount.toLocaleString();
   if (statArea) statArea.textContent = area + '%';
   if (statHistory) statHistory.textContent = editor.history.length;
+  if (statDiff) statDiff.textContent = diffCount.toLocaleString();
+
 }
 
 function editorDownload(sceneId) {
