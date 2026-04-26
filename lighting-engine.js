@@ -172,7 +172,7 @@ class LightingEngine {
             float occlusion = depthOcclude * shadow;
 
             // Inverse-square distance attenuation
-            float atten = 1.0 / (1.0 + (dist / radius) * (dist / radius) * 10.0);
+            float atten = 1.0 / (1.0 + (dist / radius) * (dist / radius) * 3.0);
             // Soft edge falloff
             atten *= 1.0 - smoothstep(radius * 0.7, radius, dist);
 
