@@ -44,14 +44,14 @@ jobs:
       - uses: actions/deploy-pages@v4
 ```
 
-## Build Script (build.py)
+## Build Script (scripts/build.py)
 
 Converts PNG assets to WebP and updates HTML references.
 
 ```bash
-python3 build.py              # Full build
-python3 build.py --dry-run    # Stats only
-python3 build.py --restore    # Revert to .png
+python3 scripts/build.py              # Full build
+python3 scripts/build.py --dry-run    # Stats only
+python3 scripts/build.py --restore    # Revert to .png
 ```
 
 ### Compression Strategy

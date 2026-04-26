@@ -37,10 +37,10 @@ bg_{scene}.png (基础图)
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com
 
-python3 gen_depth_lighting.py                    # 所有场景
-python3 gen_depth_lighting.py --scene apartment   # 单个场景
-python3 gen_depth_lighting.py --lighting-only     # 复用已有深度图
-python3 gen_depth_lighting.py --depth-only        # 仅深度图
+python3 scripts/gen_depth_lighting.py                    # 所有场景
+python3 scripts/gen_depth_lighting.py --scene apartment   # 单个场景
+python3 scripts/gen_depth_lighting.py --lighting-only     # 复用已有深度图
+python3 scripts/gen_depth_lighting.py --depth-only        # 仅深度图
 ```
 
 ## 依赖
@@ -51,9 +51,9 @@ python3 gen_depth_lighting.py --depth-only        # 仅深度图
 
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com
-python3 gen_assets.py              # 1. 基础场景图 + 角色肖像
-python3 gen_depth_lighting.py      # 2. Depth Lighting
-python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成
+python3 scripts/gen_assets.py              # 1. 基础场景图 + 角色肖像
+python3 scripts/gen_depth_lighting.py      # 2. Depth Lighting
+python3 scripts/gen_masks.py               # 3. MobileSAM + Omni mask 生成
 ```
 
 ---
