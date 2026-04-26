@@ -54,7 +54,10 @@
 - **问题**: 约 26 个 mask 文件不被游戏引擎使用（echo_lobby, maintenance, data_haven, flashback, hospital, office, core 等）
 - **修复**: 删除孤儿文件，保留游戏引擎实际引用的 mask
 
-#### Fix 8: core 场景 mask 是空壳
+#### Fix 8: core 场景 mask — 无需修复
+- **结论**: core 场景 hotspots 为空数组，纯对话场景
+- 全白 walkable（全区可走）+ 全黑 scene mask（无物体障碍）合理
+- 不需要生成 object mask
 - **文件**: `assets/masks/core_mask.webp`, `core_walkable_mask.webp`
 - **问题**: core_mask 全黑（0% 覆盖），core_walkable 全白（100% 覆盖）
 - **修复**: 需要为 core 场景生成有意义的 mask，或标记为 TODO
