@@ -28,8 +28,8 @@
 ## 可行走 Mask 生成
 
 ```bash
-python3 gen_walk_masks.py              # 所有场景
-python3 gen_walk_masks.py --scene bar  # 单个场景
+python3 gen_masks.py              # 所有场景
+python3 gen_masks.py --scene bar  # 单个场景
 ```
 
 ## 抠图：绿幕 GrabCut
