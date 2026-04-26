@@ -2544,6 +2544,13 @@ const Game = {
       if (m) this.waterMasks[firstSceneId] = m;
     });
 
+    // 随机出生点：从 walkable mask 选取
+    const [sx, sy] = this.getRandomSpawn(firstSceneId);
+    if (scene.characters && scene.characters[0]) {
+      scene.characters[0].x = sx;
+      scene.characters[0].y = sy;
+    }
+
     // Object masks
     if (scene.hotspots) {
       for (const hs of scene.hotspots) {
@@ -2722,42 +2729,29 @@ const Game = {
 
   // ── 根据来源场景的出生点映射 ──
   // 格式: { 目标场景: { 来源场景: [归一化x, 归一化y] } }
-  // 未配置的来源场景使用场景默认 spawn 位置
-  SPAWN_MAP: {
-    apartment: {
-      rooftop: [0.52, 0.57],   // 从楼顶回来 → 公寓中央
-    },
-    street: {
-      apartment: [0.15, 0.70],  // 从公寓出门 → 街道左侧
-      bar: [0.22, 0.65],        // 从酒吧出来 → 酒吧门口
-      tower: [0.85, 0.70], // 从塔楼回来 → 街道右侧
-      alley: [0.10, 0.70],      // 从小巷出来 → 小巷入口旁
-    },
-    bar: {
-      street: [0.85, 0.75],     // 从街道进来 → 酒吧出口附近
-    },
-    alley: {
-      street: [0.85, 0.75],     // 从街道进来 → 小巷出口附近
-    },
-    tower: {
-      street: [0.20, 0.70],     // 从街道过来 → 塔楼左侧入口
-      server: [0.50, 0.80], // 从服务器室上来 → 中央
-      underground: [0.50, 0.80], // 从地下上来 → 中央
-    },
-    server: {
-      tower: [0.20, 0.85], // 从塔楼进来 → 左侧入口
-      rooftop: [0.80, 0.85],        // 从楼顶下来 → 右侧通道口
-    },
-    rooftop: {
-      server: [0.50, 0.80], // 从服务器室上来 → 中央
-    },
-    underground: {
-      tower: [0.50, 0.80], // 从塔楼进来 → 中央入口
-    },
-    core: {
-      underground: [0.50, 0.80], // 从地下实验室进来 → 中央
-    },
+  // ── 从 walkable mask 随机选取出生点 ──
+  getRandomSpawn(sceneId) {
+    const maskObj = this.masks[`${sceneId}_walkable`];
+    if (!maskObj || !maskObj.data) return [0.5, 0.75];
+    const data = maskObj.data.data;  // ImageData.data = Uint8ClampedArray
+    const w = maskObj.data.width;
+    const h = maskObj.data.height;
+    const walkable = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4] > 128) walkable.push([x, y]);
+      }
+    }
+    if (walkable.length === 0) return [0.5, 0.75];
+    const [px, py] = walkable[Math.floor(Math.random() * walkable.length)];
+    return [
+      Math.max(0.02, Math.min(0.98, px / w)),
+      Math.max(0.02, Math.min(0.98, py / h))
+    ];
   },
+
+  // ── 根据来源场景的出生点映射（已弃用，统一使用随机 walkable 出生点） ──
+  SPAWN_MAP: {},
 
   async goScene(sceneId, fromScene) {
     this._pendingHotspot = null;
@@ -2778,16 +2772,12 @@ const Game = {
 
     await this.sleep(600);
 
-    // ── 根据来源场景动态设置角色出生点 ──
-    if (fromScene) {
-      const spawnPos = this.SPAWN_MAP[sceneId]?.[fromScene];
-      if (spawnPos) {
-        const scene = SCENES[sceneId];
-        if (scene && scene.characters && scene.characters[0]) {
-          scene.characters[0].x = spawnPos[0];
-          scene.characters[0].y = spawnPos[1];
-        }
-      }
+    // ── 随机出生点：从 walkable mask 中随机选取 ──
+    const [sx, sy] = this.getRandomSpawn(sceneId);
+    const scene = SCENES[sceneId];
+    if (scene && scene.characters && scene.characters[0]) {
+      scene.characters[0].x = sx;
+      scene.characters[0].y = sy;
     }
 
     this.currentScene = sceneId;
@@ -3558,7 +3548,7 @@ const SCENES = {
     characters: [
       {
         id: 'kai',
-        x: 0.48, y: 0.78,   // walkable 区域中心 (MobileSAM 地面)
+        x: 0.5, y: 0.75,   // 默认位置，运行时从 walkable mask 随机选取
         dir: 'down',
         speed: 0.12,
         scale: 0.22,
