@@ -6,8 +6,8 @@ Takes a single front-facing character image, auto-detects body part regions,
 creates a DragonBones skeleton, and generates an 8-frame walk cycle animation.
 
 Usage:
-    python3 dragonbones_rig.py assets/sprites/cutout_joker_down.png -o joker_rig
-    python3 dragonbones_rig.py assets/sprites/cutout_kai_down.png -o kai_rig --preview
+    python3 dragonbones_rig.py assets/sprites/cutout_joker_down.webp -o joker_rig
+    python3 dragonbones_rig.py assets/sprites/cutout_kai_down.webp -o kai_rig --preview
 """
 
 import argparse
@@ -819,7 +819,7 @@ def process_character(char_name, sprites_dir="assets/sprites", output_dir="asset
     results = {}
 
     for direction in directions:
-        cutout_path = os.path.join(sprites_dir, f"cutout_{char_name}_{direction}.png")
+        cutout_path = os.path.join(sprites_dir, f"cutout_{char_name}_{direction}.webp")
         if not os.path.exists(cutout_path):
             print(f"  ⚠️  Skipping {char_name}/{direction}: no cutout image")
             continue
