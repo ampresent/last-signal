@@ -331,6 +331,9 @@
 const REPO = 'ampresent/last-signal';
 const API = `https://api.github.com/repos/${REPO}/branches`;
 const RAW = `https://raw.githubusercontent.com/${REPO}`;
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+
+const HEADERS = TOKEN ? { Authorization: `token ${TOKEN}` } : {};
 
 let branches = [];
 let activeBranch = null;
@@ -343,7 +346,7 @@ async function loadBranches() {
     let all = [];
     let page = 1;
     while (true) {
-      const res = await fetch(`${API}?per_page=100&page=${page}`);
+      const res = await fetch(`${API}?per_page=100&page=${page}`, { headers: HEADERS });
       if (!res.ok) throw new Error(`GitHub API ${res.status}`);
       const data = await res.json();
       if (data.length === 0) break;
@@ -408,24 +411,45 @@ function filterBranches() {
   renderBranches(q);
 }
 
-function selectBranch(name) {
+async function selectBranch(name) {
   activeBranch = name;
   renderBranches(document.getElementById('search').value);
 
-  const url = `${RAW}/${name}/index.html`;
+  const rawBase = `${RAW}/${name}`;
   const frame = document.getElementById('game-frame');
   const placeholder = document.getElementById('placeholder');
   const toolbar = document.getElementById('toolbar');
 
-  placeholder.style.display = 'none';
-  frame.style.display = 'block';
+  placeholder.innerHTML = '<div class="loading"><div class="spinner"></div> Loading branch…</div>';
+  placeholder.style.display = 'flex';
+  frame.style.display = 'none';
   toolbar.style.display = 'flex';
 
+  const url = `${rawBase}/index.html`;
   document.getElementById('frame-url').innerHTML =
     `<a href="${url}" target="_blank">${url}</a>`;
 
-  // Load via src (raw GitHub serves as text/html)
-  frame.src = url;
+  try {
+    const res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let html = await res.text();
+
+    // Rewrite relative URLs to point to raw.githubusercontent.com
+    html = html.replace(/(src|href)=(["'])((?!https?:\/\/|#|data:)[^"']*?)\2/gi,
+      (m, attr, q, path) => {
+        if (path.startsWith('//')) return m;
+        const abs = path.startsWith('/') ? `${rawBase}${path}` : `${rawBase}/${path}`;
+        return `${attr}=${q}${abs}${q}`;
+      });
+
+    frame.srcdoc = html;
+    frame.style.display = 'block';
+    placeholder.style.display = 'none';
+  } catch (e) {
+    placeholder.innerHTML = `<div class="error-msg">❌ 加载失败: ${e.message}</div>`;
+    placeholder.style.display = 'flex';
+    frame.style.display = 'none';
+  }
 }
 
 function openExternal() {
