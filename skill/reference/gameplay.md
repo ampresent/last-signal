@@ -78,25 +78,19 @@ All sounds are Web Audio API synthesized — no audio files needed.
 
 ## Spawn Point System
 
-Character entry position depends on **which scene they came from**:
+Character position is **randomly selected from the walkable mask** each time a scene is entered:
 
 ```javascript
-Game.SPAWN_MAP = {
-  apartment: {
-    rooftop: { x: 0.52, y: 0.57 },  // From rooftop → center
-  },
-  street: {
-    apartment: { x: 0.15, y: 0.70 }, // From apartment → left
-    bar:       { x: 0.22, y: 0.65 }, // From bar → bar entrance
-    tower:     { x: 0.85, y: 0.70 }, // From tower → right
-    alley:     { x: 0.10, y: 0.70 }, // From alley → near alley
-  },
-  bar: {
-    street: { x: 0.85, y: 0.75 },
-  },
-  // ... etc
-};
+// Runtime: random spawn from walkable pixels
+Game.getRandomSpawn(sceneId) → [normalizedX, normalizedY]
+
+// Build-time: also samples random spawn into mask_metadata.json (for reference)
+// gen_masks.py: _random_walkable_spawn(mask_path)
 ```
+
+No hardcoded positions. Every entry to a scene picks a random walkable pixel.
+
+See `workflow/15-spawn-system.md` for full documentation.
 
 ### Usage
 ```javascript
