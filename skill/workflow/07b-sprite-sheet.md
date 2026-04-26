@@ -83,25 +83,30 @@ right: frame 98-168
 
 水平镜像补全反方向（right → left，left → right）。
 
-## 6. 抠图（绿幕 GrabCut）
+## 6. 抠图（绿幕）
 
-```
-video.mov → 帧提取(128px) → HSV绿色检测 → GrabCut → 合成 → 64px WebP
+> **⚠️ 必须使用项目脚本 `greenscreen_cutout.py`，不要自己写 GrabCut。**
+>
+> GrabCut 在此场景下会侵蚀角色边缘。项目脚本使用纯 HSV 阈值移除绿色，
+> 已经过 left/right/up 三个方向验证，自带 omni 模型自动验证循环。
+
+```bash
+# 将关键帧放入目录，然后运行：
+python3 greenscreen_cutout.py <direction> <input_dir>
+
+# 示例：
+mkdir -p down_selected
+# 复制/重命名关键帧为 frame_0001.png, frame_0002.png ...
+python3 greenscreen_cutout.py down down_selected
 ```
 
-关键代码：
-```python
-def green_screen_cutout(img_rgb):
-    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
-    green_mask = cv2.inRange(hsv, [35,50,50], [85,255,255])
-    gc_mask = np.zeros(hsv.shape[:2], np.uint8)
-    gc_mask[green_mask > 0] = cv2.GC_BGD
-    gc_mask[green_mask == 0] = cv2.GC_PR_FGD
-    cv2.grabCut(img_rgb, gc_mask, None, bgd, fgd, 3, cv2.GC_INIT_WITH_MASK)
-    return alpha
-```
+脚本会自动：
+1. 纯 HSV 绿色检测（H=35-85, S≥50, V≥50）
+2. 逐帧用 omni 模型验证（无绿边 + 角色完整 + 背景透明）
+3. 如果验证失败，自动扩大绿色范围重试（最多 5 轮）
+4. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
 
-**必须**：128px 处理 → 缩放 64px。不做边缘腐蚀。不做亮绿补充。
+**不做**：GrabCut、边缘腐蚀、亮绿补充、形态学开运算。
 
 ## 7. 裁剪 + 拼合
 
