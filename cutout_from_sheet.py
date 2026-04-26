@@ -132,13 +132,29 @@ def process_character(char_id, directions=None, threshold=DEFAULT_THRESHOLD):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--char", default="kai")
+    parser.add_argument("--char", default=None,
+                        help="角色 ID (默认: 除 kai 外全部)")
     parser.add_argument("--dir", nargs="*")
     parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
+    parser.add_argument("--include-kai", action="store_true",
+                        help="也处理 kai (默认跳过，行走图已抠好背景)")
     args = parser.parse_args()
 
-    print(f"🎭 颜色距离抠图 — {args.char} (threshold={args.threshold})")
-    process_character(args.char, args.dir, args.threshold)
+    # kai 的行走帧已经是 RGBA 透明抠图，无需再做颜色距离抠图
+    ALL_CHARS = ["joker", "oracle"]
+
+    if args.char:
+        chars = [args.char]
+    else:
+        chars = ALL_CHARS
+
+    for char_id in chars:
+        print(f"\n🎭 颜色距离抠图 — {char_id} (threshold={args.threshold})")
+        process_character(char_id, args.dir, args.threshold)
+
+    if args.char is None and not args.include_kai:
+        print("\n⏭️  kai: 已跳过 (行走图已抠好背景，无需额外处理)")
+        print("   如需强制处理: python3 cutout_from_sheet.py --char kai --include-kai")
 
 
 if __name__ == "__main__":

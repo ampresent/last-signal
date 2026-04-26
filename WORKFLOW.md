@@ -644,10 +644,13 @@ def color_cutout(frame_rgba, bg_color, threshold=20):
 **使用：**
 
 ```bash
-python3 cutout_from_sheet.py --char kai          # 全部方向
-python3 cutout_from_sheet.py --char kai --dir down  # 单方向
-python3 cutout_from_sheet.py --char kai --threshold 25  # 调整阈值
+python3 cutout_from_sheet.py                      # 处理 joker/oracle (kai 自动跳过)
+python3 cutout_from_sheet.py --char oracle        # 单角色
+python3 cutout_from_sheet.py --char kai --include-kai  # 强制处理 kai
+python3 cutout_from_sheet.py --threshold 25       # 调整阈值
 ```
+
+> **kai 已跳过**：kai 的行走帧 (`kai_*_f*.webp`) 已经是 RGBA 透明抠图，无需额外的背景去除处理。默认不处理 kai，可通过 `--include-kai` 强制。
 
 **注意：**
 - 不用 WebP：libwebp 会恢复 alpha=0 像素的 RGB，导致白边。用 PNG。
@@ -947,7 +950,7 @@ python3 gen_assets.py              # 1. 生成基础场景图 + 角色肖像
 python3 gen_depth_lighting.py      # 2. Depth Lighting (所有场景，自动跳过已有深度图)
 python3 gen_masks.py               # 3. MobileSAM + Omni mask 生成 (含叠层验证)
 python3 gen_character_views.py     # 4. 角色视角生成（正面→img2img→4方向→抠图）
-python3 cutout_from_sheet.py       # 5. 从 sprite sheet 逐帧抠图
+python3 cutout_from_sheet.py       # 5. 从 sprite sheet 逐帧抠图 (kai 已跳过，行走图已抠好)
 ```
 
 ### 添加新场景
