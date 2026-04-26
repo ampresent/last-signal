@@ -1,10 +1,10 @@
 # Scripts
 
-These are the core generation and build scripts used by the LAST SIGNAL workflow.
+Core generation and build scripts live in the **project root**, not here.
 
-All scripts are designed to be run from the **project root** directory (not from inside `skill/scripts/`).
+This directory is reserved for future skill-specific scripts that don't belong in the project root.
 
-## Scripts
+## Root Scripts
 
 | Script | Purpose |
 |--------|---------|
@@ -27,6 +27,3 @@ python3 gen_depth_lighting.py
 python3 gen_masks.py
 # ...
 ```
-
-These scripts are bundled here so the skill directory is self-contained.
-The canonical copies live in the project root for actual execution.

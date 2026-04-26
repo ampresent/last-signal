@@ -44,9 +44,9 @@ python3 -m http.server 8765
 ## 构建优化
 
 ```bash
-python3 scripts/build.py              # PNG→WebP 转换 + 更新引用
-python3 scripts/build.py --dry-run    # 仅统计
-python3 scripts/build.py --restore    # 恢复 .png 引用
+python3 build.py              # PNG→WebP 转换 + 更新引用
+python3 build.py --dry-run    # 仅统计
+python3 build.py --restore    # 恢复 .png 引用
 ```
 
 ---
