@@ -558,19 +558,19 @@ def save_metadata():
     for sid, sd in SCENES.items():
         objects = [
             {"id": o["id"], "label": o["label"],
-             "mask": f"masks/{sid}_{o['id']}_mask.png"}
+             "mask": f"masks/{sid}_{o['id']}_mask.webp"}
             for o in sd["objects"]
         ]
         if sd.get("walkable"):
             objects.append({
                 "id": "walkable", "label": sd["walkable"]["label"],
-                "mask": f"masks/{sid}_walkable_mask.png",
+                "mask": f"masks/{sid}_walkable_mask.webp",
                 "type": "walkable"
             })
         if sd.get("water"):
             objects.append({
                 "id": "water", "label": sd["water"]["label"],
-                "mask": f"masks/{sid}_water_mask.png",
+                "mask": f"masks/{sid}_water_mask.webp",
                 "type": "water"
             })
         meta[sid] = {
