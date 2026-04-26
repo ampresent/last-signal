@@ -458,8 +458,10 @@ python3 gen_walk_masks.py --scene bar  # 单个场景
 **关键要求：**
 - 镜头固定，角色保持在画面正中央
 - 单镜头，不要切换
-- 背景尽量纯色/均匀，方便后续抠图
+- **必须使用绿幕背景**（纯绿色，RGB ≈ 0,255,0），后续抠图依赖 HSV 色度阈值分离绿色
 - 每个方向单独生成一个视频文件
+
+> ⚠️ **绿幕是必须的。** 抠图流程使用 HSV 色度空间检测绿色（H=35-85, S=40-255, V=40-255），非绿色背景会导致抠图失败。如果 AI 平台不支持自定义背景，可先生成带任意背景的视频，再用视频编辑工具（如 CapCut/剪映）替换为绿幕背景。
 
 **生成完毕后，将视频文件命名为 `{character}_{direction}.mov`，例如：**
 ```
@@ -570,19 +572,25 @@ back: frame 194-241
 
 ### 6. 抠图（去背景）
 
-#### 方案: 颜色距离抠图 + 视觉模型验证
+#### 方案: 绿幕抠图（HSV 色度空间）+ 视觉模型验证
 
-从视频帧提取角色 cutout。用颜色距离区分角色和背景，再用多模态视觉模型验证抠图质量，自动迭代阈值直到边缘干净。
+从视频帧提取角色 cutout。使用 HSV 色度空间专门检测绿色背景，再用多模态视觉模型验证抠图质量，自动迭代直到边缘无绿色残留。
 
 **原理：**
 
-视频帧中角色与背景（通常为纯色/均匀色）颜色差异明显，用欧氏距离阈值即可分离。关键是**边缘像素**容易混入背景色（绿色/白色杂边），需要：
-1. 从**四边**采样背景色（而非仅顶部），适应更多背景布局
-2. 形态学清理后额外**边缘腐蚀**（2×2 kernel, 1次迭代），消除颜色渗透
-3. 视觉模型逐帧验证，阈值不够则自动提升重试
+绿幕背景（纯绿色）在 HSV 色度空间中有明确的色相范围（H=35-85），与角色颜色差异显著。相比 RGB 颜色距离，HSV 色度阈值对绿幕的分离更精确，能彻底消除绿色杂边。
+
+核心步骤：
+1. RGB → HSV 色度空间转换
+2. 创建绿色 mask（H=35-85, S=40-255, V=40-255）
+3. 补充检测亮绿色调（低饱和度 + 绿色调 + 高亮度 = 反射光）
+4. 形态学闭/开运算清理 mask
+5. 反转得到前景 alpha
+6. 边缘腐蚀（3×3 kernel）消除绿色渗透
+7. 视觉模型逐帧验证，不通过则扩大色相范围 + 增加腐蚀次数
 
 ```
-video.mov
+video.mov (绿幕背景)
        │
        ▼
   ┌─────────────────────────────────────┐
@@ -602,31 +610,29 @@ video.mov
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 3: 颜色距离抠图（迭代式）        │
-  │   从四边（上下左右各6px）采样背景色    │
-  │   每个像素与背景色的欧氏距离           │
-  │   dist > threshold → 前景             │
-  │   形态学开/闭运算清理                  │
-  │   边缘腐蚀（2×2 kernel, 1 iter）      │
-  │   → alpha mask                       │
+  │ Step 3: HSV 绿幕检测（迭代式）        │
+  │   RGB → HSV 色度空间                  │
+  │   绿色 mask: H=35-85, S≥40, V≥40     │
+  │   补充: 亮绿色调 (H=30-90, S<60, V>180)│
+  │   形态学闭/开运算清理                  │
+  │   反转 → 前景 alpha                   │
+  │   边缘腐蚀 (3×3 kernel, 1 iter)       │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
   │ Step 4: 视觉模型验证                  │
   │   mimo-omni 检查:                    │
-  │   ✓ 边缘无残留背景色杂边              │
-  │   ✓ 角色内部无误抠洞                  │
+  │   ✓ 角色边缘无绿色残留/杂边/光晕      │
   │   ✓ 背景完全透明                      │
   │   → PASS: 保存                       │
-  │   → FAIL: threshold += 10, 重试       │
-  │   最多 5 轮 (threshold 30→70)         │
+  │   → FAIL: 扩大色相范围, 增加腐蚀      │
+  │   最多 5 轮                           │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
   │ Step 5: 合成 + 导出                   │
-  │   alpha = 前景 mask (0/255)           │
   │   alpha=0 的像素 RGB 清零             │
   │   垂直居中到 64×128 画布              │
   │   → WebP lossless 输出               │
@@ -636,80 +642,65 @@ video.mov
   输出: assets/sprites/{char}_{dir}_f{0-7}.webp
 ```
 
-**Python 实现（带视觉验证的迭代抠图）：**
+**Python 实现（`greenscreen_cutout.py`）：**
 
 ```python
 import cv2
 import numpy as np
-from PIL import Image
-import subprocess
 
-MIMO_SCRIPT = "/root/.openclaw/skills/mimo-omni/mimo_api.sh"
-
-def sample_bg_color(rgb):
-    """从四边采样背景色，比仅顶部更鲁棒。"""
-    h, w = rgb.shape[:2]
-    strips = [rgb[:6, :, :], rgb[-6:, :, :], rgb[:, :6, :], rgb[:, -6:, :]]
-    all_edge = np.concatenate([s.reshape(-1, 3) for s in strips])
-    return np.median(all_edge, axis=0)
-
-def adaptive_cutout(img_rgb, threshold):
-    """颜色距离抠图 + 边缘腐蚀。"""
-    rgb = img_rgb[:, :, :3].astype(np.float32)
-    bg_color = sample_bg_color(rgb)
-    dist = np.sqrt(np.sum((rgb - bg_color) ** 2, axis=2))
-    alpha = ((dist > threshold) * 255).astype(np.uint8)
+def green_screen_cutout(img_rgb, green_low=(35,40,40), green_high=(85,255,255), edge_erode=1):
+    """
+    HSV 绿幕抠图。
+    img_rgb: numpy array (H, W, 3) uint8
+    green_low/high: HSV 色度范围
+    edge_erode: 边缘腐蚀次数
+    """
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    green_mask = cv2.inRange(hsv, np.array(green_low), np.array(green_high))
+    
+    # 补充检测亮绿色调（反射光）
+    h, s, v = cv2.split(hsv)
+    bright_green = ((h > 30) & (h < 90) & (s < 60) & (v > 180)).astype(np.uint8) * 255
+    green_mask = cv2.bitwise_or(green_mask, bright_green)
+    
+    # 形态学清理
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    alpha = cv2.morphologyEx(alpha, cv2.MORPH_OPEN, kernel, iterations=1)
-    alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel, iterations=2)
-    # 边缘腐蚀：消除背景色渗透
-    erode_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-    alpha = cv2.erode(alpha, erode_k, iterations=1)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    
+    # 反转 → 前景
+    alpha = 255 - green_mask
+    
+    # 边缘腐蚀消除绿色渗透
+    if edge_erode > 0:
+        erode_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        alpha = cv2.erode(alpha, erode_k, iterations=edge_erode)
+    
     return alpha
-
-def verify_cutout(webp_path):
-    """视觉模型验证抠图质量。"""
-    result = subprocess.run(
-        ["bash", MIMO_SCRIPT, "image", webp_path,
-         "检查抠图质量：1.边缘有残留背景色杂边？2.角色内部有洞？3.背景完全透明？简短回答。"],
-        capture_output=True, text=True, timeout=30
-    )
-    output = result.stdout.strip()
-    has_fringe = "有" in output and ("杂边" in output or "残留" in output)
-    has_holes = "有" in output and "洞" in output
-    return not has_fringe and not has_holes, output
-
-def process_frame(input_path, output_path, initial_threshold=30, max_attempts=5):
-    """单帧迭代抠图，直到视觉验证通过。"""
-    img = Image.open(input_path).convert("RGBA")
-    arr = np.array(img)
-    for attempt in range(max_attempts):
-        threshold = initial_threshold + attempt * 10
-        alpha = adaptive_cutout(arr, threshold)
-        result_arr = arr.copy()
-        result_arr[:, :, 3] = alpha
-        result_arr[alpha == 0, :3] = 0
-        result = Image.fromarray(result_arr)
-        canvas = Image.new("RGBA", (64, 128), (0, 0, 0, 0))
-        canvas.paste(result, (0, (128 - result.height) // 2))
-        canvas.save(output_path, "WebP", lossless=True, quality=100)
-        passed, reason = verify_cutout(output_path)
-        if passed:
-            return True, threshold
-    return False, threshold
 ```
 
 **使用：**
 
 ```bash
-# 单方向处理（带视觉验证）
-python3 cutout_with_verify.py left left_selected
-python3 cutout_with_verify.py right right_selected
-python3 cutout_with_verify.py up back_selected
+# 带视觉验证的绿幕抠图（推荐）
+python3 greenscreen_cutout.py left left_selected
+python3 greenscreen_cutout.py right right_selected
+python3 greenscreen_cutout.py up back_selected
 
-# 不带视觉验证（旧版，快速但可能有杂边）
-python3 cutout_from_sheet.py --char kai --threshold 30
+# 验证 prompt 专门检查绿色残留：
+# "这是绿幕抠图结果。仔细检查角色边缘是否有任何绿色残留。
+#  只回答：CLEAN（无绿色）或 GREEN（有绿色残留）。"
 ```
+
+**迭代策略（5 轮）：**
+
+| 轮次 | H 范围 | 腐蚀次数 | 适用场景 |
+|------|--------|---------|---------|
+| 1 | 35-85 | 1 | 标准绿幕 |
+| 2 | 30-90 | 1 | 边缘有轻微绿色 |
+| 3 | 25-95 | 2 | 绿色渗透较深 |
+| 4 | 20-100 | 2 | 极端情况 |
+| 5 | 15-105 | 3 | 最大攻击性 |
 
 **注意：**
 - 视觉验证每帧最多 5 次 API 调用（threshold 30→70），通常 1-2 次即通过
@@ -749,7 +740,7 @@ Row 3: Back    [L-contact] [L-mid] [L-behind] [R-contact] [R-mid] [R-behind]
 |---|---|
 | 方向不纯（含转身帧） | 收紧帧范围，排除 turning 帧 |
 | 各方向速度不一致 | 检查是否用了相同帧数，是否抽帧了 |
-| 抠图残留背景/杂边 | 使用 `cutout_with_verify.py` 自动迭代 threshold（30→70）+ 视觉模型验证；关键是四边采样背景色 + 边缘腐蚀（2×2 kernel） |
+| 抠图残留绿色杂边 | 使用 `greenscreen_cutout.py`（HSV 绿幕检测 + 视觉模型验证）；确保视频背景是绿幕；迭代策略自动扩大色相范围 |
 | 镜像方向看起来不对 | 确认镜像的是正确方向（通常镜像侧身即可） |
 | sprite sheet 尺寸过大 | 降低单帧分辨率（ffmpeg scale）或减少帧数 |
 | 关键帧判断不准 | 只选纯方向最中间的帧，远离转身区；宁可少帧 |
@@ -771,7 +762,8 @@ last-signal/
 ├── gen_masks.py            # MobileSAM + Omni mask 生成器（交互/可行走/水面 + 叠层验证）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img→4方向→抠图）
 ├── cutout_from_sheet.py    # 从 sprite sheet 逐帧抠图（颜色距离抠图，无验证）
-├── cutout_with_verify.py   # 带视觉模型验证的迭代抠图（推荐）
+├── cutout_with_verify.py   # 带视觉模型验证的迭代抠图（旧版，颜色距离）
+├── greenscreen_cutout.py   # 绿幕抠图（HSV 色度空间 + 视觉验证，推荐）
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
