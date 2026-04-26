@@ -1096,10 +1096,10 @@ git add . && git commit -m "init" && git push -u origin main
 apartment ←→ street ←→ bar
                 ↕
              alley
+
+              tower ←→ server ←→ rooftop
                 ↕
-             tower ←→ server ←→ rooftop
-                      ↕
-                   underground → core
+             underground → core
 ```
 
 ### 出生点配置 (SPAWN_MAP)
