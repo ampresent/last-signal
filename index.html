@@ -3024,31 +3024,30 @@ const Game = {
     const x = (e.clientX - rect.left) * (960 / rect.width);
     const y = (e.clientY - rect.top) * (640 / rect.height);
 
+    // ── 先检查热点：出口类立即触发 ──
+    const hotspot = this.getHotspotAt(x, y);
+    if (hotspot && hotspot.isExit) {
+      this._pendingHotspot = null;
+      hotspot.action();
+      return;
+    }
+
     // ── 角色行走：点击移动 ──
     const scene = SCENES[this.currentScene];
     if (scene && scene.characters && scene.characters.length > 0) {
-      // 找到当前场景的玩家角色 (第一个角色)
       const playerChar = scene.characters[0];
       if (playerChar) {
         const nx = x / 960;
         const ny = y / 640;
         if (CharSystem.isWalkable(nx, ny)) {
           CharSystem.moveTo(playerChar.id, nx, ny);
-          this._pendingHotspot = null; // 取消待执行的交互
-          return; // 行走优先于热点
+          this._pendingHotspot = null;
+          return;
         }
       }
     }
 
-    const hotspot = this.getHotspotAt(x, y);
     if (hotspot) {
-      // 出口类热点：立即执行（不需要走近）
-      if (hotspot.isExit) {
-        this._pendingHotspot = null;
-        hotspot.action();
-        return;
-      }
-
       // 交互类热点：角色走过去再交互
       const scene = SCENES[this.currentScene];
       if (scene && scene.characters && scene.characters.length > 0) {
