@@ -41,10 +41,10 @@ Step 3: 叠层验证 → PASS/FAIL
 ## 运行
 
 ```bash
-python3 gen_masks.py                    # 完整流程
-python3 gen_masks.py --scene apartment   # 单场景
-python3 gen_masks.py --skip-omni-detect  # 跳过识别
-python3 gen_masks.py --skip-verify       # 跳过验证
+python3 scripts/gen_masks.py                    # 完整流程
+python3 scripts/gen_masks.py --scene apartment   # 单场景
+python3 scripts/gen_masks.py --skip-omni-detect  # 跳过识别
+python3 scripts/gen_masks.py --skip-verify       # 跳过验证
 ```
 
 ---

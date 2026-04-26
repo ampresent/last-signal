@@ -85,7 +85,7 @@ Character position is **randomly selected from the walkable mask** each time a s
 Game.getRandomSpawn(sceneId) → [normalizedX, normalizedY]
 
 // Build-time: also samples random spawn into mask_metadata.json (for reference)
-// gen_masks.py: _random_walkable_spawn(mask_path)
+// scripts/gen_masks.py: _random_walkable_spawn(mask_path)
 ```
 
 No hardcoded positions. Every entry to a scene picks a random walkable pixel.

@@ -58,7 +58,7 @@ Decoder's `image_embeddings` is still `[1, 256, 64, 64]` (4D).
 // ✗ Wrong: return this.depthData.data[idx] / 255;
 // ✓ Right: return 1.0 - (this.depthData.data[idx] / 255);
 ```
-> Note: `gen_depth_lighting.py` already uses `depth_factor = 1.0 - depth_float`, unaffected.
+> Note: `scripts/gen_depth_lighting.py` already uses `depth_factor = 1.0 - depth_float`, unaffected.
 
 ## 7. s3cmd Requires `--region=auto`
 
@@ -82,7 +82,7 @@ source ~/.bashrc
 curl -s https://hf-mirror.com/api/models/depth-anything/Depth-Anything-V2-Large-hf | head -1
 ```
 
-First run of `gen_depth_lighting.py` auto-downloads Depth-Anything-V2-Large (~1.3GB),
+First run of `scripts/gen_depth_lighting.py` auto-downloads Depth-Anything-V2-Large (~1.3GB),
 cached to `~/.cache/huggingface/`, subsequent runs skip (~3s load).
 
 ## 10. Green Screen Cutout Quality
