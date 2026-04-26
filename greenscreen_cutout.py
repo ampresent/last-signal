@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Green screen cutout with visual model verification.
-Uses HSV color space to specifically target green background.
-Iterates threshold until mimo-omni confirms clean edges.
+Conservative green screen cutout - ONLY removes pure green pixels.
+Does NOT erode edges or detect "bright green" supplements.
+Preserves character detail by being very targeted.
 """
 
 import cv2
@@ -19,86 +19,65 @@ TARGET_W = 64
 TARGET_H = 128
 
 
-def green_screen_cutout(img_rgb, green_low, green_high, edge_erode=1):
+def conservative_green_cutout(img_rgb, h_low=35, h_high=85, s_min=50, v_min=50):
     """
-    HSV-based green screen removal.
-    
-    img_rgb: numpy array (H, W, 3) uint8
-    green_low: (H, S, V) lower bound for green detection
-    green_high: (H, S, V) upper bound for green detection
-    edge_erode: erosion iterations for edge cleanup
+    Conservative green screen removal - ONLY targets pure green pixels.
+    No edge erosion, no bright-green supplement, no aggressive morphing.
     """
-    # Convert to HSV
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     
-    # Create green mask (what IS green screen)
-    green_mask = cv2.inRange(hsv, np.array(green_low), np.array(green_high))
+    # Only detect pure green pixels (narrow, targeted)
+    green_mask = cv2.inRange(hsv, 
+                             np.array([h_low, s_min, v_min]), 
+                             np.array([h_high, 255, 255]))
     
-    # Also catch very bright/desaturated greenish tones
-    # Low saturation + greenish hue = light green reflections
-    h, s, v = cv2.split(hsv)
-    greenish_hue = (h > 30) & (h < 90)  # wide green hue range
-    low_sat = s < 60
-    bright = v > 180
-    bright_green = (greenish_hue & low_sat & bright).astype(np.uint8) * 255
-    green_mask = cv2.bitwise_or(green_mask, bright_green)
+    # Minimal morphological cleanup - just close small gaps
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
     
-    # Morphological cleanup on green mask
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-    green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    
-    # Invert to get foreground mask
+    # Invert to get foreground
     alpha = 255 - green_mask
     
-    # Edge erosion to remove green fringe
-    if edge_erode > 0:
-        erode_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        alpha = cv2.erode(alpha, erode_k, iterations=edge_erode)
-    
-    # Final cleanup
-    alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # NO erosion - don't touch character edges
+    # NO opening - don't remove character detail
     
     return alpha
 
 
 def verify_cutout(webp_path):
-    """Visual model verification - specifically check for green fringe."""
+    """Check for green fringe AND character completeness."""
     try:
         result = subprocess.run(
             ["bash", MIMO_SCRIPT, "image", webp_path,
-             "这是绿幕抠图结果。仔细检查角色边缘是否有任何绿色残留（绿色杂边、绿色光晕、绿色渗透）。只回答：CLEAN（无绿色）或 GREEN（有绿色残留）。"],
+             "检查这个角色sprite：1.角色边缘有绿色残留吗？2.角色身体/四肢是否完整（有没有被切掉的部分）？3.背景透明吗？简短回答每个问题。"],
             capture_output=True, text=True, timeout=30
         )
-        output = result.stdout.strip().upper()
-        passed = "CLEAN" in output and "GREEN" not in output.replace("CLEAN", "")
+        output = result.stdout.strip()
+        has_green = "有" in output and ("绿色" in output or "残留" in output or "杂边" in output)
+        has_incomplete = "不完整" in output or "切掉" in output or "缺失" in output or "被切" in output
+        passed = not has_green and not has_incomplete
         return passed, output
     except Exception as e:
         return False, str(e)
 
 
 def process_frame(input_path, output_path):
-    """
-    Process a single frame with green screen cutout.
-    Iterates: increase erosion + adjust green range until verification passes.
-    """
+    """Process single frame with conservative green cutout."""
     img = Image.open(input_path).convert("RGBA")
     arr = np.array(img)
     rgb = arr[:, :, :3]
     
-    # Green screen HSV ranges to try (from narrow to wide)
-    # Standard green screen: H=35-85, S=40-255, V=40-255
+    # Iteration: widen green range slightly if needed
     configs = [
-        # (green_low, green_high, edge_erode) - progressively more aggressive
-        ((35, 40, 40), (85, 255, 255), 1),    # standard
-        ((30, 30, 30), (90, 255, 255), 1),    # wider hue range
-        ((25, 25, 25), (95, 255, 255), 2),    # even wider + more erosion
-        ((20, 20, 20), (100, 255, 255), 2),   # aggressive
-        ((15, 15, 15), (105, 255, 255), 3),   # max aggression
+        (35, 85, 50, 50),   # standard
+        (33, 87, 45, 45),   # slightly wider
+        (30, 90, 40, 40),   # wider
+        (28, 92, 35, 35),   # wider still
+        (25, 95, 30, 30),   # max
     ]
     
-    for attempt, (gl, gh, erode) in enumerate(configs):
-        alpha = green_screen_cutout(rgb, gl, gh, erode)
+    for attempt, (hl, hh, sv, vv) in enumerate(configs):
+        alpha = conservative_green_cutout(rgb, hl, hh, sv, vv)
         
         result_arr = arr.copy()
         result_arr[:, :, 3] = alpha
@@ -112,16 +91,17 @@ def process_frame(input_path, output_path):
         canvas.save(output_path, "WebP", lossless=True, quality=100)
         
         fg_pct = (alpha > 0).sum() / alpha.size * 100
-        print(f"  Attempt {attempt+1}: H={gl[0]}-{gh[0]}, erode={erode}, fg={fg_pct:.1f}%", end="")
+        green_pct = (alpha == 0).sum() / alpha.size * 100 - (100 - fg_pct)
+        print(f"  Attempt {attempt+1}: H={hl}-{hh}, fg={fg_pct:.1f}%", end="")
         
         passed, reason = verify_cutout(output_path)
         if passed:
-            print(f" ✅ CLEAN")
+            print(f" ✅ CLEAN + COMPLETE")
             return True, attempt+1
         else:
             print(f" ❌ {reason[:60]}")
     
-    print(f"  ⚠️  Using most aggressive config")
+    print(f"  ⚠️  Using best attempt")
     return False, len(configs)
 
 
@@ -130,7 +110,7 @@ def main():
     input_dir = sys.argv[2] if len(sys.argv) > 2 else f"/root/.openclaw/workspace/{direction}_selected"
     
     files = sorted([f for f in os.listdir(input_dir) if f.endswith('.png')])
-    print(f"Green screen cutout — {direction}: {len(files)} frames from {input_dir}\n")
+    print(f"Conservative green screen cutout — {direction}: {len(files)} frames\n")
     
     results = []
     for idx, fname in enumerate(files):
@@ -142,7 +122,7 @@ def main():
     
     print(f"\n{'='*50}")
     passed_count = sum(1 for _, p, _ in results if p)
-    print(f"Results: {passed_count}/{len(results)} passed verification")
+    print(f"Results: {passed_count}/{len(results)} passed")
     for fname, passed, attempts in results:
         status = "✅" if passed else "⚠️"
         print(f"  {status} {fname} ({attempts} attempts)")
