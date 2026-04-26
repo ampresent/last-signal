@@ -19,12 +19,12 @@ last-signal/
 ├── lighting-engine.js      # WebGL 光照引擎
 ├── lighting-config.json    # 各场景光源配置
 ├── lighting-editor.html    # 可视化光照编辑器
-├── scripts/gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
-├── scripts/gen_depth_lighting.py   # Depth Lighting 渲染器
-├── scripts/gen_masks.py            # MobileSAM + Omni mask 生成器
-├── scripts/gen_character_views.py   # 角色视角生成
-├── scripts/greenscreen_cutout.py   # 绿幕 GrabCut 抠图
-├── scripts/build.py                # PNG→WebP 构建脚本
+├── gen_assets.py           # 素材生成（Pollinations.AI 文生图 + 角色肖像）
+├── gen_depth_lighting.py   # Depth Lighting 渲染器
+├── gen_masks.py            # MobileSAM + Omni mask 生成器
+├── gen_character_views.py   # 角色视角生成
+├── greenscreen_cutout.py   # 绿幕 GrabCut 抠图
+├── build.py                # PNG→WebP 构建脚本
 ├── WORKFLOW.md             # 完整工作流文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志

@@ -5,14 +5,14 @@
 ## Overview
 
 ```
-scripts/gen_assets.py           → Scene backgrounds + character portraits (Pollinations.AI)
-scripts/gen_depth_lighting.py   → Depth maps + animated lighting frames (Depth-Anything + programmatic)
-scripts/gen_masks.py            → Interaction/walkable/water masks (MobileSAM + Omni)
-scripts/gen_character_views.py  → Character sprites from video (ffmpeg + GrabCut)
-scripts/build.py                → PNG→WebP conversion + HTML reference update
+gen_assets.py           → Scene backgrounds + character portraits (Pollinations.AI)
+gen_depth_lighting.py   → Depth maps + animated lighting frames (Depth-Anything + programmatic)
+gen_masks.py            → Interaction/walkable/water masks (MobileSAM + Omni)
+gen_character_views.py  → Character sprites from video (ffmpeg + GrabCut)
+build.py                → PNG→WebP conversion + HTML reference update
 ```
 
-## 1. Scene Image Generation (scripts/gen_assets.py)
+## 1. Scene Image Generation (gen_assets.py)
 
 Uses **Pollinations.AI** — completely free, no API key, works in China.
 
@@ -53,7 +53,7 @@ SCENE_PROMPTS = {
 - `assets/bg_{scene}.png` — Base scene images
 - `assets/portrait_{char}.png` — Character portraits
 
-## 2. Depth + Lighting (scripts/gen_depth_lighting.py)
+## 2. Depth + Lighting (gen_depth_lighting.py)
 
 ### Pipeline
 ```
@@ -76,10 +76,10 @@ assets/bg_{scene}_f0~f11.png (12 frames, seamless loop)
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com
 
-python3 scripts/gen_depth_lighting.py                    # All scenes
-python3 scripts/gen_depth_lighting.py --scene apartment   # Single scene
-python3 scripts/gen_depth_lighting.py --lighting-only     # Reuse cached depth maps
-python3 scripts/gen_depth_lighting.py --depth-only        # Depth maps only
+python3 gen_depth_lighting.py                    # All scenes
+python3 gen_depth_lighting.py --scene apartment   # Single scene
+python3 gen_depth_lighting.py --lighting-only     # Reuse cached depth maps
+python3 gen_depth_lighting.py --depth-only        # Depth maps only
 ```
 
 ### Scene Light Configuration
@@ -123,7 +123,7 @@ SCENE_LIGHTS = {
 - `torch`, `transformers`, `timm` — Depth-Anything inference
 - `opencv-python-headless`, `numpy` — Image processing
 
-## 3. Mask Generation (scripts/gen_masks.py)
+## 3. Mask Generation (gen_masks.py)
 
 ### Three-Step Pipeline
 ```
@@ -145,7 +145,7 @@ assets/masks/{scene}_walkable_mask.png
 assets/masks/{scene}_water_mask.png
 ```
 
-### Scene Config in scripts/gen_masks.py
+### Scene Config in gen_masks.py
 ```python
 SCENES = {
     "apartment": {
@@ -167,11 +167,11 @@ SCENES = {
 
 ### Usage
 ```bash
-python3 scripts/gen_masks.py                    # All scenes
-python3 scripts/gen_masks.py --scene apartment   # Single scene
-python3 scripts/gen_masks.py --skip-omni-detect  # Use predefined bboxes
-python3 scripts/gen_masks.py --skip-verify       # Skip layer verification
-python3 scripts/gen_masks.py --no-push           # Don't auto-push
+python3 gen_masks.py                    # All scenes
+python3 gen_masks.py --scene apartment   # Single scene
+python3 gen_masks.py --skip-omni-detect  # Use predefined bboxes
+python3 gen_masks.py --skip-verify       # Skip layer verification
+python3 gen_masks.py --no-push           # Don't auto-push
 ```
 
 ### Mask Format
@@ -179,7 +179,7 @@ python3 scripts/gen_masks.py --no-push           # Don't auto-push
 - Black = background
 - All masks stored as WebP lossless
 
-## 4. Character Sprites (scripts/gen_character_views.py)
+## 4. Character Sprites (gen_character_views.py)
 
 ### Pipeline: Video → Sprite Sheet
 ```
@@ -193,7 +193,7 @@ python3 scripts/gen_masks.py --no-push           # Don't auto-push
 8. Crop + compose → sprite sheet + preview GIF
 ```
 
-### Green Screen Cutout (scripts/greenscreen_cutout.py)
+### Green Screen Cutout (greenscreen_cutout.py)
 ```python
 def green_screen_cutout(img_rgb):
     """HSV green detection + GrabCut fine segmentation."""
@@ -209,12 +209,12 @@ def green_screen_cutout(img_rgb):
 - `assets/sprites/sprite_sheet_{char}.png` — Full sprite sheet
 - `assets/sprites/preview_{char}.gif` — Preview for manual QA
 
-## 5. Build (scripts/build.py)
+## 5. Build (build.py)
 
 ```bash
-python3 scripts/build.py              # Full build: convert + update references
-python3 scripts/build.py --dry-run    # Stats only, no modification
-python3 scripts/build.py --restore    # Revert to .png references
+python3 build.py              # Full build: convert + update references
+python3 build.py --dry-run    # Stats only, no modification
+python3 build.py --restore    # Revert to .png references
 ```
 
 ### Compression Presets
@@ -228,9 +228,9 @@ python3 scripts/build.py --restore    # Revert to .png references
 
 ## Adding a New Scene
 
-1. Add prompt to `scripts/gen_assets.py` SCENE_PROMPTS
-2. Add light config to `scripts/gen_depth_lighting.py` SCENE_LIGHTS
-3. Add scene config to `scripts/gen_masks.py` SCENES (objects, walkable, water)
+1. Add prompt to `gen_assets.py` SCENE_PROMPTS
+2. Add light config to `gen_depth_lighting.py` SCENE_LIGHTS
+3. Add scene config to `gen_masks.py` SCENES (objects, walkable, water)
 4. Add scene definition to `index.html` SCENES
 5. Add VFX config to `VFX.SCENE_CONFIG`
 6. Add lighting config to `lighting-config.json`

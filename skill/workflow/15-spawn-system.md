@@ -30,9 +30,9 @@ getRandomSpawn(sceneId) {
 }
 ```
 
-## 构建时采样（scripts/gen_masks.py）
+## 构建时采样（gen_masks.py）
 
-`scripts/gen_masks.py` 在生成 walkable mask 后也会随机采样一个 spawn 位置写入 `mask_metadata.json`，
+`gen_masks.py` 在生成 walkable mask 后也会随机采样一个 spawn 位置写入 `mask_metadata.json`，
 用于文档参考。但游戏运行时使用实时随机选取。
 
 ```python
