@@ -458,8 +458,10 @@ python3 gen_walk_masks.py --scene bar  # 单个场景
 **关键要求：**
 - 镜头固定，角色保持在画面正中央
 - 单镜头，不要切换
-- 背景尽量纯色/均匀，方便后续抠图
+- **必须使用绿幕背景**（纯绿色，RGB ≈ 0,255,0），GrabCut 依赖 HSV 绿色检测作为种子
 - 每个方向单独生成一个视频文件
+
+> ⚠️ **绿幕是必须的。** 抠图流程使用 HSV 色度空间检测绿色（H=35-85, S=40-255, V=40-255），非绿色背景会导致抠图失败。如果 AI 平台不支持自定义背景，可先生成带任意背景的视频，再用视频编辑工具（如 CapCut/剪映）替换为绿幕背景。
 
 **生成完毕后，将视频文件命名为 `{character}_{direction}.mov`，例如：**
 ```
@@ -570,44 +572,68 @@ back: frame 194-241
 
 ### 6. 抠图（去背景）
 
-#### 方案: 颜色距离抠图
+#### 方案: 绿幕 GrabCut 抠图
 
-从 sprite sheet 逐帧提取角色 cutout。用颜色距离区分角色和背景——角色颜色与背景差异大，距离阈值即可分离。
+从视频帧提取角色 cutout。使用 HSV 绿幕检测作为 GrabCut 的种子，让 GrabCut 精确分离前景和背景，避免侵蚀角色。
 
 **原理：**
 
-sprite sheet 的 alpha 只遮了外边框（~10%），alpha=255 区域里包含大量白/灰背景（~65%）和角色（~35%）。需要从 alpha=255 区域中把角色抠出来。
+直接用 HSV 阈值抠图容易在边缘产生两种问题：阈值太松 → 绿色残留；阈值太紧 → 角色被切。GrabCut 解决了这个矛盾：先用窄 HSV 范围标记「确定是背景」的绿色像素，再让 GrabCut 算法自动学习前景/背景分布，精确分离边界。
+
+关键改进：
+1. **高分辨率处理**：在 128px 宽度下抠图，完成后缩放到 64px → 边缘更精确
+2. **GrabCut 精细分割**：HSV 绿色 mask 作为 `GC_BGD`（确定背景），其余标记为 `GC_PR_FGD`（可能前景）
+3. **不做边缘腐蚀**：GrabCut 本身就处理边界，额外腐蚀会吃掉角色
+4. **不做亮绿补充**：只检测纯绿像素，避免误伤角色身上的绿色调
 
 ```
-sheet_{char}_{dir}.webp (sprite sheet, RGBA)
+video.mov (绿幕背景)
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 1: 拆帧                         │
-  │   检测 alpha 列间隙 → 逐帧裁切       │
-  │   连续 strip → 按 64px 等宽切分       │
-  │   → 8 帧 × 64×128 RGBA              │
+  │ Step 1: 帧提取（128px 宽度）          │
+  │   ffmpeg 按原始帧率提取               │
+  │   缩放到 128px 宽度（2倍超采样）      │
+  │   → frame_XXXX.png (128×N, RGB)      │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 2: 颜色距离抠图                  │
-  │   从上边缘 (前5行) 采样背景色          │
-  │   每个像素与背景色的欧氏距离           │
-  │   dist > threshold → 前景             │
-  │   形态学开/闭运算清理                  │
+  │ Step 2: 方向识别 + 选帧               │
+  │   多模态模型识别方向                   │
+  │   定位纯行走帧范围                     │
+  │   均匀选取 8 帧                       │
   └─────────────────────────────────────┘
        │
        ▼
   ┌─────────────────────────────────────┐
-  │ Step 3: 合成 RGBA + 清零背景 RGB      │
-  │   alpha = 前景 mask (0/255)           │
+  │ Step 3: HSV 绿色检测（窄范围）        │
+  │   RGB → HSV 色度空间                  │
+  │   绿色 mask: H=35-85, S≥50, V≥50     │
+  │   只检测纯绿像素，不扩展              │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 4: GrabCut 精细分割              │
+  │   绿色像素 → GC_BGD (确定背景)        │
+  │   其他像素 → GC_PR_FGD (可能前景)     │
+  │   边缘 3px → GC_BGD (安全边界)        │
+  │   GrabCut 迭代 3 次                   │
+  │   → 精确前景 mask                     │
+  └─────────────────────────────────────┘
+       │
+       ▼
+  ┌─────────────────────────────────────┐
+  │ Step 5: 合成 + 缩放 + 导出            │
   │   alpha=0 的像素 RGB 清零             │
+  │   128px → 64px (Lanczos)             │
+  │   垂直居中到 64×128 画布              │
   │   → WebP lossless 输出               │
   └─────────────────────────────────────┘
        │
        ▼
-  输出: assets/sprites/cutout_kai_{dir}_f{0-7}.png
+  输出: assets/sprites/{char}_{dir}_f{0-7}.webp
 ```
 
 **Python 实现：**
@@ -616,42 +642,52 @@ sheet_{char}_{dir}.webp (sprite sheet, RGBA)
 import cv2
 import numpy as np
 
-def color_cutout(frame_rgba, bg_color, threshold=20):
-    """
-    颜色距离抠图。
-    frame_rgba: PIL RGBA Image (单帧)
-    bg_color: 背景色 (float32 array, 从上边缘采样)
-    threshold: 颜色距离阈值
-    """
-    arr = np.array(frame_rgba)
-    rgb = arr[:, :, :3].astype(np.float32)
-    alpha = arr[:, :, 3]
-
-    # 颜色距离
-    dist = np.sqrt(np.sum((rgb - bg_color) ** 2, axis=2))
-
-    # 前景 = alpha=255 且颜色远离背景色
-    fg_mask = ((alpha == 255) & (dist > threshold)).astype(np.uint8) * 255
-
-    # 形态学清理
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-
-    return fg_mask
+def green_screen_cutout(img_rgb):
+    """HSV 绿幕检测 + GrabCut 精细分割。"""
+    h, w = img_rgb.shape[:2]
+    
+    # Step 1: 窄范围 HSV 绿色检测
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    green_mask = cv2.inRange(hsv, np.array([35, 50, 50]), np.array([85, 255, 255]))
+    
+    # Step 2: 作为 GrabCut 种子
+    gc_mask = np.zeros((h, w), np.uint8)
+    gc_mask[green_mask > 0] = cv2.GC_BGD      # 确定背景
+    gc_mask[green_mask == 0] = cv2.GC_PR_FGD   # 可能前景
+    gc_mask[:3, :] = cv2.GC_BGD                # 边缘安全区
+    gc_mask[-3:, :] = cv2.GC_BGD
+    gc_mask[:, :3] = cv2.GC_BGD
+    gc_mask[:, -3:] = cv2.GC_BGD
+    
+    # Step 3: GrabCut
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+    cv2.grabCut(img_rgb, gc_mask, None, bgd_model, fgd_model, 3, cv2.GC_INIT_WITH_MASK)
+    
+    # Step 4: 提取前景
+    alpha = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+    
+    # 最小形态学清理
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel, iterations=1)
+    
+    return alpha
 ```
 
 **使用：**
 
 ```bash
-python3 cutout_from_sheet.py --char kai          # 全部方向
-python3 cutout_from_sheet.py --char kai --dir down  # 单方向
-python3 cutout_from_sheet.py --char kai --threshold 25  # 调整阈值
+# 直接处理（无迭代验证，GrabCut 本身已足够精确）
+python3 greenscreen_cutout.py left left_selected
+python3 greenscreen_cutout.py right right_selected
+python3 greenscreen_cutout.py up back_selected
 ```
 
 **注意：**
-- 不用 WebP：libwebp 会恢复 alpha=0 像素的 RGB，导致白边。用 PNG。
-- 不用 MobileSAM/GrabCut：帧太小（64×128），SAM 返回全前景，GrabCut 反而扩大前景。颜色距离阈值更可控。
+- **必须在 128px 宽度下处理**，完成后缩放到 64px — 低分辨率下 GrabCut 边界不精确
+- **不做边缘腐蚀** — GrabCut 已处理边界，额外腐蚀会吃掉角色细节
+- **不做亮绿补充检测** — 只检测纯绿像素（H=35-85, S≥50, V≥50），避免误伤角色身上的绿色调
+- **不用视觉模型迭代验证** — GrabCut 边界足够精确，且 64px 下模型判断不可靠
 
 ### 7. 裁剪 + 拼合
 
@@ -684,7 +720,8 @@ Row 3: Back    [L-contact] [L-mid] [L-behind] [R-contact] [R-mid] [R-behind]
 |---|---|
 | 方向不纯（含转身帧） | 收紧帧范围，排除 turning 帧 |
 | 各方向速度不一致 | 检查是否用了相同帧数，是否抽帧了 |
-| 抠图残留背景 | 调整形态学 kernel 大小或增加 GrabCut 迭代次数；确保 MobileSAM mask 覆盖完整 |
+| 抠图残留绿色杂边 | 使用 `greenscreen_cutout.py`（HSV 种子 + GrabCut）；确保视频背景是绿幕；在 128px 下处理再缩放 |
+| 抠图切掉角色细节 | 不要使用边缘腐蚀；GrabCut 本身处理边界；确保只用窄范围 HSV（H=35-85）检测纯绿 |
 | 镜像方向看起来不对 | 确认镜像的是正确方向（通常镜像侧身即可） |
 | sprite sheet 尺寸过大 | 降低单帧分辨率（ffmpeg scale）或减少帧数 |
 | 关键帧判断不准 | 只选纯方向最中间的帧，远离转身区；宁可少帧 |
@@ -705,7 +742,9 @@ last-signal/
 ├── gen_depth_lighting.py   # Depth Lighting 渲染器（所有场景，HF 镜像 + 本地推理）
 ├── gen_masks.py            # MobileSAM + Omni mask 生成器（交互/可行走/水面 + 叠层验证）
 ├── gen_character_views.py   # 角色视角生成（正面→img2img→4方向→抠图）
-├── cutout_from_sheet.py    # 从 sprite sheet 逐帧抠图（颜色距离抠图）
+├── cutout_from_sheet.py    # 从 sprite sheet 逐帧抠图（颜色距离抠图，无验证）
+├── cutout_with_verify.py   # 带视觉模型验证的迭代抠图（旧版，颜色距离）
+├── greenscreen_cutout.py   # 绿幕 GrabCut 抠图（HSV 种子 + GrabCut 精细分割，推荐）
 ├── WORKFLOW.md             # 本文档
 ├── SETUP.md                # 环境搭建指南
 ├── DEVLOG.md               # 开发日志
