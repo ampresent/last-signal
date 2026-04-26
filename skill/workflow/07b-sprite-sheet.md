@@ -90,23 +90,48 @@ right: frame 98-168
 > GrabCut 在此场景下会侵蚀角色边缘。项目脚本使用纯 HSV 阈值移除绿色，
 > 已经过 left/right/up 三个方向验证，自带 omni 模型自动验证循环。
 
+### 6.1 裁剪角色区域（关键步骤）
+
+**脚本要求输入是裁剪好的角色帧，不是全帧视频。** 直接传全帧会导致输出空文件
+（512×910 贴到 64×128 画布上，什么都看不见）。
+
+```python
+# 从全帧中裁剪角色区域（用 omni 模型确认角色位置）
+# 示例：角色在 720x1280 帧中大约 x=315-410, y=735-920
+crop = frame[y1:y2, x1:x2]
+Image.fromarray(crop).save(f'selected/frame_{idx:04d}.png')
+```
+
+### 6.2 运行抠图脚本
+
 ```bash
-# 将关键帧放入目录，然后运行：
-python3 greenscreen_cutout.py <direction> <input_dir>
+python3 greenscreen_cutout.py <direction> <cropped_frames_dir>
 
 # 示例：
-mkdir -p down_selected
-# 复制/重命名关键帧为 frame_0001.png, frame_0002.png ...
 python3 greenscreen_cutout.py down down_selected
 ```
 
-脚本会自动：
+脚本自动流程：
 1. 纯 HSV 绿色检测（H=35-85, S≥50, V≥50）
 2. 逐帧用 omni 模型验证（无绿边 + 角色完整 + 背景透明）
-3. 如果验证失败，自动扩大绿色范围重试（最多 5 轮）
+3. 验证失败则自动扩大绿色范围重试（最多 5 轮）
 4. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
 
+### 6.3 如果脚本输出空文件
+
+检查输入帧是否已裁剪到角色区域。脚本的 `process_frame` 直接将输入帧
+贴到 64×128 画布，不做缩放——输入必须接近或小于 64×128。
+
 **不做**：GrabCut、边缘腐蚀、亮绿补充、形态学开运算。
+
+### 6.4 验证
+
+提交前**必须**用 omni 模型检查至少一张输出：
+
+```bash
+bash mimo_api.sh image assets/sprites/kai_down_f0.webp \
+  "角色可见吗？背景透明吗？边缘有绿边吗？简短回答。"
+```
 
 ## 7. 裁剪 + 拼合
 
@@ -130,10 +155,12 @@ Row 3: Back   [...]
 |------|------|
 | 方向不纯 | 收紧帧范围，排除 turning 帧 |
 | 速度不一致 | 检查帧数是否相同 |
-| 绿色杂边 | 128px 下 GrabCut + 确保绿幕 |
+| 绿色杂边 | 提高 S/V 阈值（S≥70, V≥70） |
 | 切掉细节 | 不腐蚀边缘，窄范围 HSV |
 | 关键帧不准 | 只选中间帧，宁可少帧 |
 | 转身帧混入 | 宁愿丢帧保证纯度 |
+| **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
+| **GrabCut 吃边缘** | **不要用 GrabCut，用 `greenscreen_cutout.py`** |
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)
