@@ -115,6 +115,18 @@ Real-time check against `walkable_mask.png`:
 ### Depth Sorting
 Characters sorted by Y coordinate. Lower Y (further away) drawn first.
 
+### Walk Animation
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `WALK_FRAMES` | 8 | Frames per direction |
+| `ANIM_INTERVAL` | 180ms | Frame switch interval (~720ms/step) |
+| `WALK_SPEED` | 0.12 | Normalized coords/sec |
+
+Frame sequence per cycle: L-contact → L-passing → L-behind → R-contact → R-passing → R-behind → (repeat)
+
+> `ANIM_INTERVAL` was 120ms (too fast, 480ms/step). Changed to 180ms for natural gait.
+
 ## Scene Transitions
 
 ```javascript
