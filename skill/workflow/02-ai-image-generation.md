@@ -30,8 +30,8 @@ curl -X POST \
 ## 运行
 
 ```bash
-python3 gen_assets.py          # 基础场景图 + 角色肖像
-python3 gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
+python3 scripts/gen_assets.py          # 基础场景图 + 角色肖像
+python3 scripts/gen_assets.py --legacy # 基础图 + Legacy 帧（降级）
 ```
 
 ---
