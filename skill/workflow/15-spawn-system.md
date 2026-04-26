@@ -1,13 +1,47 @@
 # 角色出生点系统
 
-每个场景中角色的初始化位置根据**上一场景的出口位置**动态决定，而非固定坐标。
+每个场景中角色的初始化位置**从 walkable mask 中随机选取**，每次进入场景都会重新随机。
 
 ## 工作原理
 
-1. `goScene(targetScene, sourceScene)` 接受来源场景参数
-2. 查询 `Game.SPAWN_MAP[targetScene][sourceScene]` 获取出生点坐标
-3. 如果有配置，覆盖场景默认的 `characters[0].x/y`
-4. 如果没有配置（如首次加载），使用场景默认位置
+1. 进入场景时，调用 `Game.getRandomSpawn(sceneId)`
+2. 扫描 `walkable_mask` 中所有白色像素（可行走区域）
+3. 随机选取一个像素，归一化为 [0, 1] 坐标
+4. 设置为角色当前位置（留 2% 边距避免贴边）
+
+## 代码
+
+```javascript
+getRandomSpawn(sceneId) {
+  const maskObj = this.masks[`${sceneId}_walkable`];
+  if (!maskObj || !maskObj.data) return [0.5, 0.75];
+  const data = maskObj.data.data;
+  const w = maskObj.data.width;
+  const h = maskObj.data.height;
+  const walkable = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4] > 128) walkable.push([x, y]);
+    }
+  }
+  if (walkable.length === 0) return [0.5, 0.75];
+  const [px, py] = walkable[Math.floor(Math.random() * walkable.length)];
+  return [px / w, py / h];
+}
+```
+
+## 构建时采样（gen_masks.py）
+
+`gen_masks.py` 在生成 walkable mask 后也会随机采样一个 spawn 位置写入 `mask_metadata.json`，
+用于文档参考。但游戏运行时使用实时随机选取。
+
+```python
+def _random_walkable_spawn(mask_path):
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    ys, xs = np.where(mask > 128)
+    idx = np.random.randint(len(xs))
+    return [xs[idx] / mask.shape[1], ys[idx] / mask.shape[0]]
+```
 
 ## 场景连接图
 
@@ -21,28 +55,7 @@ apartment ←→ street ←→ bar
              underground → core
 ```
 
-## 出生点配置 (SPAWN_MAP)
-
-| 目标场景 | 来源场景 | 出生位置 | 说明 |
-|---------|---------|---------|------|
-| apartment | rooftop | (0.52, 0.57) | 从楼顶回来 → 公寓中央 |
-| street | apartment | (0.15, 0.70) | 从公寓出门 → 街道左侧 |
-| street | bar | (0.22, 0.65) | 从酒吧出来 → 酒吧门口 |
-| street | tower | (0.85, 0.70) | 从塔回来 → 街道右侧 |
-| street | alley | (0.10, 0.70) | 从小巷出来 → 小巷入口旁 |
-| bar | street | (0.85, 0.75) | 从街道进来 → 酒吧出口附近 |
-| alley | street | (0.85, 0.75) | 从街道进来 → 小巷出口附近 |
-| tower | street | (0.20, 0.70) | 从街道过来 → 左侧入口 |
-| tower | server | (0.50, 0.80) | 从服务器室上来 → 中央 |
-| server | tower | (0.20, 0.85) | 从塔楼进来 → 左侧入口 |
-| server | rooftop | (0.80, 0.85) | 从楼顶下来 → 右侧通道口 |
-| rooftop | server | (0.50, 0.80) | 从服务器室上来 → 中央 |
-
-## 添加新场景时
-
-1. 在 `SPAWN_MAP` 中添加目标场景的出生点配置
-2. 配置所有可能来源场景的入口位置
-3. 在来源场景的 `goScene` 调用中传入 `'source_scene_id'`
+每个场景的出生点都是随机的，不区分来源场景。
 
 ---
 **Related reference:** [gameplay](../reference/gameplay.md)

@@ -36,6 +36,26 @@ STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+# ── 自动生成的 spawn 位置（从 walkable mask 随机采样） ──
+_computed_spawns = {}
+
+def _random_walkable_spawn(mask_path):
+    """从 walkable mask 中随机选取一个白色像素，返回归一化坐标 [x, y]."""
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    if mask is None:
+        return [0.5, 0.75]
+    ys, xs = np.where(mask > 128)
+    if len(xs) == 0:
+        print(f"    ⚠️  walkable mask 全黑，使用默认 spawn")
+        return [0.5, 0.75]
+    idx = np.random.randint(len(xs))
+    nx = float(xs[idx]) / mask.shape[1]
+    ny = float(ys[idx]) / mask.shape[0]
+    # 留 2% 边距，避免贴边
+    nx = max(0.02, min(0.98, nx))
+    ny = max(0.02, min(0.98, ny))
+    return [round(nx, 4), round(ny, 4)]
+
 MASK_DIR = os.path.join(ASSETS_DIR, "masks")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MASK_DIR, exist_ok=True)
@@ -55,7 +75,6 @@ DECODER_PATH = os.path.join(MODELS_DIR, "mobile_sam.onnx")
 SCENES = {
     "apartment": {
         "image": "bg_apartment.png",
-        "spawn": [0.48, 0.78],  # 归一化坐标, walkable 区域中心
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [500, 380, 900, 627]},
             {"id": "window", "label": "窗户", "bbox": [10, 140, 460, 590]},
@@ -70,7 +89,6 @@ SCENES = {
     },
     "street": {
         "image": "bg_street.png",
-        "spawn": [0.48, 0.64],
         "objects": [
             {"id": "bar_entrance", "label": "The Rust 酒吧", "bbox": [80, 80, 380, 520]},
             {"id": "alley_entrance", "label": "小巷", "bbox": [0, 380, 140, 627]},
@@ -86,7 +104,6 @@ SCENES = {
     },
     "bar": {
         "image": "bg_bar.png",
-        "spawn": [0.51, 0.79],
         "objects": [
             {"id": "bartender", "label": "酒保", "bbox": [420, 280, 700, 530]},
             {"id": "oracle", "label": "神秘客人", "bbox": [200, 300, 420, 560]},
@@ -98,7 +115,6 @@ SCENES = {
     },
     "alley": {
         "image": "bg_alley.png",
-        "spawn": [0.57, 0.77],
         "objects": [
             {"id": "shadow", "label": "影子 (数据贩子)", "bbox": [230, 120, 520, 480]},
             {"id": "graffiti", "label": "涂鸦墙", "bbox": [10, 200, 230, 560]},
@@ -110,7 +126,6 @@ SCENES = {
     },
     "tower": {
         "image": "bg_tower_exterior.png",
-        "spawn": [0.51, 0.63],
         "objects": [
             {"id": "scanner", "label": "正门扫描仪", "bbox": [380, 350, 620, 610]},
             {"id": "guard_booth", "label": "警卫亭", "bbox": [220, 480, 420, 620]},
@@ -122,7 +137,6 @@ SCENES = {
     },
     "server": {
         "image": "bg_server_room.png",
-        "spawn": [0.39, 0.87],
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [235, 200, 720, 520]},
             {"id": "rack", "label": "服务器机柜", "bbox": [0, 0, 240, 627]},
@@ -135,7 +149,6 @@ SCENES = {
     },
     "rooftop": {
         "image": "bg_rooftop.png",
-        "spawn": [0.50, 0.70],
         "objects": [],
         "walkable": {"bbox": [60, 100, 900, 627], "label": "楼顶地面"},
         "water": {"bbox": [60, 480, 900, 627], "label": "楼顶积水"},
@@ -146,7 +159,6 @@ SCENES = {
     },
     "office": {
         "image": "bg_office.png",
-        "spawn": [0.56, 0.76],
         "objects": [
             {"id": "terminal", "label": "终端", "bbox": [250, 200, 600, 580]},
             {"id": "safe", "label": "保险柜", "bbox": [750, 280, 938, 620]},
@@ -158,7 +170,6 @@ SCENES = {
     },
     "echo_lobby": {
         "image": "bg_echo_lobby.png",
-        "spawn": [0.35, 0.84],
         "objects": [
             {"id": "reception", "label": "前台接待", "bbox": [300, 280, 660, 500]},
             {"id": "scanner", "label": "安检门", "bbox": [350, 400, 610, 627]},
@@ -175,7 +186,6 @@ SCENES = {
     },
     "maintenance": {
         "image": "bg_maintenance.png",
-        "spawn": [0.48, 0.81],
         "objects": [
             {"id": "blast_door", "label": "防爆门", "bbox": [350, 150, 610, 500]},
             {"id": "pipe_valve", "label": "管道阀门", "bbox": [80, 250, 280, 480]},
@@ -188,7 +198,6 @@ SCENES = {
     },
     "data_haven": {
         "image": "bg_data_haven.png",
-        "spawn": [0.58, 0.78],
         "objects": [
             {"id": "workstation", "label": "工作站", "bbox": [200, 200, 550, 480]},
             {"id": "train_car", "label": "旧列车", "bbox": [700, 280, 938, 580]},
@@ -201,7 +210,6 @@ SCENES = {
     },
     "flashback": {
         "image": "bg_flashback.png",
-        "spawn": [0.55, 0.76],
         "objects": [
             {"id": "pod_3", "label": "3号实验舱", "bbox": [250, 250, 480, 520]},
             {"id": "monitor", "label": "监控屏", "bbox": [550, 150, 780, 400]},
@@ -213,7 +221,6 @@ SCENES = {
     },
     "hospital": {
         "image": "bg_hospital.png",
-        "spawn": [0.47, 0.79],
         "objects": [
             {"id": "room_door", "label": "病房门", "bbox": [100, 200, 350, 520]},
             {"id": "window", "label": "窗户", "bbox": [650, 100, 938, 480]},
@@ -511,9 +518,15 @@ def process_scene(scene_id, data, sam, skip_omni_detect=False):
         seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
         seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
         walkable_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
-        cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_walkable_mask.png"), walkable_game)
+        walkable_path = os.path.join(MASK_DIR, f"{scene_id}_walkable_mask.png")
+        cv2.imwrite(walkable_path, walkable_game)
         walk_pct = np.count_nonzero(walkable_game) / (GAME_W * GAME_H) * 100
         print(f"  🚶 walkable ({walkable_cfg['label']}): {walk_pct:.1f}%")
+
+        # 从 walkable mask 随机采样 spawn 位置
+        spawn = _random_walkable_spawn(walkable_path)
+        _computed_spawns[scene_id] = spawn
+        print(f"  🎲 spawn: ({spawn[0]}, {spawn[1]}) (random from walkable)")
 
     # ── Water ──
     water_cfg = data.get("water")
@@ -574,7 +587,7 @@ def save_metadata():
                 "type": "water"
             })
         meta[sid] = {
-            "spawn": sd.get("spawn", [0.5, 0.75]),
+            "spawn": _computed_spawns.get(sid, [0.5, 0.75]),
             "objects": objects,
             "edge_transitions": [
                 {"id": e["id"], "label": e["label"],
