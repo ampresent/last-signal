@@ -34,12 +34,18 @@ engine.start();
 |-------|-------------|
 | `x, y` | Normalized position (0–1) |
 | `color` | RGB array `[r, g, b]` (0–1) |
-| `radius` | Point light falloff radius (pixels) |
-| `intensity` | Brightness multiplier |
+| `radius` | Point light falloff radius (pixels). Recommended: 250–600 for room-scale, 150–250 for local |
+| `intensity` | Brightness multiplier. Typical: 0.3–2.0 |
 | `depth` | Z-depth plane (0=near, 1=far) |
 | `dir` | Direction vector `[dx, dy]` for directional |
 | `phase` | Animation phase function (see below) |
 | `noise` | Random noise overlay (see below) |
+
+## Attenuation
+
+Shader uses `atten = 1 / (1 + (dist/r)² * 3.0)` — factor 3 provides visible light at radius edge (~25% brightness).
+
+> Previous factor was 10 (light dropped to 9% at edge, effectively invisible). Fixed in PR #42.
 
 ## Phase Animation System
 
