@@ -12,6 +12,13 @@
     src: local('Courier New');
   }
 
+  :root {
+    --accent: #00ff88;
+    --accent-dim: rgba(0, 255, 136, 0.27);
+    --accent-glow: rgba(0, 255, 136, 0.3);
+    --accent-bar: linear-gradient(90deg, #00ff88, #00cc66);
+  }
+
   body {
     background: #000;
     display: flex;
@@ -46,8 +53,8 @@
     left: 0;
     right: 0;
     background: rgba(10, 10, 20, 0.95);
-    border-top: 2px solid #00ff88;
-    border-bottom: 2px solid #00ff88;
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
     padding: 15px 20px;
     min-height: 120px;
     display: none;
@@ -63,20 +70,20 @@
   #dialogue-portrait {
     width: 80px;
     height: 80px;
-    border: 2px solid #00ff88;
+    border: 2px solid var(--accent);
     image-rendering: pixelated;
     flex-shrink: 0;
     display: none;
-    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 12px var(--accent-glow);
   }
 
   #dialogue-portrait-canvas {
     width: 80px;
     height: 80px;
-    border: 2px solid #00ff88;
+    border: 2px solid var(--accent);
     flex-shrink: 0;
     display: none;
-    box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 12px var(--accent-glow);
     image-rendering: pixelated;
   }
 
@@ -147,7 +154,7 @@
   }
 
   #dialogue-speaker {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 14px;
     font-weight: bold;
     margin-bottom: 8px;
@@ -173,7 +180,7 @@
   .kw-buzz {
     display: inline-block;
     animation: kw-buzz 0.35s ease-in-out 2;
-    color: #00ff88;
+    color: var(--accent);
     text-shadow: 0 0 6px rgba(0, 255, 136, 0.35);
     font-weight: bold;
   }
@@ -187,8 +194,8 @@
     width: 100%;
     text-align: left;
     background: rgba(0, 255, 136, 0.08);
-    border: 1px solid #00ff8844;
-    color: #00ff88;
+    border: 1px solid var(--accent-dim);
+    color: var(--accent);
     padding: 8px 15px;
     margin: 4px 0;
     cursor: pointer;
@@ -199,7 +206,7 @@
 
   .choice-btn:hover {
     background: rgba(0, 255, 136, 0.2);
-    border-color: #00ff88;
+    border-color: var(--accent);
     padding-left: 20px;
   }
 
@@ -240,7 +247,7 @@
   }
 
   .inv-slot.has-item {
-    border-color: #00ff88;
+    border-color: var(--accent);
     background: rgba(0, 255, 136, 0.05);
   }
 
@@ -261,12 +268,12 @@
     left: 50%;
     transform: translateX(-50%);
     background: #111;
-    border: 1px solid #00ff88;
+    border: 1px solid var(--accent);
     padding: 5px 10px;
     font-size: 11px;
     white-space: nowrap;
     z-index: 20;
-    color: #00ff88;
+    color: var(--accent);
   }
 
   .inv-slot:hover .inv-tooltip {
@@ -288,11 +295,11 @@
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    color: #00ff88;
+    color: var(--accent);
     font-size: 13px;
     background: rgba(0,0,0,0.8);
     padding: 5px 15px;
-    border: 1px solid #00ff8844;
+    border: 1px solid var(--accent-dim);
     z-index: 15;
     display: none;
     text-align: center;
@@ -312,12 +319,12 @@
   }
 
   #title-screen h1 {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 48px;
     letter-spacing: 12px;
     text-transform: uppercase;
     margin-bottom: 10px;
-    text-shadow: 0 0 20px #00ff8844;
+    text-shadow: 0 0 20px var(--accent-dim);
   }
 
   #title-screen .subtitle {
@@ -328,12 +335,12 @@
   }
 
   #title-screen .start-btn {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 16px;
     cursor: pointer;
     letter-spacing: 3px;
     animation: blink 1.5s infinite;
-    border: 1px solid #00ff8844;
+    border: 1px solid var(--accent-dim);
     padding: 12px 40px;
     background: none;
     font-family: inherit;
@@ -353,7 +360,7 @@
     width: 320px;
     height: 6px;
     background: #111;
-    border: 1px solid #00ff8833;
+    border: 1px solid var(--accent-dim);
     border-radius: 3px;
     margin-top: 40px;
     overflow: hidden;
@@ -363,14 +370,14 @@
   #loading-bar-fill {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #00ff88, #00cc66);
-    box-shadow: 0 0 8px #00ff8866;
+    background: var(--accent-bar);
+    box-shadow: 0 0 8px var(--accent-glow);
     transition: width 0.15s ease-out;
     border-radius: 3px;
   }
 
   #loading-text {
-    color: #00ff8888;
+    color: var(--accent-dim);
     font-size: 11px;
     letter-spacing: 2px;
     margin-top: 10px;
@@ -423,7 +430,7 @@
   }
 
   #ending-screen h2 {
-    color: #00ff88;
+    color: var(--accent);
     font-size: 28px;
     letter-spacing: 6px;
     margin-bottom: 30px;
@@ -450,8 +457,8 @@
   }
 
   #ending-screen .restart-btn:hover {
-    border-color: #00ff88;
-    color: #00ff88;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>
 </head>
@@ -666,13 +673,20 @@ const VFX = {
   },
 
   _newRaindrop(rcfg) {
+    const speed = rcfg.speed[0] + Math.random() * (rcfg.speed[1] - rcfg.speed[0]);
+    const wind = rcfg.wind || 0;
+    // 倾角：从竖直方向偏转，基于风速 + 小范围随机抖动 (±8°)
+    const baseAngle = Math.atan2(wind, speed);
+    const jitter = (Math.random() - 0.5) * (16 * Math.PI / 180); // ±8°
+    const tiltAngle = baseAngle + jitter;
     return {
       x: Math.random() * 1000 - 20,
       y: Math.random() * 680 - 40,
-      speed: rcfg.speed[0] + Math.random() * (rcfg.speed[1] - rcfg.speed[0]),
+      speed: speed,
       length: rcfg.length[0] + Math.random() * (rcfg.length[1] - rcfg.length[0]),
       opacity: 0.3 + Math.random() * 0.7,
-      wind: rcfg.wind || 0,
+      wind: wind,
+      tiltAngle: tiltAngle,
       // 每个雨滴独立的随机参数，打破规则感
       windOffset: (Math.random() - 0.5) * 0.6,        // 风向随机偏移 ±0.3
       turbulencePhase: Math.random() * Math.PI * 2,    // 湍流相位
@@ -854,11 +868,13 @@ const VFX = {
       // 在临时 canvas 上画雨丝 — 用贝塞尔曲线模拟自然弯曲
       rc.lineWidth = 1;
       for (const drop of this.raindrops) {
-        const effectiveWind = drop.wind + drop.windOffset;
-        const midX = drop.x + effectiveWind * drop.length * 0.5;
-        const midY = drop.y + drop.length * 0.5;
-        const endX = drop.x + effectiveWind * drop.length;
-        const endY = drop.y + drop.length;
+        // 倾角决定雨丝方向，湍流只叠加微弱弯曲
+        const dx = Math.sin(drop.tiltAngle) * drop.length;
+        const dy = Math.cos(drop.tiltAngle) * drop.length;
+        const endX = drop.x + dx;
+        const endY = drop.y + dy;
+        const midX = drop.x + dx * 0.5;
+        const midY = drop.y + dy * 0.5;
         // 湍流弯曲控制点
         const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
         const alpha = rcfg.opacity * drop.opacity * drop.thickness;
@@ -879,11 +895,13 @@ const VFX = {
     } else {
       // 室外：全屏雨丝 — 贝塞尔曲线 + 湍流
       for (const drop of this.raindrops) {
-        const effectiveWind = drop.wind + drop.windOffset;
-        const midX = drop.x + effectiveWind * drop.length * 0.5;
-        const midY = drop.y + drop.length * 0.5;
-        const endX = drop.x + effectiveWind * drop.length;
-        const endY = drop.y + drop.length;
+        // 倾角决定雨丝方向，湍流只叠加微弱弯曲
+        const dx = Math.sin(drop.tiltAngle) * drop.length;
+        const dy = Math.cos(drop.tiltAngle) * drop.length;
+        const endX = drop.x + dx;
+        const endY = drop.y + dy;
+        const midX = drop.x + dx * 0.5;
+        const midY = drop.y + dy * 0.5;
         const turb = Math.sin(drop.y * 0.03 + drop.turbulencePhase) * drop.turbulenceAmp * 2;
         const alpha = rcfg.opacity * drop.opacity * drop.thickness;
         ctx.strokeStyle = `rgba(180, 200, 255, ${alpha})`;
@@ -1167,7 +1185,7 @@ const VFX = {
         // 创建临时 canvas 做反射
         if (!this._reflectCanvas) {
           this._reflectCanvas = document.createElement('canvas');
-          this._reflectCtx = this._reflectCanvas.getContext('2d');
+          this._reflectCtx = this._reflectCanvas.getContext('2d', { willReadFrequently: true });
         }
         const rc = this._reflectCanvas;
         const rctx = this._reflectCtx;
@@ -2044,6 +2062,19 @@ const CharSystem = {
   },
 
   // ── 绘制单个角色 ──
+  // ── 场景主色调映射 ──
+  SCENE_TINT: {
+    apartment: { r: 80, g: 255, b: 180, strength: 0.08 },   // 暖绿台灯光
+    street:    { r: 0, g: 200, b: 255, strength: 0.12 },     // 霓虹青
+    bar:       { r: 200, g: 50, b: 180, strength: 0.15 },    // 紫红霓虹
+    alley:     { r: 50, g: 255, b: 100, strength: 0.10 },    // 绿色全息屏
+    tower:     { r: 180, g: 60, b: 60, strength: 0.10 },     // 红色扫描仪
+    server:    { r: 0, g: 255, b: 136, strength: 0.08 },     // 服务器绿灯
+    rooftop:   { r: 100, g: 140, b: 255, strength: 0.10 },   // 城市冷蓝光
+    underground: { r: 200, g: 40, b: 40, strength: 0.14 },   // 红色应急灯
+    core:      { r: 0, g: 255, b: 136, strength: 0.18 },     // 核心绿光
+  },
+
   _drawChar(ctx, char, depth) {
     const spriteKey = `${char.dir}_f${char.frame}`;
     let sprite = this.sprites[char.id]?.[spriteKey];
@@ -2061,24 +2092,92 @@ const CharSystem = {
     // 角色位置 (脚部对齐 Y 坐标)
     const px = char.x * 960 - w / 2;
     const py = char.y * 640 - h;
+    const footY = char.y * 640;
 
     // 深度遮挡：如果角色深度 > 场景深度，降低不透明度 (被遮挡)
     const sceneDepth = this.getDepth(char.x, char.y);
     const occlusion = depth > sceneDepth + this.DEPTH_THRESHOLD ? 0.4 : 1.0;
 
-    ctx.save();
-    ctx.globalAlpha = occlusion;
+    // 获取场景色调
+    const sceneId = Game.currentScene || 'apartment';
+    const tint = this.SCENE_TINT[sceneId] || this.SCENE_TINT.apartment;
+    const hasRain = VFX?.SCENE_CONFIG?.[sceneId]?.rain?.count > 0;
+    const hasPuddle = VFX?.SCENE_CONFIG?.[sceneId]?.puddleReflection?.enabled;
 
-    // 像素风渲染
+    ctx.save();
+
+    // ═══ 1. 角色倒影 (雨天/积水场景) ═══
+    if ((hasRain || hasPuddle) && occlusion > 0.5) {
+      ctx.save();
+
+      // 用离屏 canvas 绘制倒影，避免 destination-out 擦掉主 canvas 背景
+      if (!this._reflectBuf) {
+        this._reflectBuf = document.createElement('canvas');
+        this._reflectBuf.width = 960;
+        this._reflectBuf.height = 640;
+      }
+      const rbuf = this._reflectBuf;
+      const rctx = rbuf.getContext('2d');
+      rctx.clearRect(0, 0, 960, 640);
+
+      // 在离屏 canvas 上绘制翻转的角色
+      rctx.save();
+      rctx.globalAlpha = 0.15;
+      rctx.translate(0, footY * 2);
+      rctx.scale(1, -1);
+      rctx.imageSmoothingEnabled = false;
+      rctx.drawImage(sprite, px, py, w, h);
+      rctx.restore();
+
+      // 用渐隐蒙版擦除倒影下半部分（从脚部向下淡出）
+      const fadeGrad = rctx.createLinearGradient(0, footY, 0, footY + h * 0.5);
+      fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      fadeGrad.addColorStop(1, 'rgba(0,0,0,1)');
+      rctx.globalCompositeOperation = 'destination-out';
+      rctx.fillStyle = fadeGrad;
+      rctx.fillRect(px - 2, footY, w + 4, h * 0.5);
+
+      // 将离屏 canvas 合成到主 canvas
+      ctx.globalAlpha = occlusion;
+      ctx.globalCompositeOperation = 'screen';
+      ctx.drawImage(rbuf, 0, 0);
+
+      ctx.restore();
+    }
+
+    // ═══ 2. 角色阴影 (脚下椭圆 — 增强版) ═══
+    ctx.globalAlpha = 0.4 * occlusion;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(char.x * 960, footY, w * 0.35, h * 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 雨天场景加一层环境色阴影
+    if (hasRain) {
+      ctx.globalAlpha = 0.08 * occlusion;
+      ctx.fillStyle = `rgb(${tint.r}, ${tint.g}, ${tint.b})`;
+      ctx.beginPath();
+      ctx.ellipse(char.x * 960, footY + 1, w * 0.4, h * 0.04, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ═══ 3. 角色本体 + 环境光映射 ═══
+    ctx.globalAlpha = occlusion;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(sprite, px, py, w, h);
 
-    // 角色阴影 (脚下椭圆)
-    ctx.globalAlpha = 0.3 * occlusion;
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.ellipse(char.x * 960, char.y * 640, w * 0.3, h * 0.06, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 环境光叠加：用 screen 混合模式叠一层场景色调
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = tint.strength * occlusion;
+    ctx.drawImage(sprite, px, py, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+
+    // 用场景色调给角色边缘加一圈微弱光晕
+    ctx.globalAlpha = tint.strength * 0.6 * occlusion;
+    ctx.shadowColor = `rgb(${tint.r}, ${tint.g}, ${tint.b})`;
+    ctx.shadowBlur = 8;
+    ctx.drawImage(sprite, px, py, w, h);
+    ctx.shadowBlur = 0;
 
     ctx.restore();
   },
@@ -2110,6 +2209,7 @@ const LoadingTracker = {
     this.total = 0;
     this.loaded = 0;
     this.current = '';
+    this._doneCalled = false;
   },
 
   show() {
@@ -2132,7 +2232,7 @@ const LoadingTracker = {
   },
 
   _updateText() {
-    const pct = this.total > 0 ? Math.floor((this.loaded / this.total) * 100) : 0;
+    const pct = this.total > 0 ? Math.min(100, Math.floor((this.loaded / this.total) * 100)) : 0;
     if (this.barFill) this.barFill.style.width = pct + '%';
     if (this.textEl) {
       const cur = this.current ? ` · ${this.current}` : '';
@@ -2143,6 +2243,11 @@ const LoadingTracker = {
   tick() {
     this.loaded++;
     this._updateText();
+    // 安全机制：如果 loaded >= total 但 done() 未被调用，自动触发完成
+    if (this.total > 0 && this.loaded >= this.total && !this._doneCalled) {
+      this._doneCalled = true;
+      this.done();
+    }
   },
 
   // 返回一个包装后的图片加载函数，自动追踪进度
@@ -2177,6 +2282,8 @@ const LoadingTracker = {
   },
 
   done() {
+    if (this._doneCalled) return; // 防止重复调用
+    this._doneCalled = true;
     if (this.barFill) this.barFill.style.width = '100%';
     if (this.textEl) this.textEl.textContent = 'LOADING COMPLETE';
     // 调试模式：打印加载摘要
@@ -2318,6 +2425,7 @@ const Game = {
   waterMasks: {},
   selectedItem: null,
   dialogueActive: false,
+  _pendingHotspot: null,
   mouseX: 0,
   mouseY: 0,
   audioCtx: null,
@@ -2499,7 +2607,24 @@ const Game = {
     // ══════════════════════════════════════════════════
     // Phase 2: 后台异步加载 — 不阻塞游戏启动
     // ══════════════════════════════════════════════════
-    this._backgroundLoadAssets(sceneIds.slice(1));
+    // 先统计后台资产数量，加入 total，防止 loaded 超过 total 导致进度条卡住
+    const remainingIds = sceneIds.slice(1);
+    let bgCount = 0;
+    for (const sid of remainingIds) {
+      const sc = SCENES[sid];
+      bgCount += 1; // background
+      bgCount += 2; // walkable mask + scene mask
+      if (sc.hotspots) {
+        for (const hs of sc.hotspots) {
+          if (hs.maskId) bgCount++;
+        }
+      }
+      const dirs = ['down', 'left', 'right', 'up'];
+      const wfc = CharSystem.WALK_FRAMES || 8;
+      if (sc.characters && sc.characters.length > 0) bgCount += dirs.length * wfc;
+    }
+    LoadingTracker.addTotal(bgCount);
+    this._backgroundLoadAssets(remainingIds);
   },
 
   // ── 后台加载剩余场景 ──
@@ -2669,6 +2794,7 @@ const Game = {
   },
 
   async goScene(sceneId, fromScene) {
+    this._pendingHotspot = null;
     const fade = document.getElementById('fade-overlay');
     fade.classList.add('active');
 
@@ -2726,6 +2852,9 @@ const Game = {
 
     // 初始化 VFX 引擎
     VFX.init(sceneId);
+
+    // ── 应用场景 UI 主题色 ──
+    this._applySceneTheme(sceneId);
 
     // ── 初始化角色系统 ──
     await CharSystem.initScene(sceneId, this.images);
@@ -2797,6 +2926,21 @@ const Game = {
     // ★ 角色渲染 (深度排序) ★
     KeyMove.update(dt);
     CharSystem.update(dt);
+
+    // ── 到达检测：角色停下时触发待执行的交互 ──
+    if (this._pendingHotspot) {
+      const scene = SCENES[this.currentScene];
+      if (scene && scene.characters && scene.characters.length > 0) {
+        const playerChar = scene.characters[0];
+        const charState = CharSystem.chars[playerChar.id];
+        if (charState && !charState.walking) {
+          const hs = this._pendingHotspot;
+          this._pendingHotspot = null;
+          hs.action();
+        }
+      }
+    }
+
     CharSystem.render(this.ctx);
 
     // ★ VFX 实时粒子动效叠加 ★
@@ -2842,6 +2986,7 @@ const Game = {
         const ny = y / 640;
         if (CharSystem.isWalkable(nx, ny)) {
           CharSystem.moveTo(playerChar.id, nx, ny);
+          this._pendingHotspot = null; // 取消待执行的交互
           return; // 行走优先于热点
         }
       }
@@ -2849,8 +2994,82 @@ const Game = {
 
     const hotspot = this.getHotspotAt(x, y);
     if (hotspot) {
+      // 出口类热点：立即执行（不需要走近）
+      if (hotspot.isExit) {
+        this._pendingHotspot = null;
+        hotspot.action();
+        return;
+      }
+
+      // 交互类热点：角色走过去再交互
+      const scene = SCENES[this.currentScene];
+      if (scene && scene.characters && scene.characters.length > 0) {
+        const playerChar = scene.characters[0];
+        if (playerChar) {
+          const charState = CharSystem.chars[playerChar.id];
+          if (charState && charState.visible) {
+            // 计算热点中心点
+            let cx, cy;
+            if (hotspot.x != null && hotspot.w != null) {
+              cx = (hotspot.x + hotspot.w / 2) / 960;
+              cy = (hotspot.y + hotspot.h) / 640; // 底部中心（角色站着面对）
+            } else if (hotspot.maskId) {
+              const key = `${this.currentScene}_${hotspot.maskId}`;
+              const objMask = this.objMasks[key];
+              if (objMask) {
+                cx = charState.x; // fallback 到角色当前位置
+                cy = charState.y;
+              }
+            } else {
+              hotspot.action();
+              return;
+            }
+
+            // 寻找最近的可行走位置
+            const walkTarget = this._findWalkableNear(cx, cy, charState.x, charState.y);
+            if (walkTarget) {
+              this._pendingHotspot = hotspot;
+              CharSystem.moveTo(playerChar.id, walkTarget[0], walkTarget[1]);
+            } else {
+              // 找不到可行走位置，直接执行
+              hotspot.action();
+            }
+            return;
+          }
+        }
+      }
+
+      // 无角色场景：直接执行
       hotspot.action();
     }
+  },
+
+  // ── 在目标附近寻找可行走位置 ──
+  _findWalkableNear(tx, ty, fallbackX, fallbackY) {
+    // 目标本身可行走
+    if (CharSystem.isWalkable(tx, ty)) return [tx, ty];
+    // 螺旋搜索附近格子
+    for (let r = 1; r <= 8; r++) {
+      const step = 0.02 * r;
+      const candidates = [
+        [tx, ty + step],     // 下方
+        [tx - step, ty],     // 左
+        [tx + step, ty],     // 右
+        [tx, ty - step],     // 上
+        [tx - step, ty + step],
+        [tx + step, ty + step],
+        [tx - step, ty - step],
+        [tx + step, ty - step],
+      ];
+      for (const [cx, cy] of candidates) {
+        if (cx >= 0 && cx <= 1 && cy >= 0 && cy <= 1 && CharSystem.isWalkable(cx, cy)) {
+          return [cx, cy];
+        }
+      }
+    }
+    // 全部不可行走，用角色当前位置（不移动）
+    if (CharSystem.isWalkable(fallbackX, fallbackY)) return [fallbackX, fallbackY];
+    return null;
   },
 
   getHotspot() {
@@ -3135,6 +3354,36 @@ const Game = {
     this.updateInventoryUI();
   },
 
+  // ── 场景 UI 主题色 ──
+  SCENE_ACCENT: {
+    apartment:   { h: 150, s: 100, l: 50 },  // #00ff88 经典绿
+    street:      { h: 185, s: 100, l: 50 },  // 霓虹青
+    bar:         { h: 310, s: 80, l: 50 },   // 紫红
+    alley:       { h: 140, s: 100, l: 60 },  // 浅绿全息
+    tower:       { h: 0, s: 80, l: 55 },     // 红色扫描
+    server:      { h: 160, s: 100, l: 50 },  // 服务器绿
+    rooftop:     { h: 220, s: 100, l: 65 },  // 冷蓝
+    underground: { h: 0, s: 85, l: 50 },     // 应急红
+    core:        { h: 150, s: 100, l: 50 },  // 核心绿
+  },
+
+  _applySceneTheme(sceneId) {
+    const accent = this.SCENE_ACCENT[sceneId] || this.SCENE_ACCENT.apartment;
+    const { h, s, l } = accent;
+    const root = document.documentElement;
+    root.style.setProperty('--accent', `hsl(${h}, ${s}%, ${l}%)`);
+    root.style.setProperty('--accent-dim', `hsla(${h}, ${s}%, ${l}%, 0.27)`);
+    root.style.setProperty('--accent-glow', `hsla(${h}, ${s}%, ${l}%, 0.3)`);
+    root.style.setProperty('--accent-bar', `linear-gradient(90deg, hsl(${h}, ${s}%, ${l}%), hsl(${h}, ${s}%, ${Math.max(20, l - 15)}%))`);
+
+    // 更新头像边框颜色 (portrait canvas 和 portrait img)
+    const portraits = document.querySelectorAll('#dialogue-portrait, #dialogue-portrait-canvas');
+    portraits.forEach(el => {
+      el.style.borderColor = `hsl(${h}, ${s}%, ${l}%)`;
+      el.style.boxShadow = `0 0 12px hsla(${h}, ${s}%, ${l}%, 0.3)`;
+    });
+  },
+
   showHint(text, duration = 2000) {
     const el = document.getElementById('hint-text');
     el.textContent = text;
@@ -3287,6 +3536,7 @@ const SCENES = {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 门',
         maskId: 'door',
+        isExit: true,
         action() {
           Game.showDialogue('凯', '该走了。', [
             { text: '出门前往街道' },
@@ -3369,6 +3619,7 @@ const SCENES = {
         x: 100, y: 200, w: 300, h: 350,
         label: '▸ The Rust 酒吧',
         maskId: 'bar_entrance',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('bar', 'street');
@@ -3378,6 +3629,7 @@ const SCENES = {
         x: 600, y: 150, w: 300, h: 400,
         label: '▸ 通往旧工业带的路',
         maskId: 'road_right',
+        isExit: true,
         action() {
           if (Game.hasItem('keycard')) {
             Game.showDialogue('凯', '有了安全卡，应该能进 ECHO 大楼了。').then(() => {
@@ -3393,6 +3645,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 小巷',
         maskId: 'alley_entrance',
+        isExit: true,
         action() {
           Game.sfx('click');
           Game.goScene('alley', 'street');
@@ -3537,6 +3790,7 @@ const SCENES = {
         x: 750, y: 300, w: 150, h: 250,
         label: '▸ 出口',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street', 'bar');
@@ -3644,6 +3898,7 @@ const SCENES = {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street', 'alley');
@@ -3774,6 +4029,7 @@ const SCENES = {
         x: 800, y: 400, w: 120, h: 200,
         label: '▸ 返回街道',
         maskId: 'exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('street', 'tower');
@@ -3873,6 +4129,7 @@ const SCENES = {
         x: 800, y: 200, w: 120, h: 300,
         label: '▸ 通往楼顶的通道',
         maskId: 'rooftop_exit',
+        isExit: true,
         action() {
           if (Game.flags.oracle_rooftop) {
             Game.showDialogue('凯', '最后一步了。', [
@@ -3893,6 +4150,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 返回大厅',
         maskId: 'lobby_exit',
+        isExit: true,
         action() {
           Game.sfx('door');
           Game.goScene('tower', 'server');
@@ -4171,6 +4429,7 @@ const SCENES = {
         x: 700, y: 200, w: 200, h: 300,
         label: '▸ 深层通道',
         maskId: 'rooftop_exit',
+        isExit: true,
         action() {
           if (Game.hasItem('neural_linker')) {
             Game.showDialogue('凯', '通道尽头是核心控制室。\n\n如果 Oracle 在网络里，那里就是接入点。', [
@@ -4191,6 +4450,7 @@ const SCENES = {
         x: 50, y: 500, w: 150, h: 100,
         label: '▸ 返回地面',
         maskId: 'lobby_exit',
+        isExit: true,
         action() {
           Game.showDialogue('凯', '要离开吗？那些人还连着……', [
             { text: '先上去' },
@@ -4457,6 +4717,9 @@ const KeyMove = {
       }
       return;
     }
+
+    // 键盘移动时取消待执行的交互
+    Game._pendingHotspot = null;
 
     // 归一化方向
     const len = Math.sqrt(dx * dx + dy * dy);
