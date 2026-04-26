@@ -15,8 +15,9 @@ import os
 import sys
 import argparse
 
-MASK_DIR = "/root/.openclaw/workspace/last-signal/assets/masks"
-ASSET_DIR = "/root/.openclaw/workspace/last-signal/assets"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MASK_DIR = os.path.join(_BASE_DIR, "assets", "masks")
+ASSET_DIR = os.path.join(_BASE_DIR, "assets")
 
 # ── 场景行走区域定义 ──
 # 每个场景定义:
@@ -69,14 +70,16 @@ SCENE_WALK = {
             {"rect": (0.9, 0.3, 1.0, 0.7), "target": "street"},
         ],
     },
-    "tower_exterior": {
+    "tower": {
+        # 塔楼广场
         "walkable_rects": [
             (0.15, 0.3, 0.85, 0.9),
         ],
         "obstacle_masks": [],
         "edge_zones": [],
     },
-    "server_room": {
+    "server": {
+        # 服务器机房
         "walkable_rects": [
             (0.1, 0.2, 0.9, 0.9),
         ],
