@@ -2559,6 +2559,12 @@ const Game = {
       this.masks[firstSceneId] = m;
     });
 
+    // Water mask
+    LoadingTracker.setCurrent(`${firstSceneId} · water mask`);
+    await loadMask(`assets/masks/${firstSceneId}_water_mask.webp`).then(m => {
+      if (m) this.waterMasks[firstSceneId] = m;
+    });
+
     // Object masks
     if (scene.hotspots) {
       for (const hs of scene.hotspots) {
@@ -2633,6 +2639,12 @@ const Game = {
       LoadingTracker.setCurrent(`[bg] ${sceneId} · scene mask`);
       await loadMask(`assets/masks/${sceneId}_mask.webp`).then(m => {
         this.masks[sceneId] = m;
+      });
+
+      // Water mask
+      LoadingTracker.setCurrent(`[bg] ${sceneId} · water mask`);
+      await loadMask(`assets/masks/${sceneId}_water_mask.webp`).then(m => {
+        if (m) this.waterMasks[sceneId] = m;
       });
 
       // Object masks
