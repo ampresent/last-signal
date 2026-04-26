@@ -780,10 +780,10 @@ const VFX = {
       this._renderVignette(ctx, cfg.vignette);
     }
 
-    // 7. 全局亮度闪烁
-    if (cfg.flicker && cfg.flicker.enabled) {
-      this._applyFlicker(ctx, dt, cfg.flicker);
-    }
+    // 7. 全局亮度闪烁 — disabled
+    // if (cfg.flicker && cfg.flicker.enabled) {
+    //   this._applyFlicker(ctx, dt, cfg.flicker);
+    // }
 
     // 8. CRT 扫描线
     if (cfg.scanlines && cfg.scanlines.enabled) {
@@ -1395,28 +1395,7 @@ const VFX = {
 
   // ---- 偶发故障效果 ----
   _maybeGlitch(ctx, dt) {
-    this.glitchTimer += dt;
-    if (!this.glitchActive && this.glitchTimer > 8000 + Math.random() * 15000) {
-      this.glitchActive = true;
-      this.glitchTimer = 0;
-      setTimeout(() => { this.glitchActive = false; }, 80 + Math.random() * 120);
-    }
-
-    if (this.glitchActive) {
-      ctx.save();
-      // 随机水平位移几行
-      const sliceY = Math.floor(Math.random() * 600);
-      const sliceH = 2 + Math.floor(Math.random() * 8);
-      const shift = (Math.random() - 0.5) * 20;
-      const imgData = ctx.getImageData(0, sliceY, 960, sliceH);
-      ctx.putImageData(imgData, shift, sliceY);
-
-      // 红/蓝色偏
-      ctx.globalCompositeOperation = 'screen';
-      ctx.fillStyle = `rgba(255, 0, 0, ${0.05 + Math.random() * 0.05})`;
-      ctx.fillRect(0, 0, 960, 640);
-      ctx.restore();
-    }
+    // disabled — 偶发故障效果已关闭
   },
 };
 
