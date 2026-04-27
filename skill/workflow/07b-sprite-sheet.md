@@ -133,6 +133,45 @@ bash mimo_api.sh image assets/sprites/kai_down_f0.webp \
   "角色可见吗？背景透明吗？边缘有绿边吗？简短回答。"
 ```
 
+### 6.5 跨方向尺寸校对（必须）
+
+不同方向的视频素材中，角色在画面里的占比往往不一致（常见：正面/背面比侧面小 15-20%）。
+如果不校对，游戏里转向时角色会忽大忽小。
+
+**检测方法：**
+
+```python
+from PIL import Image
+import glob
+
+for d in ['up', 'down', 'left', 'right']:
+    files = sorted(glob.glob(f'assets/sprites/kai_{d}_f*.webp'))
+    heights = []
+    for f in files:
+        img = Image.open(f).convert('RGBA')
+        bbox = img.getbbox()
+        if bbox:
+            heights.append(bbox[3] - bbox[1])
+    avg = sum(heights) / len(heights) if heights else 0
+    print(f'{d}: avg content h={avg:.1f}px')
+```
+
+各方向平均内容高度差异 **>5%** 就需要校对。
+
+**修复：**
+
+```bash
+python3 scripts/fix_sprite_scale.py
+```
+
+脚本逻辑：
+1. 计算四个方向的平均角色内容高度
+2. 取最大值作为目标高度
+3. 对偏小的方向：提取内容 → 等比缩放到目标高度 → 居中贴回 64×128 画布
+4. 差异 <5% 的方向不处理
+
+校对后再做一次视觉验证，确认缩放没有引入模糊或变形。
+
 ## 7. 裁剪 + 拼合
 
 取所有帧并集边界框 + padding → 统一裁剪 → 拼 sprite sheet
@@ -161,6 +200,7 @@ Row 3: Back   [...]
 | 转身帧混入 | 宁愿丢帧保证纯度 |
 | **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
 | **GrabCut 吃边缘** | **不要用 GrabCut，用 `scripts/greenscreen_cutout.py`** |
+| **转向时角色忽大忽小** | **各方向素材角色占比不同，必须做 6.5 跨方向尺寸校对** |
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)
