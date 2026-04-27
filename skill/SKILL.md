@@ -15,6 +15,7 @@ Complete development workflow for the LAST SIGNAL cyberpunk point-and-click adve
 | Generate depth + lighting | `python3 scripts/gen_depth_lighting.py` |
 | Generate masks | `python3 scripts/gen_masks.py` |
 | Generate character sprites | `python3 scripts/gen_character_views.py` |
+| Fix sprite size across directions | `python3 scripts/fix_sprite_scale.py` |
 | Build (PNG→WebP) | `python3 scripts/build.py` |
 | Local test | `python3 -m http.server 8765` |
 
@@ -68,6 +69,7 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 | `scripts/gen_character_views.py` | Character perspective generation |
 | `scripts/cutout_from_sheet.py` | Sprite sheet frame cutout |
 | `scripts/greenscreen_cutout.py` | HSV green-screen removal + Omni verification |
+| `scripts/fix_sprite_scale.py` | Normalize sprite content height across directions |
 | `scripts/build.py` | PNG→WebP build |
 | `scripts/setup.sh` | Environment setup |
 
