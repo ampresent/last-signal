@@ -77,15 +77,13 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
+See **[`SETUP.md`](./SETUP.md)** for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
+
+Quick start:
+
 ```bash
-# HuggingFace mirror (required in China)
-export HF_ENDPOINT=https://hf-mirror.com
-
-# Dependencies
-pip3 install --break-system-packages onnxruntime numpy opencv-python-headless requests pillow
-
-# MobileSAM models
-bash scripts/setup.sh
+cd /root/.openclaw/workspace/last-signal
+bash setup.sh
 ```
 
 ## Key Configuration Files
