@@ -77,13 +77,13 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
-See **`setup.md`** for full setup instructions (基础依赖、HuggingFace 镜像、MobileSAM、RMBG-2.0)。
+See **[`SETUP.md`](../../SETUP.md)** at project root for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
 
 Quick start:
 
 ```bash
-# 一键初始化（除 RMBG-2 外所有依赖）
-bash scripts/setup.sh
+cd /root/.openclaw/workspace/last-signal
+bash setup.sh
 ```
 
 ## Key Configuration Files
