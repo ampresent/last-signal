@@ -121,7 +121,7 @@ python3 scripts/rmbg14_cutout.py up up_selected --sheet --no-verify  # sheet 模
 脚本自动流程：
 1. 加载 RMBG-1.4 模型（本地 R2 副本，或从 hf-mirror.com 自动下载）
 2. 逐帧推理（或 `--sheet` 整张推理），生成 alpha mask
-3. 自动裁剪 + 缩放到 64×128 画布
+3. 自动裁剪 + 缩放到 64×128 画布（80% 高度比，保留 13px head/foot margin）
 4. 可选 omni 模型验证（默认开启，`--no-verify` 跳过）
 5. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
 
@@ -141,7 +141,7 @@ bash mimo_api.sh image assets/sprites/kai_down_f0.webp \
 
 ### 6.5 抠图方案对比（逐帧 vs 拼 sheet）
 
-在 3.4GB 内存 CPU 机器上实测（8帧 500×1100 → 64×128），RMBG-1.4：
+在 3.4GB 内存 CPU 机器上实测（8帧 500×1100 → 64×128，80% 高度比），RMBG-1.4：
 
 | 方案 | 耗时 | 说明 |
 |------|------|------|
@@ -209,6 +209,7 @@ Row 3: Back   [...]
 
 | 问题 | 解决 |
 |------|------|
+| **头/脚被裁掉** | **缩放比太高。用 HEIGHT_RATIO=0.80，确保 13px+ margin（验证 rmin>0 且 rmax<127）** |
 | 方向不纯 | 收紧帧范围，排除 turning 帧 |
 | 速度不一致 | 检查帧数是否相同 |
 | 关键帧不准 | 只选中间帧，宁可少帧 |
@@ -216,6 +217,21 @@ Row 3: Back   [...]
 | **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
 | **边缘有残留** | **检查 RMBG-1.4 模型是否加载成功，输入帧是否正确裁剪** |
 | **转向时角色忽大忽小** | **各方向素材角色占比不同，必须做 6.6 跨方向尺寸校对** |
+
+### ⚠️ Sprite 画布尺寸规范（防踩坑）
+
+**问题**：64×128 画布太小，角色缩放到 128px 后 head/foot 紧贴甚至超出画布边缘。
+
+**规范**：
+- 画布尺寸：**64×128**（宽高比 1:2，游戏引擎依赖此比例）
+- 缩放比：`HEIGHT_RATIO = 0.80`（角色占画布高度的 80%）
+- 结果：角色高度 ≈ 102px，上下各有 ≈13px margin
+- 验证：抠图后检查 `alpha` 通道，确保 `rmin > 0` 且 `rmax < 127`
+
+**为什么不能贴边？**
+- 游戏引擎中角色需要上下微调位置（跳跃、蹲下等动画）
+- 贴边会导致 head/foot 在任何偏移下都被裁掉
+- 14px margin 提供了足够的调整空间
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)

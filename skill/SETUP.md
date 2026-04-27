@@ -164,7 +164,7 @@ python3 skill/scripts/rmbg14_cutout.py up /tmp/sprite-work/up_selected --char ka
 > Sheet 模式更快（7.5x）：`--sheet` 参数拼成 4x2 大图，单次推理。
 > 逐帧：~3.0s/帧 | Sheet：~0.4s/帧。
 
-输出到 `assets/sprites/kai_up_f{0-7}.webp`（64×128 RGBA WebP）。
+输出到 `assets/sprites/kai_up_f{0-7}.webp`（64×128 RGBA WebP，80% 高度比 + 13px margin）。
 
 > **⚠️ 内存注意**：模型加载 + 推理峰值约 2-2.5GB。3.4GB 机器上可行，但别同时跑其他大进程。
 > 如果被 SIGTERM 杀掉，检查 `free -h`，确保可用内存 > 2.5GB。
@@ -514,7 +514,7 @@ s3.upload_file('local_file.whl', 'mystore', 'deps/local_file.whl')
 
 ## 10. 抠图方案对比实验（2026-04-28）
 
-在 3.4GB 内存 CPU 机器上实测，8帧 500×1000 → 64×128 RGBA WebP：
+在 3.4GB 内存 CPU 机器上实测，8帧 500×1100 → 64×128 RGBA WebP（80% 高度比）：
 
 | 方案 | 耗时 | 内存峰值 | 说明 |
 |------|------|----------|------|
@@ -523,7 +523,7 @@ s3.upload_file('local_file.whl', 'mystore', 'deps/local_file.whl')
 
 **为什么方案B更慢？**
 - sheet 为 256×256，但模型内部 resize 到 1024×1024 处理
-- 单张 sheet 的 1024×1024 推理 vs 8张 64×128 的推理，前者计算量更大
+- 单张 sheet 的 1024×1024 推理 vs 8张小图的推理，前者计算量更大
 - 拆帧额外开销虽小（0.1s），但无法弥补推理差距
 
 **结论：逐帧方案在 CPU 环境下更快、更稳定、内存更可控。不推荐拼 sheet。**

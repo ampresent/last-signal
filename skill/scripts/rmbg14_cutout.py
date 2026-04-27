@@ -28,6 +28,8 @@ MIMO_SCRIPT = "/root/.openclaw/skills/mimo-omni/mimo_api.sh"
 CHAR = "kai"
 TARGET_W = 64
 TARGET_H = 128
+# Scale character to 80% of canvas height to leave head/foot margin
+HEIGHT_RATIO = 0.80
 
 # RMBG-1.4 model — public, no token needed
 MODEL_ID = "briaai/RMBG-1.4"
@@ -195,21 +197,24 @@ def verify_cutout(webp_path):
 
 
 def finalize_frame(rgba):
-    """Crop to content, scale, and center on target canvas."""
+    """Crop to content, scale with margin, and center on target canvas."""
     bbox = rgba.getbbox()
     if bbox is None:
         return None
 
     content = rgba.crop(bbox)
-    scale = TARGET_H / content.height
+    # Scale to fit HEIGHT_RATIO of canvas height (leave margin for head/feet)
+    max_h = int(TARGET_H * HEIGHT_RATIO)
+    scale = max_h / content.height
     if scale > 1.0:
-        scale = 1.0
+        scale = 1.0  # Don't upscale
     new_w = int(content.width * scale)
     new_h = int(content.height * scale)
     content = content.resize((new_w, new_h), Image.LANCZOS)
 
     canvas = Image.new("RGBA", (TARGET_W, TARGET_H), (0, 0, 0, 0))
     offset_x = (TARGET_W - new_w) // 2
+    # Center vertically with slight upward bias (character feet anchor)
     offset_y = (TARGET_H - new_h) // 2
     canvas.paste(content, (offset_x, offset_y))
     return canvas
