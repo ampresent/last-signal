@@ -15,7 +15,7 @@ echo "📁 项目目录: $(pwd)"
 # ──────────────────────────────────────────────
 # 0. 阿里云软件源（pip）
 # ──────────────────────────────────────────────
-echo "=== [0/5] 阿里云软件源 ==="
+echo "=== [0/7] 阿里云软件源 ==="
 
 if ! grep -q 'mirrors.aliyun.com/pypi' /etc/pip.conf 2>/dev/null; then
   cat > /etc/pip.conf << 'EOF'
@@ -31,7 +31,7 @@ fi
 # ──────────────────────────────────────────────
 # 1. Python 依赖
 # ──────────────────────────────────────────────
-echo "=== [1/5] Python 依赖 ==="
+echo "=== [1/7] Python 依赖 ==="
 
 pip3 install --break-system-packages -q \
   requests numpy opencv-python-headless pillow onnxruntime 2>/dev/null
@@ -41,7 +41,7 @@ echo "  ✓ $(python3 -c 'import requests,cv2,numpy,onnxruntime; print(f"request
 # ──────────────────────────────────────────────
 # 2. MobileSAM ONNX 模型 (从 R2 下载, 国内快)
 # ──────────────────────────────────────────────
-echo "=== [2/5] MobileSAM ONNX 模型 ==="
+echo "=== [2/7] MobileSAM ONNX 模型 ==="
 
 SAM_ENCODER="$PROJECT/models/mobilesam.encoder.onnx"
 SAM_DECODER="$PROJECT/models/mobile_sam.onnx"
@@ -98,9 +98,59 @@ use_https = True
 fi
 
 # ──────────────────────────────────────────────
-# 3. HuggingFace 镜像配置
+# 3. RMBG-1.4 模型 (从 R2 下载)
 # ──────────────────────────────────────────────
-echo "=== [3/5] HuggingFace 镜像 ==="
+echo "=== [3/7] RMBG-1.4 模型 ==="
+
+RMBG_DIR="$PROJECT/models/RMBG-1.4"
+RMBG_OK=true
+
+if [ -f "$RMBG_DIR/model.safetensors" ] && [ -f "$RMBG_DIR/config.json" ]; then
+  echo "  ✓ RMBG-1.4 已存在 ($(du -sh "$RMBG_DIR" | cut -f1))"
+else
+  mkdir -p "$RMBG_DIR"
+
+  # 确保 s3cfg 已配置
+  if ! [ -f ~/.s3cfg ]; then
+    python3 -c "
+import re, pathlib
+src = pathlib.Path('$PROJECT/r2mount.py').read_text()
+ak = re.search(r'R2_ACCESS_KEY\s*=\s*\"(.+?)\"', src).group(1)
+sk = re.search(r'R2_SECRET_KEY\s*=\s*\"(.+?)\"', src).group(1)
+ep = re.search(r'R2_ENDPOINT\s*=\s*\"https://(.+?)\"', src).group(1)
+pathlib.Path(pathlib.Path.home() / '.s3cfg').write_text(f'''[default]
+access_key = {ak}
+secret_key = {sk}
+host_base = {ep}
+host_bucket = %(bucket)s.{ep}
+use_https = True
+''')
+" && chmod 600 ~/.s3cfg
+  fi
+
+  echo "  ⬇️  从 R2 下载 RMBG-1.4..."
+  for f in model.safetensors config.json briarmbg.py MyConfig.py MyPipe.py preprocessor_config.json utilities.py; do
+    if ! [ -f "$RMBG_DIR/$f" ]; then
+      s3cmd --region=auto get "s3://mystore/deps/RMBG-1.4/$f" "$RMBG_DIR/$f" --force 2>/dev/null
+      if [ -s "$RMBG_DIR/$f" ]; then
+        echo "  ✓ $f ($(du -h "$RMBG_DIR/$f" | cut -f1))"
+      else
+        echo "  ❌ $f 下载失败"; RMBG_OK=false
+      fi
+    fi
+  done
+
+  if $RMBG_OK; then
+    echo "  ✓ RMBG-1.4 就绪 ($(du -sh "$RMBG_DIR" | cut -f1))"
+  else
+    echo "  ❌ RMBG-1.4 下载不完整, rmbg14_cutout.py 将无法运行"
+  fi
+fi
+
+# ──────────────────────────────────────────────
+# 4. HuggingFace 镜像 + Token 配置
+# ──────────────────────────────────────────────
+echo "=== [4/7] HuggingFace 镜像 + Token ==="
 
 if grep -q 'HF_ENDPOINT' ~/.bashrc 2>/dev/null; then
   echo "  ✓ HF_ENDPOINT 已配置"
@@ -110,10 +160,12 @@ else
 fi
 export HF_ENDPOINT=https://hf-mirror.com
 
+# RMBG-1.4 is a public model, no HF token needed
+
 # ──────────────────────────────────────────────
-# 4. git 配置
+# 5. git 配置
 # ──────────────────────────────────────────────
-echo "=== [4/5] git 配置 ==="
+echo "=== [5/7] git 配置 ==="
 
 {
   echo ".github-token"
@@ -127,9 +179,9 @@ git add .gitignore 2>/dev/null && git commit -m "chore: ignore credential files"
 echo "  ✓ .gitignore 已更新"
 
 # ──────────────────────────────────────────────
-# 5. 环境检查
+# 6. 环境检查
 # ──────────────────────────────────────────────
-echo "=== [5/5] 环境检查 ==="
+echo "=== [6/7] 环境检查 ==="
 ERR=0
 check() { python3 -c "$1" 2>/dev/null && echo "  ✓ $2" || { echo "  ✗ $2 FAILED"; ERR=$((ERR+1)); }; }
 

@@ -23,7 +23,7 @@ last-signal/
 ├── scripts/gen_depth_lighting.py   # Depth Lighting 渲染器
 ├── scripts/gen_masks.py            # MobileSAM + Omni mask 生成器
 ├── scripts/gen_character_views.py   # 角色视角生成
-├── scripts/greenscreen_cutout.py   # 绿幕 GrabCut 抠图
+├── scripts/rmbg14_cutout.py         # RMBG-1.4 抠图（任意背景，无需 HF token）
 ├── scripts/build.py                # PNG→WebP 构建脚本
 ├── WORKFLOW.md             # 完整工作流文档
 ├── SETUP.md                # 环境搭建指南

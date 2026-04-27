@@ -193,16 +193,16 @@ python3 scripts/gen_masks.py --no-push           # Don't auto-push
 8. Crop + compose → sprite sheet + preview GIF
 ```
 
-### Green Screen Cutout (scripts/greenscreen_cutout.py)
-```python
-def green_screen_cutout(img_rgb):
-    """HSV green detection + GrabCut fine segmentation."""
-    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
-    green_mask = cv2.inRange(hsv, [35,50,50], [85,255,255])
-    # Use as GrabCut seed → precise foreground extraction
-```
+### RMBG-1.4 Cutout (scripts/rmbg14_cutout.py)
 
-**Critical**: Process at 128px width, then downscale to 64px. Never erode edges.
+Uses BRIA's RMBG-1.4 model to remove background from ANY source (not just green screen).
+Public model, no HF token needed. Supports single-frame and sheet modes.
+
+```bash
+python3 scripts/rmbg14_cutout.py <direction> <cropped_frames_dir>
+python3 scripts/rmbg14_cutout.py down down_selected
+python3 scripts/rmbg14_cutout.py left left_selected --sheet  # sheet mode (7.5x faster)
+```
 
 ### Output
 - `assets/sprites/{char}_{dir}_f{0-7}.webp` — Walking frames (8 per direction)

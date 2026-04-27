@@ -15,9 +15,41 @@ Complete development workflow for the LAST SIGNAL cyberpunk point-and-click adve
 | Generate depth + lighting | `python3 scripts/gen_depth_lighting.py` |
 | Generate masks | `python3 scripts/gen_masks.py` |
 | Generate character sprites | `python3 scripts/gen_character_views.py` |
+| Sprite sheet cutout (RMBG-1.4) | `python3 scripts/rmbg14_cutout.py <direction> <frames_dir>` |
 | Fix sprite size across directions | `python3 scripts/fix_sprite_scale.py` |
 | Build (PNG→WebP) | `python3 scripts/build.py` |
 | Local test | `python3 -m http.server 8765` |
+
+> **Sprite sheet 生成**：视频→帧→方向识别→关键帧→抠图→sprite sheet，完整流程见 `skill/workflow/07b-sprite-sheet.md`。
+>
+> **⚠️ 抠图方案**：逐帧推理（方案A）比拼 sheet（方案B）更快。
+> 实测 8 帧：A=8.4s vs B=12.0s（CPU 环境）。见 `SETUP.md` §10。
+
+## From-Scratch Reproduction
+
+服务器重启后所有本地文件丢失？只剩 GitHub 远程仓库是持久的。
+完整重建流程见 **[`SETUP.md` §从零复现指南](./SETUP.md#从零复现指南服务器重建--新机器部署)**。
+
+关键步骤摘要：
+
+```bash
+# 1. Clone + checkout
+git clone https://TOKEN@github.com/ampresent/last-signal.git && cd last-signal
+git checkout feat/rmbg2-cutout
+
+# 2. pip 依赖（阿里云源 + R2 torch + 清华 transformers/timm/kornia）
+pip3 install --break-system-packages onnxruntime numpy opencv-python-headless requests pillow boto3
+# → R2 下载 torch wheel → pip install
+pip3 install --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple/ \
+  --ignore-installed rich transformers timm kornia
+
+# 3. RMBG-1.4 模型（R2 下载 ~169MB）
+# → models/RMBG-1.4/ (7 files)
+
+# 4. 视频 → 帧 → 关键帧裁剪 → rmbg14_cutout.py 抠图
+```
+
+> **并发提示**：步骤 2（pip）、步骤 3（模型下载）、步骤 4（视频下载+帧提取）可并行执行。
 
 ## Chapter Index
 
@@ -68,7 +100,7 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 | `scripts/gen_masks.py` | MobileSAM + Omni mask pipeline |
 | `scripts/gen_character_views.py` | Character perspective generation |
 | `scripts/cutout_from_sheet.py` | Sprite sheet frame cutout |
-| `scripts/greenscreen_cutout.py` | HSV green-screen removal + Omni verification |
+| `scripts/rmbg14_cutout.py` | RMBG-1.4 background removal (any background). Requires: torch, transformers, timm, kornia |
 | `scripts/fix_sprite_scale.py` | Normalize sprite content height across directions |
 | `scripts/build.py` | PNG→WebP build |
 | `scripts/setup.sh` | Environment setup |
@@ -77,14 +109,19 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
-See **[`SETUP.md`](./SETUP.md)** for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
+See **[`SETUP.md`](./SETUP.md)** for full setup instructions (R2 resources, torch install, known issues).
 
 Quick start:
 
 ```bash
 cd /root/.openclaw/workspace/last-signal
-bash setup.sh
+export HF_ENDPOINT=https://hf-mirror.com
+pip3 install --break-system-packages onnxruntime numpy opencv-python-headless requests pillow
+bash skill/scripts/setup.sh
 ```
+
+> **⚠️ RMBG-1.4 额外依赖**：`setup.sh` 不装 torch/transformers/timm/kornia。
+> 这些是 RMBG-1.4 抠图脚本的必须依赖，需手动安装（见 SETUP.md §3b）。
 
 ## Key Configuration Files
 

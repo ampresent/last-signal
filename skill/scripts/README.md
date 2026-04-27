@@ -13,7 +13,7 @@ All scripts are designed to be run from the **project root** directory (not from
 | `gen_masks.py` | MobileSAM + Omni mask generation (objects, walkable, water) |
 | `gen_character_views.py` | Character perspective generation |
 | `cutout_from_sheet.py` | Frame-by-frame cutout from sprite sheets |
-| `greenscreen_cutout.py` | HSV green-screen removal with Omni verification loop |
+| `rmbg14_cutout.py` | RMBG-1.4 background removal (any background, no HF token needed) |
 | `build.py` | PNG→WebP build + reference updates |
 | `setup.sh` | Environment setup (MobileSAM models, dependencies) |
 

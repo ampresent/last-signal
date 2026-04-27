@@ -83,12 +83,12 @@ right: frame 98-168
 
 水平镜像补全反方向（right → left，left → right）。
 
-## 6. 抠图（绿幕）
+## 6. 抠图（RMBG-1.4）
 
-> **⚠️ 必须使用项目脚本 `scripts/greenscreen_cutout.py`，不要自己写 GrabCut。**
+> **使用 `scripts/rmbg14_cutout.py` 进行抠图。无需 HF token（公开模型）。**
 >
-> GrabCut 在此场景下会侵蚀角色边缘。项目脚本使用纯 HSV 阈值移除绿色，
-> 已经过 left/right/up 三个方向验证，自带 omni 模型自动验证循环。
+> RMBG-1.4 使用深度学习模型移除背景，适用于任意背景（不限绿幕）。
+> 支持单帧模式和 sheet 模式（sheet 快 7.5x）。
 
 ### 6.1 裁剪角色区域（关键步骤）
 
@@ -105,24 +105,30 @@ Image.fromarray(crop).save(f'selected/frame_{idx:04d}.png')
 ### 6.2 运行抠图脚本
 
 ```bash
-python3 scripts/greenscreen_cutout.py <direction> <cropped_frames_dir>
+python3 scripts/rmbg14_cutout.py <direction> <cropped_frames_dir>
 
 # 示例：
-python3 scripts/greenscreen_cutout.py down down_selected
+python3 scripts/rmbg14_cutout.py down down_selected
+python3 scripts/rmbg14_cutout.py left left_selected --no-verify
+python3 scripts/rmbg14_cutout.py up up_selected --sheet --no-verify  # sheet 模式更快
 ```
 
+**前置依赖**：`torch` + `transformers` + `timm` + `kornia`（见 SETUP.md §3b）。
+缺少任何一个都会导致 `ModuleNotFoundError` 或 `ImportError`。
+
+**内存要求**：模型加载 + 推理峰值约 1.5-2GB。3.4GB 机器可行。
+
 脚本自动流程：
-1. 纯 HSV 绿色检测（H=35-85, S≥50, V≥50）
-2. 逐帧用 omni 模型验证（无绿边 + 角色完整 + 背景透明）
-3. 验证失败则自动扩大绿色范围重试（最多 5 轮）
-4. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
+1. 加载 RMBG-1.4 模型（本地 R2 副本，或从 hf-mirror.com 自动下载）
+2. 逐帧推理（或 `--sheet` 整张推理），生成 alpha mask
+3. 自动裁剪 + 缩放到 64×128 画布
+4. 可选 omni 模型验证（默认开启，`--no-verify` 跳过）
+5. 输出 `assets/sprites/{char}_{dir}_f{0-7}.webp`
 
 ### 6.3 如果脚本输出空文件
 
 检查输入帧是否已裁剪到角色区域。脚本的 `process_frame` 直接将输入帧
 贴到 64×128 画布，不做缩放——输入必须接近或小于 64×128。
-
-**不做**：GrabCut、边缘腐蚀、亮绿补充、形态学开运算。
 
 ### 6.4 验证
 
@@ -133,7 +139,18 @@ bash mimo_api.sh image assets/sprites/kai_down_f0.webp \
   "角色可见吗？背景透明吗？边缘有绿边吗？简短回答。"
 ```
 
-### 6.5 跨方向尺寸校对（必须）
+### 6.5 抠图方案对比（逐帧 vs 拼 sheet）
+
+在 3.4GB 内存 CPU 机器上实测（8帧 500×1100 → 64×128），RMBG-1.4：
+
+| 方案 | 耗时 | 说明 |
+|------|------|------|
+| A: 逐帧推理（8次） | 23.6s (3.0s/帧) | 稳定 |
+| B: 拼 4×2 sheet 单次推理 | **3.2s (0.4s/帧)** | ✅ 推荐，快 7.5x |
+
+**结论：Sheet 模式在 CPU 环境下显著更快。推荐使用 `--sheet` 参数。**
+
+### 6.6 跨方向尺寸校对（必须）
 
 不同方向的视频素材中，角色在画面里的占比往往不一致（常见：正面/背面比侧面小 15-20%）。
 如果不校对，游戏里转向时角色会忽大忽小。
@@ -194,13 +211,11 @@ Row 3: Back   [...]
 |------|------|
 | 方向不纯 | 收紧帧范围，排除 turning 帧 |
 | 速度不一致 | 检查帧数是否相同 |
-| 绿色杂边 | 提高 S/V 阈值（S≥70, V≥70） |
-| 切掉细节 | 不腐蚀边缘，窄范围 HSV |
 | 关键帧不准 | 只选中间帧，宁可少帧 |
 | 转身帧混入 | 宁愿丢帧保证纯度 |
 | **脚本输出空文件** | **输入帧必须先裁剪到角色区域，不能传全帧** |
-| **GrabCut 吃边缘** | **不要用 GrabCut，用 `scripts/greenscreen_cutout.py`** |
-| **转向时角色忽大忽小** | **各方向素材角色占比不同，必须做 6.5 跨方向尺寸校对** |
+| **边缘有残留** | **检查 RMBG-1.4 模型是否加载成功，输入帧是否正确裁剪** |
+| **转向时角色忽大忽小** | **各方向素材角色占比不同，必须做 6.6 跨方向尺寸校对** |
 
 ---
 **Related references:** [gameplay](../reference/gameplay.md) · [asset-pipeline](../reference/asset-pipeline.md)
