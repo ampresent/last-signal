@@ -77,14 +77,12 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
+See **`setup.md`** for full setup instructions (基础依赖、HuggingFace 镜像、MobileSAM、RMBG-2.0)。
+
+Quick start:
+
 ```bash
-# HuggingFace mirror (required in China)
-export HF_ENDPOINT=https://hf-mirror.com
-
-# Dependencies
-pip3 install --break-system-packages onnxruntime numpy opencv-python-headless requests pillow
-
-# MobileSAM models
+# 一键初始化（除 RMBG-2 外所有依赖）
 bash scripts/setup.sh
 ```
 
