@@ -77,7 +77,7 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
-See **[`SETUP.md`](../../SETUP.md)** at project root for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
+See **[`SETUP.md`](./SETUP.md)** for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
 
 Quick start:
 
