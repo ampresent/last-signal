@@ -35,7 +35,8 @@ MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+ASSETS_DIR = os.path.join(PROJECT_ROOT, "assets")
 # ── 自动生成的 spawn 位置（从 walkable mask 随机采样） ──
 _computed_spawns = {}
 
@@ -57,7 +58,7 @@ def _random_walkable_spawn(mask_path):
     return [round(nx, 4), round(ny, 4)]
 
 MASK_DIR = os.path.join(ASSETS_DIR, "masks")
-MODELS_DIR = os.path.join(BASE_DIR, "models")
+MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 os.makedirs(MASK_DIR, exist_ok=True)
 
 # ── Omni API ──
@@ -80,7 +81,7 @@ SCENES = {
             {"id": "window", "label": "窗户", "bbox": [10, 140, 460, 590]},
             {"id": "door", "label": "门", "bbox": [760, 140, 938, 600]},
         ],
-        "walkable": {"bbox": [60, 400, 900, 627], "label": "房间地面"},
+        "walkable": {"label": "房间地面"},
         "water": None,
         "edge_transitions": [
             {"id": "to_street", "label": "出门", "zone": "bottom",
@@ -95,8 +96,8 @@ SCENES = {
             {"id": "road_right", "label": "通往旧工业带", "bbox": [520, 80, 938, 520]},
             {"id": "dumpster", "label": "垃圾桶", "bbox": [350, 440, 540, 600]},
         ],
-        "walkable": {"bbox": [30, 160, 930, 627], "label": "街道地面"},
-        "water": {"bbox": [30, 480, 930, 627], "label": "路面积水"},
+        "walkable": {"label": "街道地面"},
+        "water": {"label": "路面积水"},
         "edge_transitions": [
             {"id": "to_alley", "label": "进入小巷", "zone": "left",
              "size": 50, "target": "alley"},
@@ -109,7 +110,7 @@ SCENES = {
             {"id": "oracle", "label": "神秘客人", "bbox": [200, 300, 420, 560]},
             {"id": "exit", "label": "出口", "bbox": [760, 200, 938, 600]},
         ],
-        "walkable": {"bbox": [60, 180, 900, 627], "label": "酒吧地面"},
+        "walkable": {"label": "酒吧地面"},
         "water": None,
         "edge_transitions": []
     },
@@ -120,8 +121,8 @@ SCENES = {
             {"id": "graffiti", "label": "涂鸦墙", "bbox": [10, 200, 230, 560]},
             {"id": "exit", "label": "返回街道", "bbox": [740, 300, 938, 627]},
         ],
-        "walkable": {"bbox": [60, 120, 900, 627], "label": "巷子地面"},
-        "water": {"bbox": [60, 460, 900, 627], "label": "巷子积水"},
+        "walkable": {"label": "巷子地面"},
+        "water": {"label": "巷子积水"},
         "edge_transitions": []
     },
     "tower": {
@@ -131,8 +132,8 @@ SCENES = {
             {"id": "guard_booth", "label": "警卫亭", "bbox": [220, 480, 420, 620]},
             {"id": "exit", "label": "返回街道", "bbox": [780, 400, 938, 627]},
         ],
-        "walkable": {"bbox": [100, 200, 900, 627], "label": "塔楼广场地面"},
-        "water": {"bbox": [100, 500, 900, 627], "label": "广场积水"},
+        "walkable": {"label": "塔楼广场地面"},
+        "water": {"label": "广场积水"},
         "edge_transitions": []
     },
     "server": {
@@ -143,15 +144,15 @@ SCENES = {
             {"id": "rooftop_exit", "label": "通往楼顶", "bbox": [380, 400, 600, 627]},
             {"id": "lobby_exit", "label": "返回大厅", "bbox": [0, 500, 250, 627]},
         ],
-        "walkable": {"bbox": [60, 100, 900, 627], "label": "机房地面"},
+        "walkable": {"label": "机房地面"},
         "water": None,
         "edge_transitions": []
     },
     "rooftop": {
         "image": "bg_rooftop.png",
         "objects": [],
-        "walkable": {"bbox": [60, 100, 900, 627], "label": "楼顶地面"},
-        "water": {"bbox": [60, 480, 900, 627], "label": "楼顶积水"},
+        "walkable": {"label": "楼顶地面"},
+        "water": {"label": "楼顶积水"},
         "edge_transitions": [
             {"id": "to_server", "label": "下楼", "zone": "bottom",
              "size": 60, "target": "server"},
@@ -164,7 +165,7 @@ SCENES = {
             {"id": "safe", "label": "保险柜", "bbox": [750, 280, 938, 620]},
             {"id": "chair", "label": "办公椅", "bbox": [640, 380, 830, 620]},
         ],
-        "walkable": {"bbox": [60, 140, 900, 627], "label": "办公室地面"},
+        "walkable": {"label": "办公室地面"},
         "water": None,
         "edge_transitions": []
     },
@@ -177,7 +178,7 @@ SCENES = {
             {"id": "guard_post", "label": "警卫亭", "bbox": [50, 350, 280, 560]},
             {"id": "exit", "label": "出口", "bbox": [0, 500, 200, 627]},
         ],
-        "walkable": {"bbox": [30, 180, 930, 627], "label": "大厅地面"},
+        "walkable": {"label": "大厅地面"},
         "water": None,
         "edge_transitions": [
             {"id": "to_maintenance", "label": "地下通道", "zone": "bottom",
@@ -192,8 +193,8 @@ SCENES = {
             {"id": "warning_sign", "label": "警告标志", "bbox": [650, 100, 850, 320]},
             {"id": "exit", "label": "返回大厅", "bbox": [0, 500, 200, 627]},
         ],
-        "walkable": {"bbox": [30, 100, 930, 627], "label": "通道地面"},
-        "water": {"bbox": [30, 480, 930, 627], "label": "通道积水"},
+        "walkable": {"label": "通道地面"},
+        "water": {"label": "通道积水"},
         "edge_transitions": []
     },
     "data_haven": {
@@ -204,7 +205,7 @@ SCENES = {
             {"id": "antenna", "label": "天线阵列", "bbox": [350, 20, 600, 180]},
             {"id": "exit", "label": "出口", "bbox": [0, 500, 200, 627]},
         ],
-        "walkable": {"bbox": [30, 100, 930, 627], "label": "站台地面"},
+        "walkable": {"label": "站台地面"},
         "water": None,
         "edge_transitions": []
     },
@@ -215,7 +216,7 @@ SCENES = {
             {"id": "monitor", "label": "监控屏", "bbox": [550, 150, 780, 400]},
             {"id": "terminal", "label": "控制台", "bbox": [100, 380, 350, 580]},
         ],
-        "walkable": {"bbox": [60, 140, 900, 627], "label": "实验室地面"},
+        "walkable": {"label": "实验室地面"},
         "water": None,
         "edge_transitions": []
     },
@@ -226,7 +227,7 @@ SCENES = {
             {"id": "window", "label": "窗户", "bbox": [650, 100, 938, 480]},
             {"id": "nurse_station", "label": "护士站", "bbox": [400, 300, 600, 500]},
         ],
-        "walkable": {"bbox": [30, 120, 930, 627], "label": "走廊地面"},
+        "walkable": {"label": "走廊地面"},
         "water": None,
         "edge_transitions": [
             {"id": "to_street", "label": "出院", "zone": "bottom",
@@ -361,16 +362,123 @@ def omni_analyze_image(image_path, prompt, max_tokens=4096):
             f"mimo-omni 不可用: {MIMO_API_SCRIPT} 不存在\n"
             f"请确保 OpenClaw mimo-omni skill 已安装。")
 
+    env = os.environ.copy()
+    # 确保 MIMO_API_KEY 传递
     result = subprocess.run(
         ["bash", MIMO_API_SCRIPT, "image", image_path, prompt,
          "--max-tokens", str(max_tokens)],
-        capture_output=True, text=True, timeout=120
+        capture_output=True, text=True, timeout=180,
+        env=env
     )
     if result.returncode != 0:
         raise RuntimeError(f"Omni 调用失败 (exit {result.returncode}): {result.stderr}")
-    if not result.stdout.strip():
-        raise RuntimeError("Omni 返回空结果")
-    return result.stdout.strip()
+    stdout = result.stdout.strip()
+    if not stdout:
+        # 可能 reasoning_content 占了所有 token，重试一次更大的 token
+        if max_tokens < 8192:
+            print(f"    ⚠️  Omni 返回空，retry (max-tokens {max_tokens}→8192)...")
+            return omni_analyze_image(image_path, prompt, max_tokens=8192)
+        raise RuntimeError(f"Omni 返回空结果 (stderr: {result.stderr[:200]})")
+    return stdout
+
+
+def omni_detect_walkable_bbox(image_path, scene_id, img_w, img_h):
+    """
+    用 Omni 视觉模型动态检测场景中的可行走地面区域.
+    返回: (bbox, crop_top_pct)
+      bbox: [x1, y1, x2, y2] 像素坐标
+      crop_top_pct: float, 裁掉顶部墙壁/天花板的比例
+    """
+    import re
+    prompt = (
+        f"这张图是 2D 冒险游戏的场景背景 ({img_w}x{img_h} 像素)。\n"
+        f"场景: {scene_id}\n\n"
+        "请分析图中的空间布局，识别角色可以行走的地面区域。\n"
+        "注意区分：\n"
+        "- 地面/路面/走廊/广场等可行走区域\n"
+        "- 墙壁、天花板、家具、障碍物等不可行走区域\n\n"
+        "返回 JSON 对象（不要其他文字）：\n"
+        "{\n"
+        '  "walkable_bbox": [x1, y1, x2, y2],\n'
+        '  "crop_top_pct": 0.XX,\n'
+        '  "reasoning": "简述你如何判断地面区域的边界"\n'
+        "}\n\n"
+        "walkable_bbox: 只包含实际可行走地面的像素坐标范围\n"
+        "crop_top_pct: 从图片顶部到墙壁/天花板结束位置的比例（0.0-1.0）。"
+        "这个值应该小于 walkable_bbox 的 y1 所占比例。"
+        "例如如果墙壁在 y=200 处结束（占图片高度 32%），crop_top_pct 约 0.32"
+    )
+    response = omni_analyze_image(image_path, prompt)
+
+    # 解析 JSON
+    json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+    if not json_match:
+        raise RuntimeError(f"Omni 未返回有效 JSON: {response[:200]}")
+
+    import json
+    result = json.loads(json_match.group())
+
+    bbox = result.get("walkable_bbox")
+    crop_top_pct = result.get("crop_top_pct", 0.35)
+    reasoning = result.get("reasoning", "")
+
+    if not bbox or len(bbox) != 4:
+        raise RuntimeError(f"Omni 返回的 bbox 无效: {bbox}")
+
+    # clamp to image bounds
+    x1, y1, x2, y2 = bbox
+    x1 = max(0, min(x1, img_w - 1))
+    y1 = max(0, min(y1, img_h - 1))
+    x2 = max(x1 + 10, min(x2, img_w))
+    y2 = max(y1 + 10, min(y2, img_h))
+    bbox = [x1, y1, x2, y2]
+
+    crop_top_pct = max(0.0, min(1.0, float(crop_top_pct)))
+
+    print(f"    🔍 Omni 检测 walkable bbox: {bbox}")
+    print(f"    🔍 Omni 检测 crop_top_pct: {crop_top_pct}")
+    print(f"    💭 推理: {reasoning}")
+
+    return bbox, crop_top_pct
+
+
+def omni_detect_water_bbox(image_path, scene_id, img_w, img_h):
+    """
+    用 Omni 视觉模型动态检测场景中的水面/积水区域.
+    返回: bbox [x1, y1, x2, y2] 或 None（无水面时）
+    """
+    import re
+    prompt = (
+        f"这张图是 2D 冒险游戏的场景背景 ({img_w}x{img_h} 像素)。\n"
+        f"场景: {scene_id}\n\n"
+        "请检查图中是否有水面、积水、水洼、水池等水域区域。\n"
+        "如果存在水域，返回 JSON（不要其他文字）：\n"
+        '{"water_bbox": [x1, y1, x2, y2], "reasoning": "简述"}\n'
+        "如果不存在水域，返回：\n"
+        '{"water_bbox": null, "reasoning": "无水域"}'
+    )
+    response = omni_analyze_image(image_path, prompt)
+
+    json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+    if not json_match:
+        return None
+
+    import json
+    result = json.loads(json_match.group())
+    bbox = result.get("water_bbox")
+
+    if bbox and len(bbox) == 4:
+        x1, y1, x2, y2 = bbox
+        x1 = max(0, min(x1, img_w - 1))
+        y1 = max(0, min(y1, img_h - 1))
+        x2 = max(x1 + 10, min(x2, img_w))
+        y2 = max(y1 + 10, min(y2, img_h))
+        print(f"    🔍 Omni 检测 water bbox: {[x1, y1, x2, y2]}")
+        print(f"    💭 推理: {result.get('reasoning', '')}")
+        return [x1, y1, x2, y2]
+
+    print(f"    🔍 Omni 检测: 无水域")
+    return None
 
 
 def omni_verify_mask(image_path, mask_path, obj_label, scene_id):
@@ -409,6 +517,31 @@ def omni_verify_mask(image_path, mask_path, obj_label, scene_id):
         "只回复 PASS 或 FAIL, 不要其他文字。"
     )
     response = omni_analyze_image(preview_path, prompt)
+
+    if "PASS" in response.upper():
+        return True, "验证通过"
+    else:
+        reason = response.replace("FAIL", "").strip()
+        return False, reason
+
+
+def omni_verify_walkable(overlay_path, scene_id, walk_pct):
+    """
+    Walkable mask 叠层验证: Omni 审查浅绿色 overlay.
+    返回: (passed: bool, reason: str)
+    """
+    prompt = (
+        f"这是游戏场景 '{scene_id}' 的 walkable mask 验证图。\n"
+        f"浅绿色半透明区域标记为角色可行走区域（覆盖率 {walk_pct:.1f}%）。\n\n"
+        "请检查:\n"
+        "1. 绿色是否只覆盖地面/路面？有没有覆盖墙壁、天花板、家具？\n"
+        "2. 有没有覆盖障碍物（桌子、机器、箱子、凳子等）？\n"
+        "3. 区域是否连通（没有孤岛或断裂）？\n\n"
+        "如果 walkable 区域质量合格, 回复: PASS\n"
+        "如果不合格, 回复: FAIL <具体问题和位置>\n"
+        "只回复 PASS 或 FAIL + 原因, 不要其他文字。"
+    )
+    response = omni_analyze_image(overlay_path, prompt)
 
     if "PASS" in response.upper():
         return True, "验证通过"
@@ -503,25 +636,83 @@ def process_scene(scene_id, data, sam, skip_omni_detect=False):
     # ── Walkable ──
     walkable_cfg = data.get("walkable")
     if walkable_cfg:
-        seg = sam.segment(img, walkable_cfg["bbox"])
-        ratio = np.count_nonzero(seg) / (h * w) * 100
-        if ratio < 1.0:
-            print(f"    ⚠️  walkable: mask 太小 ({ratio:.2f}%), bbox 可能不准")
-        # 减去障碍物
+        # Step 0: Omni 动态检测 walkable bbox（不 hardcode）
+        if not skip_omni_detect:
+            print(f"  [Step 0] Omni 动态检测 walkable 区域...")
+            walkable_bbox, crop_top_pct = omni_detect_walkable_bbox(
+                img_path, scene_id, w, h)
+        else:
+            # skip-omni-detect 模式下用 fallback 全区域 bbox
+            walkable_bbox = [int(w*0.06), int(h*0.6), int(w*0.95), h-1]
+            crop_top_pct = 0.35
+            print(f"  [Step 0] skip-omni-detect: 使用 fallback bbox {walkable_bbox}")
+
+        # Step 1: MobileSAM 在 walkable bbox 内分割 → 初始 mask
+        seg = sam.segment(img, walkable_bbox)
+        init_ratio = np.count_nonzero(seg) / (h * w) * 100
+        print(f"  [Step 1] MobileSAM 初始分割 (bbox={walkable_bbox}): {init_ratio:.2f}% 覆盖")
+
+        # Step 2: 空间裁剪 — 裁掉顶部墙壁/天花板区域 (crop_top_pct from Omni)
+        # crop_top_pct 是相对于整张图的比例，但只在 bbox 范围内生效
+        if crop_top_pct:
+            crop_y = max(int(h * crop_top_pct), walkable_bbox[1])
+            seg[:crop_y, :] = 0
+            after_crop = np.count_nonzero(seg) / (h * w) * 100
+            print(f"  [Step 2] 空间裁剪 (crop_top_pct={crop_top_pct}, crop_y={crop_y}): {after_crop:.2f}% 覆盖")
+
+        # Step 3: 减去障碍物 object masks
         for obj in data["objects"]:
             obj_mask_path = os.path.join(MASK_DIR, f"{scene_id}_{obj['id']}_mask.png")
             if os.path.exists(obj_mask_path):
                 obs = cv2.imread(obj_mask_path, cv2.IMREAD_GRAYSCALE)
                 if obs is not None:
                     obs = cv2.resize(obs, (w, h), interpolation=cv2.INTER_NEAREST)
+                    removed = np.count_nonzero(seg[obs > 128])
                     seg[obs > 128] = 0
-        seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+                    if removed > 0:
+                        print(f"  [Step 3] 减去障碍物 '{obj['label']}': {removed} px")
+
+        # Step 4: 形态学清理 (MORPH_CLOSE 11×11 + MORPH_OPEN 5×5)
+        seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((11, 11), np.uint8))
         seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        after_morph = np.count_nonzero(seg) / (h * w) * 100
+        print(f"  [Step 4] 形态学清理: {after_morph:.2f}% 覆盖")
+
+        # Step 5: 连通性强制 — 只保留最大连通域
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(seg)
+        if num_labels > 1:
+            # 排除背景(label=0), 找最大前景连通域
+            areas = stats[1:, cv2.CC_STAT_AREA]
+            max_label = np.argmax(areas) + 1
+            max_area = areas[max_label - 1]
+            seg_clean = np.zeros_like(seg)
+            seg_clean[labels == max_label] = 255
+            dropped = np.count_nonzero(seg) - np.count_nonzero(seg_clean)
+            seg = seg_clean
+            print(f"  [Step 5] 连通性强制: 保留最大域 ({max_area} px), 丢弃 {dropped} px")
+        else:
+            print(f"  [Step 5] 连通性检查: 单一连通域 ✓")
+
+        # Step 6: 缩放到游戏尺寸 (960×640) 并保存
         walkable_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
         walkable_path = os.path.join(MASK_DIR, f"{scene_id}_walkable_mask.png")
         cv2.imwrite(walkable_path, walkable_game)
         walk_pct = np.count_nonzero(walkable_game) / (GAME_W * GAME_H) * 100
-        print(f"  🚶 walkable ({walkable_cfg['label']}): {walk_pct:.1f}%")
+        print(f"  [Step 6] 保存 walkable mask: {walk_pct:.1f}% 覆盖")
+
+        # Step 7: 生成浅绿色叠层验证图 (alpha=40, 不误导 omni)
+        img_game = cv2.resize(img, (GAME_W, GAME_H), interpolation=cv2.INTER_LINEAR)
+        overlay = img_game.copy()
+        overlay[walkable_game > 128] = [0, 255, 0]  # 绿色
+        blended = cv2.addWeighted(img_game, 0.85, overlay, 0.15, 0)  # alpha≈40/255≈0.15
+        overlay_path = os.path.join(MASK_DIR, f"{scene_id}_walkable_overlay.png")
+        cv2.imwrite(overlay_path, blended)
+        print(f"  [Step 7] 浅绿叠层验证图: {overlay_path}")
+
+        # Step 8: Omni 视觉模型验证 — PASS/FAIL
+        passed, reason = omni_verify_walkable(overlay_path, scene_id, walk_pct)
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"  [Step 8] Omni 验证: {status} — {reason}")
 
         # 从 walkable mask 随机采样 spawn 位置
         spawn = _random_walkable_spawn(walkable_path)
@@ -531,16 +722,26 @@ def process_scene(scene_id, data, sam, skip_omni_detect=False):
     # ── Water ──
     water_cfg = data.get("water")
     if water_cfg:
-        seg = sam.segment(img, water_cfg["bbox"])
-        ratio = np.count_nonzero(seg) / (h * w) * 100
-        if ratio < 0.3:
-            print(f"    ⚠️  water: mask 太小 ({ratio:.2f}%), bbox 可能不准")
-        seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
-        seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-        water_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
-        cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_water_mask.png"), water_game)
-        water_pct = np.count_nonzero(water_game) / (GAME_W * GAME_H) * 100
-        print(f"  💧 water ({water_cfg['label']}): {water_pct:.1f}%")
+        # Omni 动态检测 water bbox
+        if not skip_omni_detect:
+            print(f"  🔍 Omni 动态检测水域...")
+            water_bbox = omni_detect_water_bbox(img_path, scene_id, w, h)
+        else:
+            water_bbox = None
+
+        if water_bbox:
+            seg = sam.segment(img, water_bbox)
+            ratio = np.count_nonzero(seg) / (h * w) * 100
+            if ratio < 0.3:
+                print(f"    ⚠️  water: mask 太小 ({ratio:.2f}%), bbox 可能不准")
+            seg = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+            seg = cv2.morphologyEx(seg, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+            water_game = cv2.resize(seg, (GAME_W, GAME_H), interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(os.path.join(MASK_DIR, f"{scene_id}_water_mask.png"), water_game)
+            water_pct = np.count_nonzero(water_game) / (GAME_W * GAME_H) * 100
+            print(f"  💧 water ({water_cfg['label']}): {water_pct:.1f}%")
+        else:
+            print(f"  💧 water: Omni 未检测到水域，跳过")
 
     # ── 边缘过渡 ──
     for edge in data.get("edge_transitions", []):
@@ -602,9 +803,9 @@ def save_metadata():
 def git_push_mask(scene_id, obj_id=None):
     """提交并推送."""
     msg = f"mask: {scene_id}/{obj_id}" if obj_id else f"mask: {scene_id}"
-    subprocess.run(["git", "add", "-A"], cwd=BASE_DIR, check=True)
-    subprocess.run(["git", "commit", "-m", msg], cwd=BASE_DIR, check=True)
-    subprocess.run(["git", "push"], cwd=BASE_DIR, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=PROJECT_ROOT, check=True)
+    subprocess.run(["git", "commit", "-m", msg], cwd=PROJECT_ROOT, check=True)
+    subprocess.run(["git", "push"], cwd=PROJECT_ROOT, check=True)
     print(f"  📤 pushed: {msg}")
 
 

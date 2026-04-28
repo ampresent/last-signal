@@ -50,6 +50,10 @@
 
 **规则**：相位函数用整数倍频率，保证 frame 0 == frame N
 
+## 11. Git LFS 国内拉取卡顿
+
+**规则**：`git lfs pull` 在国内服务器极慢。用 `ghfast.top` 代理安装 git-lfs binary，拉取时可用 `--include` 选择性拉取。
+
 详见 `skill/reference/pitfalls.md` 获取完整解决方案。
 
 ---

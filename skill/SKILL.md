@@ -77,13 +77,14 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 
 ## Environment Setup
 
-See **[`SETUP.md`](./SETUP.md)** for full setup instructions (一键初始化、依赖安装、HuggingFace 镜像、已知问题)。
+See **[`SETUP.md`](./SETUP.md)** for full setup instructions (一键初始化、依赖安装、Git LFS、HuggingFace 镜像、已知问题)。
 
 Quick start:
 
 ```bash
 cd /root/.openclaw/workspace/last-signal
-bash setup.sh
+bash setup.sh        # 安装依赖 + git-lfs + 下载模型
+git lfs pull          # 拉取图片素材 (WebP/PNG)
 ```
 
 ## Key Configuration Files
