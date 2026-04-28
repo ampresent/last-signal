@@ -27,6 +27,42 @@ bash skill/scripts/setup.sh
 >
 > **实测环境**：阿里云 ECS，3.4GB RAM，无 GPU，Python 3.12，2026-04-28 验证通过。
 
+### ⏱️ 并发执行指南
+
+以下步骤之间**无依赖关系**，可以在不同终端/会话中并行执行以节省时间：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 第一步：环境准备（必须先完成）                                     │
+│   git clone → checkout → config                                  │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ 完成后，以下三项可同时跑：
+               ┌───────────┼───────────┐
+               ▼           ▼           ▼
+        ┌────────────┐ ┌──────────┐ ┌──────────────────┐
+        │ 第二步      │ │ 第三步    │ │ 第四步            │
+        │ pip 装依赖  │ │ 下载模型  │ │ 下载视频+提取帧   │
+        │ (~3min)     │ │ (~10s)   │ │ (~2min)          │
+        └──────┬─────┘ └────┬─────┘ └────────┬─────────┘
+               │            │                │
+               └────────────┼────────────────┘
+                            ▼
+                   ┌──────────────────┐
+                   │ 第五步：裁剪关键帧 │
+                   │ (依赖第四步)      │
+                   └────────┬─────────┘
+                            ▼
+                   ┌──────────────────┐
+                   │ 第六步：跑 RMBG   │
+                   │ (依赖二+三+五)    │
+                   └──────────────────┘
+```
+
+**实际操作**：开 3 个终端 / tmux pane，同时跑第二步、第三步、第四步。
+总耗时从串行 ~6min 压缩到 ~3min（瓶颈在 pip install）。
+
+---
+
 ### 第一步：环境准备
 
 ```bash
@@ -46,7 +82,7 @@ git config user.name "ampresent"
 git config user.email "ampresent@users.noreply.github.com"
 ```
 
-### 第二步：安装 Python 依赖
+### 第二步：安装 Python 依赖 🔀 可与第三、四步并行
 
 ```bash
 # pip 阿里源
@@ -90,7 +126,7 @@ pip3 install --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple
 >
 > **⚠️ `--ignore-installed rich`**：Debian 预装的 rich 缺少 RECORD 文件，不加此 flag 会报错。
 
-### 第三步：下载 RMBG-1.4 模型
+### 第三步：下载 RMBG-1.4 模型 🔀 可与第二、四步并行
 
 **方案 A：从 R2 下载（快，推荐）**
 
@@ -130,7 +166,7 @@ print('Done')
 "
 ```
 
-### 第四步：下载视频并提取帧
+### 第四步：下载视频并提取帧 🔀 可与第二、三步并行
 
 ```bash
 mkdir -p /tmp/sprite-work
@@ -141,7 +177,7 @@ mkdir -p /tmp/sprite-work/frames
 ffmpeg -y -i /tmp/sprite-work/source.mov /tmp/sprite-work/frames/frame_%04d.png
 ```
 
-### 第五步：裁剪后方向关键帧
+### 第五步：裁剪后方向关键帧 ⏳ 依赖第四步
 
 ```python
 from PIL import Image
@@ -154,7 +190,7 @@ for i, fid in enumerate(keyframes):
     cropped.save(f'/tmp/sprite-work/up_selected/frame_{i:04d}.png')
 ```
 
-### 第六步：跑 RMBG-1.4 抠图
+### 第六步：跑 RMBG-1.4 抠图 ⏳ 依赖第二+三+五步
 
 ```bash
 cd /root/.openclaw/workspace/last-signal
