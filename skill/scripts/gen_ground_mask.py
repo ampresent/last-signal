@@ -294,11 +294,13 @@ def omni_identify_ground_patches(image_path, scene_id, round_num=1, previous_mas
         f"这张图是 2D 冒险游戏 '{scene_id}' 的场景背景 (940x627 像素)。\n"
         f"你的任务是识别图中的【地面/路面】区域。\n\n"
         f"要求:\n"
-        f"1. 返回 3-6 个小矩形框，每个框覆盖一小块地面区域\n"
-        f"2. 框要小一些，精确覆盖地面，不要包含墙壁、天花板、物体\n"
-        f"3. 优先识别：人行道、路面、地板、台阶等可行走表面\n"
-        f"4. 避开：墙壁、窗户、门、家具、人物、杂物\n"
-        f"5. 框的坐标是像素坐标 [x1, y1, x2, y2]\n\n"
+        f"1. 返回 8-15 个**很小的**矩形框，每个框只覆盖一小块地面区域\n"
+        f"2. 每个框的宽度和高度都不要超过 80 像素（大约 80x80 以内）\n"
+        f"3. **重要：框要分散在整个地面区域，不要只集中在某一处**。从近景到远景都要覆盖\n"
+        f"4. 框要精确覆盖地面，不要包含墙壁、天花板、物体\n"
+        f"5. 优先识别：人行道、路面、地板、台阶等可行走表面\n"
+        f"6. 避开：墙壁、窗户、门、家具、人物、杂物\n"
+        f"7. 框的坐标是像素坐标 [x1, y1, x2, y2]，确保 x2-x1 <= 80 且 y2-y1 <= 80\n\n"
         f"返回 JSON 数组:\n"
         f'[{{"id": "patch_1", "label": "地面描述", "bbox": [x1, y1, x2, y2]}}]\n'
         f"只返回 JSON，不要其他文字。"
@@ -336,6 +338,19 @@ def omni_identify_ground_patches(image_path, scene_id, round_num=1, previous_mas
 
     try:
         boxes = json.loads(json_match.group())
+        # Clip oversized boxes to max 80px per dimension
+        MAX_PATCH_SIZE = 80
+        for box in boxes:
+            bbox = box.get("bbox", [])
+            if len(bbox) == 4:
+                x1, y1, x2, y2 = bbox
+                w, h = x2 - x1, y2 - y1
+                if w > MAX_PATCH_SIZE or h > MAX_PATCH_SIZE:
+                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    new_w = min(w, MAX_PATCH_SIZE)
+                    new_h = min(h, MAX_PATCH_SIZE)
+                    box["bbox"] = [cx - new_w // 2, cy - new_h // 2,
+                                   cx + new_w // 2, cy + new_h // 2]
         return boxes
     except json.JSONDecodeError:
         print(f"  ⚠️  JSON 解析失败")

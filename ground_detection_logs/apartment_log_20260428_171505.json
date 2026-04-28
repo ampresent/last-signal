@@ -1,0 +1,182 @@
+{
+  "scene_id": "apartment",
+  "start_time": "2026-04-28T17:14:35.778394",
+  "rounds": [
+    {
+      "round": 1,
+      "description": "第 1 轮地面识别",
+      "start_time": "2026-04-28T17:14:35.783808",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 5.0%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_ground.png",
+          "timestamp": "2026-04-28T17:15:02.439415"
+        },
+        {
+          "type": "review",
+          "content": "PASS: PASS",
+          "image_path": null,
+          "timestamp": "2026-04-28T17:15:05.320503"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地面",
+              "bbox": [
+                50,
+                580,
+                130,
+                627
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地面",
+              "bbox": [
+                200,
+                580,
+                280,
+                627
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地面",
+              "bbox": [
+                350,
+                580,
+                430,
+                627
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地面",
+              "bbox": [
+                500,
+                580,
+                580,
+                627
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "地面",
+              "bbox": [
+                650,
+                580,
+                730,
+                627
+              ]
+            },
+            {
+              "id": "patch_6",
+              "label": "地面",
+              "bbox": [
+                800,
+                580,
+                880,
+                627
+              ]
+            }
+          ],
+          "count": 6,
+          "timestamp": "2026-04-28T17:14:55.866341"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            50,
+            580,
+            130,
+            627
+          ],
+          "area_pct": 0.7631748617190947,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch0_mask.png",
+          "timestamp": "2026-04-28T17:14:56.802613"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            200,
+            580,
+            280,
+            627
+          ],
+          "area_pct": 0.8033866096576063,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch1_mask.png",
+          "timestamp": "2026-04-28T17:14:57.941625"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            350,
+            580,
+            430,
+            627
+          ],
+          "area_pct": 0.9012860972547422,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch2_mask.png",
+          "timestamp": "2026-04-28T17:14:59.059887"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            500,
+            580,
+            580,
+            627
+          ],
+          "area_pct": 0.8324001493094437,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch3_mask.png",
+          "timestamp": "2026-04-28T17:15:00.168605"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            650,
+            580,
+            730,
+            627
+          ],
+          "area_pct": 0.8685398215073467,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch4_mask.png",
+          "timestamp": "2026-04-28T17:15:01.283837"
+        },
+        {
+          "box_id": "patch_6",
+          "bbox": [
+            800,
+            580,
+            880,
+            627
+          ],
+          "area_pct": 0.8816043978417999,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch5_mask.png",
+          "timestamp": "2026-04-28T17:15:02.416986"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "PASS",
+          "passed": true,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_preview.png",
+          "timestamp": "2026-04-28T17:15:05.320479"
+        }
+      ],
+      "end_time": "2026-04-28T17:15:05.320507"
+    }
+  ],
+  "final_result": {
+    "mask_path": "/root/.openclaw/workspace/last-signal/assets/masks/apartment_walkable_mask.png",
+    "coverage_pct": 4.98828125,
+    "total_rounds": 1,
+    "total_time": "0:00:29.564302"
+  }
+}

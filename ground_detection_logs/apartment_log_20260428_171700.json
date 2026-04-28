@@ -1,0 +1,484 @@
+{
+  "scene_id": "apartment",
+  "start_time": "2026-04-28T17:15:34.826556",
+  "rounds": [
+    {
+      "round": 1,
+      "description": "第 1 轮地面识别",
+      "start_time": "2026-04-28T17:15:34.831908",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 5.2%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_ground.png",
+          "timestamp": "2026-04-28T17:15:58.529461"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL 地面识别存在误覆盖和明显遗漏。\n\n**具体问题：**\n1.  绿色区域（可行走区域）在边缘处与一些家具（如机箱、抽屉柜）的底座发生了重叠，可能将这些非地面物体误判为地面的一部分。\n2.  房间中央有大面积的裸露地板未被任何绿色区域覆盖，导致可行走区域不连续，遗漏明显。\n\n**误覆盖区域：**\nOVERCOVER [178, 757, 283, 921] 左侧机箱堆的底座区域\nOVERCOVER [643, 855, 706, 946] 右侧抽屉柜的底座区域\nOVERCOVER [885, 801, 999, 997] 最右侧机柜/设备的底座区域\n\n**遗漏区域：**\nMISSING [321, 700, 620, 895] 房间中央偏左的大片空地板\nMISSING [638, 732, 807, 868] 房间中央偏右，靠近主工作台的空地板",
+          "image_path": null,
+          "timestamp": "2026-04-28T17:16:08.942685"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地面",
+              "bbox": [
+                105,
+                575,
+                182,
+                622
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地面",
+              "bbox": [
+                248,
+                592,
+                315,
+                627
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地面",
+              "bbox": [
+                565,
+                558,
+                625,
+                585
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地面",
+              "bbox": [
+                165,
+                494,
+                230,
+                536
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "地面",
+              "bbox": [
+                392,
+                514,
+                460,
+                556
+              ]
+            },
+            {
+              "id": "patch_6",
+              "label": "地面",
+              "bbox": [
+                748,
+                534,
+                810,
+                570
+              ]
+            },
+            {
+              "id": "patch_7",
+              "label": "地面",
+              "bbox": [
+                186,
+                434,
+                254,
+                476
+              ]
+            },
+            {
+              "id": "patch_8",
+              "label": "地面",
+              "bbox": [
+                338,
+                444,
+                400,
+                486
+              ]
+            }
+          ],
+          "count": 8,
+          "timestamp": "2026-04-28T17:15:49.736600"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            105,
+            575,
+            182,
+            622
+          ],
+          "area_pct": 0.7657199090569752,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch0_mask.png",
+          "timestamp": "2026-04-28T17:15:50.673685"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            248,
+            592,
+            315,
+            627
+          ],
+          "area_pct": 0.4857647018901218,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch1_mask.png",
+          "timestamp": "2026-04-28T17:15:51.807017"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            565,
+            558,
+            625,
+            585
+          ],
+          "area_pct": 0.40143880009501515,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch2_mask.png",
+          "timestamp": "2026-04-28T17:15:52.912161"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            165,
+            494,
+            230,
+            536
+          ],
+          "area_pct": 0.7115952356713835,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch3_mask.png",
+          "timestamp": "2026-04-28T17:15:54.049096"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            392,
+            514,
+            460,
+            556
+          ],
+          "area_pct": 0.6985306593369304,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch4_mask.png",
+          "timestamp": "2026-04-28T17:15:55.159020"
+        },
+        {
+          "box_id": "patch_6",
+          "bbox": [
+            748,
+            534,
+            810,
+            570
+          ],
+          "area_pct": 0.619973531507686,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch5_mask.png",
+          "timestamp": "2026-04-28T17:15:56.293041"
+        },
+        {
+          "box_id": "patch_7",
+          "bbox": [
+            186,
+            434,
+            254,
+            476
+          ],
+          "area_pct": 0.8030472700125555,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch6_mask.png",
+          "timestamp": "2026-04-28T17:15:57.404125"
+        },
+        {
+          "box_id": "patch_8",
+          "bbox": [
+            338,
+            444,
+            400,
+            486
+          ],
+          "area_pct": 0.719230377685025,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch7_mask.png",
+          "timestamp": "2026-04-28T17:15:58.506652"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL 地面识别存在误覆盖和明显遗漏。\n\n**具体问题：**\n1.  绿色区域（可行走区域）在边缘处与一些家具（如机箱、抽屉柜）的底座发生了重叠，可能将这些非地面物体误判为地面的一部分。\n2.  房间中央有大面积的裸露地板未被任何绿色区域覆盖，导致可行走区域不连续，遗漏明显。\n\n**误覆盖区域：**\nOVERCOVER [178, 757, 283, 921] 左侧机箱堆的底座区域\nOVERCOVER [643, 855, 706, 946] 右侧抽屉柜的底座区域\nOVERCOVER [885, 801, 999, 997] 最右侧机柜/设备的底座区域\n\n**遗漏区域：**\nMISSING [321, 700, 620, 895] 房间中央偏左的大片空地板\nMISSING [638, 732, 807, 868] 房间中央偏右，靠近主工作台的空地板",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_preview.png",
+          "timestamp": "2026-04-28T17:16:08.942655"
+        }
+      ],
+      "end_time": "2026-04-28T17:16:08.942709"
+    },
+    {
+      "round": 2,
+      "description": "第 2 轮地面识别",
+      "start_time": "2026-04-28T17:16:08.942715",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 14.1%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round2_ground.png",
+          "timestamp": "2026-04-28T17:16:51.206899"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL\n\n整体分析如下：\n\n1.  **绿色区域是否准确覆盖了地面？** 是。前景和中景的大片绿色区域基本覆盖了主要的地板部分。\n2.  **是否有绿色区域覆盖到了非地面物体？** 是。\n    *   **OVERCOVER [175,761,289,906]**：绿色区域错误地覆盖了办公椅的椅腿和底座。\n    *   **OVERCOVER [47,695,185,919]**：绿色区域延伸到了左侧电脑主机的侧面。\n    *   **OVERCOVER [762,781,919,917]**：绿色区域延伸到了右侧文件柜的侧面。\n3.  **是否有明显的地面区域未被覆盖？** 是。\n    *   **MISSING [269,913,427,999]**：画面正下方、靠近玩家视角的一块深色地面未被覆盖。\n    *   **MISSING [350,829,458,898]**：位于两把椅子之间、后方地板的一部分未被覆盖。\n4.  **整体覆盖率是否足够？** 否。虽然主要地面被覆盖，但存在明显的错误覆盖（覆盖了垂直家具）和遗漏区域，这会影响路径规划的准确性。",
+          "image_path": null,
+          "timestamp": "2026-04-28T17:17:00.809268"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地面",
+              "bbox": [
+                320,
+                580,
+                400,
+                627
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地面",
+              "bbox": [
+                480,
+                500,
+                560,
+                560
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地面",
+              "bbox": [
+                180,
+                480,
+                260,
+                540
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地面",
+              "bbox": [
+                700,
+                480,
+                780,
+                540
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "地面",
+              "bbox": [
+                100,
+                450,
+                180,
+                510
+              ]
+            },
+            {
+              "id": "patch_6",
+              "label": "地面",
+              "bbox": [
+                820,
+                500,
+                900,
+                560
+              ]
+            },
+            {
+              "id": "patch_7",
+              "label": "地面",
+              "bbox": [
+                350,
+                450,
+                430,
+                510
+              ]
+            },
+            {
+              "id": "patch_8",
+              "label": "地面",
+              "bbox": [
+                50,
+                500,
+                130,
+                560
+              ]
+            },
+            {
+              "id": "patch_9",
+              "label": "地面",
+              "bbox": [
+                650,
+                500,
+                730,
+                560
+              ]
+            },
+            {
+              "id": "patch_10",
+              "label": "地面",
+              "bbox": [
+                200,
+                400,
+                280,
+                460
+              ]
+            }
+          ],
+          "count": 10,
+          "timestamp": "2026-04-28T17:16:40.165985"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            320,
+            580,
+            400,
+            627
+          ],
+          "area_pct": 0.8595473209135023,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch0_mask.png",
+          "timestamp": "2026-04-28T17:16:41.067387"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            480,
+            500,
+            560,
+            560
+          ],
+          "area_pct": 1.2183989955546506,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch1_mask.png",
+          "timestamp": "2026-04-28T17:16:42.163674"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            180,
+            480,
+            260,
+            540
+          ],
+          "area_pct": 1.0650174759917201,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch2_mask.png",
+          "timestamp": "2026-04-28T17:16:43.313217"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            700,
+            480,
+            780,
+            540
+          ],
+          "area_pct": 1.301197868947029,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch3_mask.png",
+          "timestamp": "2026-04-28T17:16:44.434490"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            100,
+            450,
+            180,
+            510
+          ],
+          "area_pct": 1.1576571990905697,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch4_mask.png",
+          "timestamp": "2026-04-28T17:16:45.546292"
+        },
+        {
+          "box_id": "patch_6",
+          "bbox": [
+            820,
+            500,
+            900,
+            560
+          ],
+          "area_pct": 1.294241406223489,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch5_mask.png",
+          "timestamp": "2026-04-28T17:16:46.679055"
+        },
+        {
+          "box_id": "patch_7",
+          "bbox": [
+            350,
+            450,
+            430,
+            510
+          ],
+          "area_pct": 1.2696392819573112,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch6_mask.png",
+          "timestamp": "2026-04-28T17:16:47.784156"
+        },
+        {
+          "box_id": "patch_8",
+          "bbox": [
+            50,
+            500,
+            130,
+            560
+          ],
+          "area_pct": 1.3478570701415047,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch7_mask.png",
+          "timestamp": "2026-04-28T17:16:48.925964"
+        },
+        {
+          "box_id": "patch_9",
+          "bbox": [
+            650,
+            500,
+            730,
+            560
+          ],
+          "area_pct": 1.3621093352336353,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch8_mask.png",
+          "timestamp": "2026-04-28T17:16:50.069111"
+        },
+        {
+          "box_id": "patch_10",
+          "bbox": [
+            200,
+            400,
+            280,
+            460
+          ],
+          "area_pct": 1.240795412127999,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch9_mask.png",
+          "timestamp": "2026-04-28T17:16:51.183086"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL\n\n整体分析如下：\n\n1.  **绿色区域是否准确覆盖了地面？** 是。前景和中景的大片绿色区域基本覆盖了主要的地板部分。\n2.  **是否有绿色区域覆盖到了非地面物体？** 是。\n    *   **OVERCOVER [175,761,289,906]**：绿色区域错误地覆盖了办公椅的椅腿和底座。\n    *   **OVERCOVER [47,695,185,919]**：绿色区域延伸到了左侧电脑主机的侧面。\n    *   **OVERCOVER [762,781,919,917]**：绿色区域延伸到了右侧文件柜的侧面。\n3.  **是否有明显的地面区域未被覆盖？** 是。\n    *   **MISSING [269,913,427,999]**：画面正下方、靠近玩家视角的一块深色地面未被覆盖。\n    *   **MISSING [350,829,458,898]**：位于两把椅子之间、后方地板的一部分未被覆盖。\n4.  **整体覆盖率是否足够？** 否。虽然主要地面被覆盖，但存在明显的错误覆盖（覆盖了垂直家具）和遗漏区域，这会影响路径规划的准确性。",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round2_preview.png",
+          "timestamp": "2026-04-28T17:17:00.809235"
+        }
+      ],
+      "end_time": "2026-04-28T17:17:00.809293"
+    }
+  ],
+  "final_result": {
+    "mask_path": "/root/.openclaw/workspace/last-signal/assets/masks/apartment_walkable_mask.png",
+    "coverage_pct": 13.9990234375,
+    "total_rounds": 2,
+    "total_time": "0:01:26.004710"
+  }
+}

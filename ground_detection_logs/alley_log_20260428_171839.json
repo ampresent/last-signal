@@ -1,0 +1,494 @@
+{
+  "scene_id": "alley",
+  "start_time": "2026-04-28T17:17:11.758572",
+  "rounds": [
+    {
+      "round": 1,
+      "description": "第 1 轮地面识别",
+      "start_time": "2026-04-28T17:17:11.770503",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 10.4%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round1_ground.png",
+          "timestamp": "2026-04-28T17:17:28.391688"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL 地面识别不完整，绿色区域呈碎片化分布，未形成连续的可行走区域，大量地面未被覆盖。",
+          "image_path": null,
+          "timestamp": "2026-04-28T17:17:35.950147"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地面描述",
+              "bbox": [
+                50,
+                520,
+                130,
+                598
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地面描述",
+              "bbox": [
+                250,
+                460,
+                330,
+                538
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地面描述",
+              "bbox": [
+                450,
+                440,
+                530,
+                518
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地面描述",
+              "bbox": [
+                650,
+                430,
+                730,
+                508
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "地面描述",
+              "bbox": [
+                850,
+                420,
+                930,
+                498
+              ]
+            },
+            {
+              "id": "patch_6",
+              "label": "地面描述",
+              "bbox": [
+                350,
+                580,
+                430,
+                658
+              ]
+            },
+            {
+              "id": "patch_7",
+              "label": "地面描述",
+              "bbox": [
+                550,
+                570,
+                630,
+                648
+              ]
+            },
+            {
+              "id": "patch_8",
+              "label": "地面描述",
+              "bbox": [
+                150,
+                680,
+                230,
+                758
+              ]
+            },
+            {
+              "id": "patch_9",
+              "label": "地面描述",
+              "bbox": [
+                750,
+                560,
+                830,
+                638
+              ]
+            }
+          ],
+          "count": 9,
+          "timestamp": "2026-04-28T17:17:19.234761"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            50,
+            520,
+            130,
+            598
+          ],
+          "area_pct": 1.780854457226238,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch0_mask.png",
+          "timestamp": "2026-04-28T17:17:20.169133"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            250,
+            460,
+            330,
+            538
+          ],
+          "area_pct": 1.3789066476636465,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch1_mask.png",
+          "timestamp": "2026-04-28T17:17:21.382853"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            450,
+            440,
+            530,
+            518
+          ],
+          "area_pct": 1.6125419932810752,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch2_mask.png",
+          "timestamp": "2026-04-28T17:17:22.529772"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            650,
+            430,
+            730,
+            508
+          ],
+          "area_pct": 1.2348569683396111,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch3_mask.png",
+          "timestamp": "2026-04-28T17:17:23.706797"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            850,
+            420,
+            930,
+            498
+          ],
+          "area_pct": 1.2127998914113136,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch4_mask.png",
+          "timestamp": "2026-04-28T17:17:24.857004"
+        },
+        {
+          "box_id": "patch_6",
+          "bbox": [
+            350,
+            580,
+            430,
+            627
+          ],
+          "area_pct": 0.9041704842376735,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch5_mask.png",
+          "timestamp": "2026-04-28T17:17:26.028057"
+        },
+        {
+          "box_id": "patch_7",
+          "bbox": [
+            550,
+            570,
+            630,
+            627
+          ],
+          "area_pct": 1.0977637517391157,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch6_mask.png",
+          "timestamp": "2026-04-28T17:17:27.201059"
+        },
+        {
+          "box_id": "patch_9",
+          "bbox": [
+            750,
+            560,
+            830,
+            627
+          ],
+          "area_pct": 1.233329939936883,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch8_mask.png",
+          "timestamp": "2026-04-28T17:17:28.341037"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL 地面识别不完整，绿色区域呈碎片化分布，未形成连续的可行走区域，大量地面未被覆盖。",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round1_preview.png",
+          "timestamp": "2026-04-28T17:17:35.950127"
+        }
+      ],
+      "end_time": "2026-04-28T17:17:35.950150"
+    },
+    {
+      "round": 2,
+      "description": "第 2 轮地面识别",
+      "start_time": "2026-04-28T17:17:35.950157",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 20.3%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round2_ground.png",
+          "timestamp": "2026-04-28T17:18:28.490905"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL 绿色区域存在误识别和遗漏\nMISSING [150,800,600,990] 前景中央湿滑路面未被覆盖\nMISSING [450,680,650,850] 中景中央路径有间隙未被覆盖\nOVERCOVER [50,580,220,750] 绿色区域覆盖到左侧垃圾箱侧面\nOVERCOVER [610,400,750,550] 绿色区域覆盖到右侧楼梯/货架结构\nOVERCOVER [330,530,460,680] 绿色区域覆盖到中央大型垃圾箱侧面\nOVERCOVER [730,370,830,560] 绿色区域覆盖到右上方天花板横梁/结构",
+          "image_path": null,
+          "timestamp": "2026-04-28T17:18:39.051607"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "湿路面",
+              "bbox": [
+                100,
+                520,
+                180,
+                600
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "湿路面",
+              "bbox": [
+                300,
+                500,
+                380,
+                580
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "湿路面",
+              "bbox": [
+                500,
+                520,
+                580,
+                600
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "湿路面",
+              "bbox": [
+                750,
+                520,
+                830,
+                600
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "地面",
+              "bbox": [
+                250,
+                400,
+                330,
+                480
+              ]
+            },
+            {
+              "id": "patch_6",
+              "label": "地面",
+              "bbox": [
+                450,
+                350,
+                530,
+                430
+              ]
+            },
+            {
+              "id": "patch_7",
+              "label": "地面",
+              "bbox": [
+                650,
+                400,
+                730,
+                480
+              ]
+            },
+            {
+              "id": "patch_8",
+              "label": "地面",
+              "bbox": [
+                300,
+                250,
+                380,
+                330
+              ]
+            },
+            {
+              "id": "patch_9",
+              "label": "地面",
+              "bbox": [
+                500,
+                200,
+                580,
+                280
+              ]
+            },
+            {
+              "id": "patch_10",
+              "label": "地面",
+              "bbox": [
+                700,
+                250,
+                780,
+                330
+              ]
+            }
+          ],
+          "count": 10,
+          "timestamp": "2026-04-28T17:18:17.249578"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            100,
+            520,
+            180,
+            600
+          ],
+          "area_pct": 1.7199429909396313,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch0_mask.png",
+          "timestamp": "2026-04-28T17:18:18.146459"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            300,
+            500,
+            380,
+            580
+          ],
+          "area_pct": 1.1761512097458344,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch1_mask.png",
+          "timestamp": "2026-04-28T17:18:19.307085"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            500,
+            520,
+            580,
+            600
+          ],
+          "area_pct": 1.6658183175540398,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch2_mask.png",
+          "timestamp": "2026-04-28T17:18:20.441787"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            750,
+            520,
+            830,
+            600
+          ],
+          "area_pct": 1.6814279412263735,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch3_mask.png",
+          "timestamp": "2026-04-28T17:18:21.567221"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            250,
+            400,
+            330,
+            480
+          ],
+          "area_pct": 1.0521225694797922,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch4_mask.png",
+          "timestamp": "2026-04-28T17:18:22.709296"
+        },
+        {
+          "box_id": "patch_6",
+          "bbox": [
+            450,
+            350,
+            530,
+            430
+          ],
+          "area_pct": 1.4684923139570396,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch5_mask.png",
+          "timestamp": "2026-04-28T17:18:23.844040"
+        },
+        {
+          "box_id": "patch_7",
+          "bbox": [
+            650,
+            400,
+            730,
+            480
+          ],
+          "area_pct": 1.194475550578574,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch6_mask.png",
+          "timestamp": "2026-04-28T17:18:25.005119"
+        },
+        {
+          "box_id": "patch_8",
+          "bbox": [
+            300,
+            250,
+            380,
+            330
+          ],
+          "area_pct": 1.2497879127218434,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch7_mask.png",
+          "timestamp": "2026-04-28T17:18:26.157656"
+        },
+        {
+          "box_id": "patch_9",
+          "bbox": [
+            500,
+            200,
+            580,
+            280
+          ],
+          "area_pct": 1.3437849944008957,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch8_mask.png",
+          "timestamp": "2026-04-28T17:18:27.325157"
+        },
+        {
+          "box_id": "patch_10",
+          "bbox": [
+            700,
+            250,
+            780,
+            330
+          ],
+          "area_pct": 1.6261155790831043,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch9_mask.png",
+          "timestamp": "2026-04-28T17:18:28.437916"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL 绿色区域存在误识别和遗漏\nMISSING [150,800,600,990] 前景中央湿滑路面未被覆盖\nMISSING [450,680,650,850] 中景中央路径有间隙未被覆盖\nOVERCOVER [50,580,220,750] 绿色区域覆盖到左侧垃圾箱侧面\nOVERCOVER [610,400,750,550] 绿色区域覆盖到右侧楼梯/货架结构\nOVERCOVER [330,530,460,680] 绿色区域覆盖到中央大型垃圾箱侧面\nOVERCOVER [730,370,830,560] 绿色区域覆盖到右上方天花板横梁/结构",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round2_preview.png",
+          "timestamp": "2026-04-28T17:18:39.051572"
+        }
+      ],
+      "end_time": "2026-04-28T17:18:39.051644"
+    }
+  ],
+  "final_result": {
+    "mask_path": "/root/.openclaw/workspace/last-signal/assets/masks/alley_walkable_mask.png",
+    "coverage_pct": 15.970703125,
+    "total_rounds": 2,
+    "total_time": "0:01:27.316663"
+  }
+}
