@@ -53,102 +53,67 @@ python3 scripts/gen_masks.py --skip-verify       # 跳过验证
 
 ## 方式二：迭代式地面检测 (gen_ground_mask.py)
 
-**适用于 walkable mask 的精确生成。** 通过多轮 Omni + SAM 迭代，逐步识别地面区域。
+**适用于 walkable mask 的精确生成。** 每轮 4 个小 patch，逐块审查，通过才叠层。
 
 ### 核心思路
 
-传统方式用一个大 bbox 做 SAM 分割，容易把墙壁、家具也包含进去。
-迭代方式让 Omni 先识别多个**小的**地面 patch（80x80px），SAM 对每个小 patch 精确分割，
-然后 Omni 审查叠层结果，决定是否需要补充或修正。
+每轮只生成 4 个很小的 patch（≤50px），SAM 分割后逐块提交给 Omni 审查。
+只有 PASS 的 patch 才叠层到最终 mask，FAIL 的直接丢弃。
+下一轮补充 4 个新 patch，2-3 轮完成。
 
 ### 流程
 
 ```
-bg_{scene}.png
-       │
-       ▼
 Round 1:
-  ├─ Omni 识别 8-15 个小地面 patch (≤80px each)
+  ├─ Omni 识别 4 个小 patch (≤50px)
   ├─ SAM 对每个 patch 生成 mask
-  ├─ 叠层到 cumulative mask (OR 操作)
-  ├─ 形态学清理 (CLOSE + OPEN)
-  └─ Omni 审查: PASS / FAIL + MISSING/OVERCOVER 建议
-       │
-       ▼
-Round 2 (如果 Round 1 FAIL):
-  ├─ Omni 参考已有 mask，识别遗漏区域
-  ├─ SAM 分割新 patch
-  ├─ 叠层到 cumulative mask
-  ├─ 移除 OVERCOVER 区域
-  └─ Omni 审查
-       │
-       ▼
-Round 3 (如果 Round 2 FAIL):
-  └─ 同上，最多 3 轮
-       │
-       ▼
+  ├─ 逐块叠层 + 编号标注:
+  │    Patch #p1 → 创建带编号预览 → Omni 审查 → PASS/FAIL
+  │    Patch #p2 → 创建带编号预览 → Omni 审查 → PASS/FAIL
+  │    Patch #p3 → 创建带编号预览 → Omni 审查 → PASS/FAIL
+  │    Patch #p4 → 创建带编号预览 → Omni 审查 → PASS/FAIL
+  ├─ PASS 的叠层到 ground_mask，FAIL 的丢弃
+  └─ 形态学清理
+
+Round 2 (补充 4 个新 patch):
+  └─ 同上，识别未覆盖区域的新 patch
+
+Round 3 (可选):
+  └─ 同上
+
 后处理:
-  ├─ 减去物体 mask (terminal, window, door...)
+  ├─ 减去物体 mask
   ├─ 最终形态学清理
-  └─ 输出: assets/masks/{scene}_walkable_mask.png
+  └─ 输出 walkable_mask
 ```
 
 ### 运行
 
 ```bash
-# 两个场景都跑（默认 3 轮）
-python3 scripts/gen_ground_mask.py
-
-# 单场景
-python3 scripts/gen_ground_mask.py --scene apartment
-python3 scripts/gen_ground_mask.py --scene alley
-
-# 指定轮次
-python3 scripts/gen_ground_mask.py --max-rounds 2
-
-# 不自动 git push
-python3 scripts/gen_ground_mask.py --no-push
+python3 scripts/gen_ground_mask.py                    # 两个场景，3 轮
+python3 scripts/gen_ground_mask.py --scene apartment   # 单场景
+python3 scripts/gen_ground_mask.py --max-rounds 2      # 2 轮
+python3 scripts/gen_ground_mask.py --no-push           # 不 git push
 ```
 
-### 关键参数调优
+### 关键参数
 
-**Patch 大小**：默认 80x80px。太大会包含非地面区域（墙壁、家具），太小则需要更多 patch 才能覆盖。
-在 `omni_identify_ground_patches()` 的 prompt 中调整 `MAX_PATCH_SIZE`。
-
-**Patch 数量**：默认 8-15 个/轮。数量多 → 覆盖更全面，但 API 调用时间更长。
-在 prompt 中调整 `返回 N-M 个`。
-
-**空间分布**：prompt 中强调"分散在整个地面区域，不要只集中在某一处"，
-避免 Omni 只识别最近/最明显的区域。
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `MAX_PATCH_SIZE` | 50px | 每个 patch 最大尺寸 |
+| 每轮 patch 数 | 4 | Omni 每轮识别的 patch 数量 |
+| `--max-rounds` | 3 | 最大迭代轮次 |
 
 ### 产物
 
 | 文件 | 说明 |
 |------|------|
-| `ground_detection_logs/{scene}_log_*.json` | 完整过程日志（每轮 bbox、mask 面积、审查结果） |
-| `ground_detection_logs/{scene}_r{N}_patch{M}_mask.png` | 单个 patch 的 SAM mask |
+| `ground_detection_logs/{scene}_r{N}_{pid}_mask.png` | 单个 patch 的 SAM mask |
+| `ground_detection_logs/{scene}_r{N}_{pid}_review.png` | 带编号的叠层审查图 |
 | `ground_detection_logs/{scene}_round{N}_ground.png` | 第 N 轮累计 ground mask |
-| `ground_detection_logs/{scene}_round{N}_preview.png` | 第 N 轮绿色叠层预览 |
-| `ground_detection_logs/{scene}_round{N}_review.png` | Omni 审查用图 |
+| `ground_detection_logs/{scene}_round{N}_preview.png` | 带编号的叠层预览 |
 | `ground_detection_logs/{scene}_final_preview.png` | 最终结果叠层 |
-| `ground_detection_report.pdf` | 全过程 PDF 报告（英文） |
-
-### Omni 审查机制
-
-Omni 审查时看到的是：原图 + 绿色半透明叠层（已识别地面）。
-
-审查输出格式：
-- `PASS` — 覆盖准确，无需更多轮次
-- `FAIL` — 需要改进
-- `MISSING [x1,y1,x2,y2] <描述>` — 遗漏区域（下一轮补充）
-- `OVERCOVER [x1,y1,x2,y2] <描述>` — 误覆盖区域（立即从 mask 中移除）
-
-### 已知限制
-
-1. **Omni 倾向于识别底部区域**（近景地面），对远处/高处地面识别较弱
-2. **API 超时**：mimo_api.sh 默认 timeout=300s，大图可能需要更长时间
-3. **空结果重试**：Omni 偶尔返回空结果，脚本内置了重试逻辑
-4. **覆盖率**：典型场景 10-20% 覆盖率（游戏 walkable 区域通常只占场景的一部分）
+| `ground_detection_report.pdf` | 全过程 PDF 报告 |
 
 ---
 

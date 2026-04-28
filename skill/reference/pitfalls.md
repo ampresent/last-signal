@@ -18,9 +18,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 **Cause**: `importlib.metadata.version('torch')` returns `None` when dist-info dir has `+cpu`
 **Solution**: Rename dist-info dir + fix METADATA version string
 ```bash
-# Find and rename
 mv torch-2.11.0+cpu.dist-info torch-2.11.0.dist-info
-# Fix version in METADATA
 sed -i 's/^Version: 2.11.0+cpu/Version: 2.11.0/' torch-2.11.0.dist-info/METADATA
 ```
 
@@ -35,11 +33,6 @@ sed -i 's/^Version: 2.11.0+cpu/Version: 2.11.0/' torch-2.11.0.dist-info/METADATA
 **Symptom**: `Invalid rank for input: input_image Got: 4 Expected: 3`
 **Cause**: MobileSAM encoder expects `[H, W, 3]` (HWC), not standard `[N, C, H, W]` (NCHW)
 **Solution**: Pass `normalized` directly (HWC float32), don't transpose to NCHW
-```python
-# ✗ Wrong: tensor = normalized.transpose(2, 0, 1)[np.newaxis, ...]
-# ✓ Right: pass normalized (shape [1024, 1024, 3])
-```
-Decoder's `image_embeddings` is still `[1, 256, 64, 64]` (4D).
 
 ## 5. MobileSAM Needs Two ONNX Files
 
@@ -58,7 +51,6 @@ Decoder's `image_embeddings` is still `[1, 256, 64, 64]` (4D).
 // ✗ Wrong: return this.depthData.data[idx] / 255;
 // ✓ Right: return 1.0 - (this.depthData.data[idx] / 255);
 ```
-> Note: `scripts/gen_depth_lighting.py` already uses `depth_factor = 1.0 - depth_float`, unaffected.
 
 ## 7. s3cmd Requires `--region=auto`
 
@@ -78,81 +70,49 @@ Decoder's `image_embeddings` is still `[1, 256, 64, 64]` (4D).
 ```bash
 echo 'export HF_ENDPOINT=https://hf-mirror.com' >> ~/.bashrc
 source ~/.bashrc
-# Verify
-curl -s https://hf-mirror.com/api/models/depth-anything/Depth-Anything-V2-Large-hf | head -1
 ```
-
-First run of `scripts/gen_depth_lighting.py` auto-downloads Depth-Anything-V2-Large (~1.3GB),
-cached to `~/.cache/huggingface/`, subsequent runs skip (~3s load).
 
 ## 10. Green Screen Cutout Quality
 
 **Symptom**: Green fringe on edges, or character parts cut off
-**Cause**: Wrong threshold or erosion
 **Solution**:
-- Use HSV range H=35-85, S≥50, V≥50 (narrow, pure green only)
-- Use GrabCut with HSV as seed (not raw threshold cutout)
+- Use HSV range H=35-85, S≥50, V≥50
+- Use GrabCut with HSV as seed
 - Process at 128px width, then downscale to 64px
-- **Never** erode edges — GrabCut handles boundaries
-- **Never** add bright green supplement detection — may hurt character green tones
+- **Never** erode edges
 
 ## 11. Seamless Animation Loop
 
 **Symptom**: Visible "jump" between last and first frame
-**Cause**: Phase functions not returning to start at frame N
-**Solution**: Use integer-multiple frequencies:
-- N frames, `t = frame / N`
-- `sin(2π * t * k)` where k is integer → sin(0) == sin(2πk) exactly
+**Solution**: Use integer-multiple frequencies: `sin(2π * frame/N * k)` where k is integer
 
 ## 12. Mask Interaction — No Visual Feedback
 
 **Design rule**: Masks are for detection only. Never draw mask outlines on canvas.
-- Cursor changes to `pointer` on hover
-- Hint text appears at top
-- VFX rain can clip to masks via `clipToMask`
 
 ## 13. Omni API Returns Empty Result
 
 **Symptom**: `RuntimeError: Omni 返回空结果`
 **Cause**: mimo_api.sh timeout or transient network issue
 **Solution**: Built-in retry logic (retry once on failure), wrapped in try-except at caller level
-```python
-# In omni_analyze_image():
-if not result.stdout.strip():
-    # Retry once
-    result = subprocess.run(...)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise RuntimeError("Omni empty after retry")
-```
 
 ## 14. Iterative Ground Detection — Patches Too Large
 
 **Symptom**: SAM mask includes walls, furniture, non-ground areas
-**Cause**: Omni returns large bboxes (>200px) covering both ground and objects
-**Solution**:
-1. Prompt explicitly limits patch size (≤80px)
-2. Request 8-15 small patches instead of 3-6 large ones
-3. Client-side safety: clip any bbox >80px to center 80×80
-```python
-MAX_PATCH_SIZE = 80
-for box in boxes:
-    x1, y1, x2, y2 = box["bbox"]
-    if (x2-x1) > MAX_PATCH_SIZE or (y2-y1) > MAX_PATCH_SIZE:
-        cx, cy = (x1+x2)//2, (y1+y2)//2
-        box["bbox"] = [cx-40, cy-40, cx+40, cy+40]
-```
+**Cause**: Omni returns large bboxes covering both ground and objects
+**Solution**: Use ≤50px small patches + per-patch review (each patch individually judged PASS/FAIL by Omni, FAIL discarded immediately)
 
 ## 15. Iterative Ground Detection — Patches Clustered
 
 **Symptom**: All patches at bottom of image (near camera), distant ground missed
 **Cause**: Omni defaults to most obvious/prominent ground area
-**Solution**: Add to prompt: "scatter patches across the entire ground area, cover both near and far"
+**Solution**: Prompt says "scatter patches at different positions"; next round references existing accepted mask
 
 ## 16. MobileSAM v2 Models Not Available on Mirror
 
 **Symptom**: `FileNotFoundError` or 15-byte "Entry not found" files
 **Cause**: hf-mirror.com doesn't have PulpCut/mobilesam-onnx v2 models
-**Solution**: Script auto-falls back to v1 models. Download from R2:
+**Solution**: Use v1 models from R2:
 - `deps/mobilesam.encoder.onnx` (27MB)
 - `deps/mobile_sam.onnx` (16MB)
 
