@@ -88,8 +88,9 @@ bash mimo_api.sh image /tmp/verify_walkable.png   "绿色半透明区域是角�
 ### 推荐流程（经过验证）
 
 ```
+Step 0: Omni 动态检测 walkable 区域 → bbox + crop_top_pct
 Step 1: MobileSAM 在 walkable bbox 内分割 → 初始 mask
-Step 2: 空间裁剪 — 裁掉顶部墙壁/天花板区域 (crop_top_pct)
+Step 2: 空间裁剪 — 裁掉顶部墙壁/天花板区域 (crop_top_pct from Omni)
 Step 3: 减去障碍物 object masks（已有的物体 mask）
 Step 4: 形态学清理 (MORPH_CLOSE 11×11 + MORPH_OPEN 5×5)
 Step 5: 连通性强制 — 只保留最大连通域
@@ -98,17 +99,8 @@ Step 7: 生成半透明叠层验证图 (浅绿色 overlay, alpha=40)
 Step 8: Omni 视觉模型验证 — PASS/FAIL
 ```
 
-### 关键参数（经校准）
-
-| 场景 | walkable_bbox | crop_top_pct | 覆盖率 |
-|------|---------------|--------------|--------|
-| apartment | [120, 480, 850, 627] | 0.55 | 5.5% |
-| street | [30, 200, 930, 627] | 0.35 | 27.9% |
-| bar | 需手动处理 | — | ~15% |
-| alley | [300, 300, 750, 627] | 0.35 | 20.7% |
-| tower | [100, 250, 900, 627] | 0.40 | 43.4% |
-| server | [240, 157, 900, 627] | 0.25 | 31.3% |
-| rooftop | [100, 450, 880, 627] | 0.60 | 13.5% |
+**bbox 不 hardcode** — 每次运行都由 Omni 视觉模型从场景图动态推断。
+这保证了 pipeline 对新场景、prompt 变更、素材替换的自适应能力。
 
 ### ⚠️ 已知陷阱
 
