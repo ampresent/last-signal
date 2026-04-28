@@ -1,9 +1,5 @@
 {
   "apartment": {
-    "spawn": [
-      0.4354,
-      0.9734
-    ],
     "objects": [
       {
         "id": "terminal",
@@ -22,25 +18,13 @@
       },
       {
         "id": "walkable",
-        "label": "房间地面",
+        "label": "可行走区域",
         "mask": "masks/apartment_walkable_mask.webp",
         "type": "walkable"
-      }
-    ],
-    "edge_transitions": [
-      {
-        "id": "to_street",
-        "label": "出门",
-        "zone": "bottom",
-        "target": "street"
       }
     ]
   },
   "street": {
-    "spawn": [
-      0.6146,
-      0.8109
-    ],
     "objects": [
       {
         "id": "bar_entrance",
@@ -64,31 +48,13 @@
       },
       {
         "id": "walkable",
-        "label": "街道地面",
+        "label": "可行走区域",
         "mask": "masks/street_walkable_mask.webp",
         "type": "walkable"
-      },
-      {
-        "id": "water",
-        "label": "路面积水",
-        "mask": "masks/street_water_mask.webp",
-        "type": "water"
-      }
-    ],
-    "edge_transitions": [
-      {
-        "id": "to_alley",
-        "label": "进入小巷",
-        "zone": "left",
-        "target": "alley"
       }
     ]
   },
   "bar": {
-    "spawn": [
-      0.0927,
-      0.4703
-    ],
     "objects": [
       {
         "id": "bartender",
@@ -107,18 +73,13 @@
       },
       {
         "id": "walkable",
-        "label": "酒吧地面",
+        "label": "可行走区域",
         "mask": "masks/bar_walkable_mask.webp",
         "type": "walkable"
       }
-    ],
-    "edge_transitions": []
+    ]
   },
   "alley": {
-    "spawn": [
-      0.5948,
-      0.7141
-    ],
     "objects": [
       {
         "id": "shadow",
@@ -137,24 +98,13 @@
       },
       {
         "id": "walkable",
-        "label": "巷子地面",
+        "label": "可行走区域",
         "mask": "masks/alley_walkable_mask.webp",
         "type": "walkable"
-      },
-      {
-        "id": "water",
-        "label": "巷子积水",
-        "mask": "masks/alley_water_mask.webp",
-        "type": "water"
       }
-    ],
-    "edge_transitions": []
+    ]
   },
   "tower": {
-    "spawn": [
-      0.8208,
-      0.9375
-    ],
     "objects": [
       {
         "id": "scanner",
@@ -173,24 +123,13 @@
       },
       {
         "id": "walkable",
-        "label": "塔楼广场地面",
+        "label": "可行走区域",
         "mask": "masks/tower_walkable_mask.webp",
         "type": "walkable"
-      },
-      {
-        "id": "water",
-        "label": "广场积水",
-        "mask": "masks/tower_water_mask.webp",
-        "type": "water"
       }
-    ],
-    "edge_transitions": []
+    ]
   },
   "server": {
-    "spawn": [
-      0.9729,
-      0.4797
-    ],
     "objects": [
       {
         "id": "terminal",
@@ -214,258 +153,19 @@
       },
       {
         "id": "walkable",
-        "label": "机房地面",
+        "label": "可行走区域",
         "mask": "masks/server_walkable_mask.webp",
         "type": "walkable"
       }
-    ],
-    "edge_transitions": []
+    ]
   },
   "rooftop": {
-    "spawn": [
-      0.1729,
-      0.8891
-    ],
     "objects": [
       {
         "id": "walkable",
-        "label": "楼顶地面",
+        "label": "可行走区域",
         "mask": "masks/rooftop_walkable_mask.webp",
         "type": "walkable"
-      },
-      {
-        "id": "water",
-        "label": "楼顶积水",
-        "mask": "masks/rooftop_water_mask.webp",
-        "type": "water"
-      }
-    ],
-    "edge_transitions": [
-      {
-        "id": "to_server",
-        "label": "下楼",
-        "zone": "bottom",
-        "target": "server"
-      }
-    ]
-  },
-  "office": {
-    "spawn": [
-      0.56,
-      0.76
-    ],
-    "objects": [
-      {
-        "id": "terminal",
-        "label": "终端",
-        "mask": "masks/office_terminal_mask.webp"
-      },
-      {
-        "id": "safe",
-        "label": "保险柜",
-        "mask": "masks/office_safe_mask.webp"
-      },
-      {
-        "id": "chair",
-        "label": "办公椅",
-        "mask": "masks/office_chair_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "办公室地面",
-        "mask": "masks/office_walkable_mask.webp",
-        "type": "walkable"
-      }
-    ],
-    "edge_transitions": []
-  },
-  "echo_lobby": {
-    "spawn": [
-      0.35,
-      0.84
-    ],
-    "objects": [
-      {
-        "id": "reception",
-        "label": "前台接待",
-        "mask": "masks/echo_lobby_reception_mask.webp"
-      },
-      {
-        "id": "scanner",
-        "label": "安检门",
-        "mask": "masks/echo_lobby_scanner_mask.webp"
-      },
-      {
-        "id": "elevator",
-        "label": "电梯",
-        "mask": "masks/echo_lobby_elevator_mask.webp"
-      },
-      {
-        "id": "guard_post",
-        "label": "警卫亭",
-        "mask": "masks/echo_lobby_guard_post_mask.webp"
-      },
-      {
-        "id": "exit",
-        "label": "出口",
-        "mask": "masks/echo_lobby_exit_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "大厅地面",
-        "mask": "masks/echo_lobby_walkable_mask.webp",
-        "type": "walkable"
-      }
-    ],
-    "edge_transitions": [
-      {
-        "id": "to_maintenance",
-        "label": "地下通道",
-        "zone": "bottom",
-        "target": "maintenance"
-      }
-    ]
-  },
-  "maintenance": {
-    "spawn": [
-      0.48,
-      0.81
-    ],
-    "objects": [
-      {
-        "id": "blast_door",
-        "label": "防爆门",
-        "mask": "masks/maintenance_blast_door_mask.webp"
-      },
-      {
-        "id": "pipe_valve",
-        "label": "管道阀门",
-        "mask": "masks/maintenance_pipe_valve_mask.webp"
-      },
-      {
-        "id": "warning_sign",
-        "label": "警告标志",
-        "mask": "masks/maintenance_warning_sign_mask.webp"
-      },
-      {
-        "id": "exit",
-        "label": "返回大厅",
-        "mask": "masks/maintenance_exit_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "通道地面",
-        "mask": "masks/maintenance_walkable_mask.webp",
-        "type": "walkable"
-      },
-      {
-        "id": "water",
-        "label": "通道积水",
-        "mask": "masks/maintenance_water_mask.webp",
-        "type": "water"
-      }
-    ],
-    "edge_transitions": []
-  },
-  "data_haven": {
-    "spawn": [
-      0.58,
-      0.78
-    ],
-    "objects": [
-      {
-        "id": "workstation",
-        "label": "工作站",
-        "mask": "masks/data_haven_workstation_mask.webp"
-      },
-      {
-        "id": "train_car",
-        "label": "旧列车",
-        "mask": "masks/data_haven_train_car_mask.webp"
-      },
-      {
-        "id": "antenna",
-        "label": "天线阵列",
-        "mask": "masks/data_haven_antenna_mask.webp"
-      },
-      {
-        "id": "exit",
-        "label": "出口",
-        "mask": "masks/data_haven_exit_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "站台地面",
-        "mask": "masks/data_haven_walkable_mask.webp",
-        "type": "walkable"
-      }
-    ],
-    "edge_transitions": []
-  },
-  "flashback": {
-    "spawn": [
-      0.55,
-      0.76
-    ],
-    "objects": [
-      {
-        "id": "pod_3",
-        "label": "3号实验舱",
-        "mask": "masks/flashback_pod_3_mask.webp"
-      },
-      {
-        "id": "monitor",
-        "label": "监控屏",
-        "mask": "masks/flashback_monitor_mask.webp"
-      },
-      {
-        "id": "terminal",
-        "label": "控制台",
-        "mask": "masks/flashback_terminal_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "实验室地面",
-        "mask": "masks/flashback_walkable_mask.webp",
-        "type": "walkable"
-      }
-    ],
-    "edge_transitions": []
-  },
-  "hospital": {
-    "spawn": [
-      0.47,
-      0.79
-    ],
-    "objects": [
-      {
-        "id": "room_door",
-        "label": "病房门",
-        "mask": "masks/hospital_room_door_mask.webp"
-      },
-      {
-        "id": "window",
-        "label": "窗户",
-        "mask": "masks/hospital_window_mask.webp"
-      },
-      {
-        "id": "nurse_station",
-        "label": "护士站",
-        "mask": "masks/hospital_nurse_station_mask.webp"
-      },
-      {
-        "id": "walkable",
-        "label": "走廊地面",
-        "mask": "masks/hospital_walkable_mask.webp",
-        "type": "walkable"
-      }
-    ],
-    "edge_transitions": [
-      {
-        "id": "to_street",
-        "label": "出院",
-        "zone": "bottom",
-        "target": "street"
       }
     ]
   }
