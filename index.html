@@ -624,6 +624,39 @@ const VFX = {
       vignette: { inner: 140, outer: 450, opacity: 0.7 },
       particles: { type: 'data', count: 50, speed: 0.8, opacity: 0.15 },
     },
+    night_market: {
+      rain: { count: 140, speed: [4, 8], length: [10, 20], opacity: 0.18, wind: 0.4 },
+      fog: { layers: 1, speed: 0.12, opacity: 0.08, color: [80, 60, 100] },
+      neon: { speed: 0.018, intensity: 0.25 },
+      flicker: { enabled: true, chance: 0.012, amount: 0.18 },
+      scanlines: { enabled: false },
+      vignette: { inner: 180, outer: 520, opacity: 0.55 },
+      puddleReflection: { enabled: true, y: 500, opacity: 0.14,
+        specular: [[300, 540, 0.18, [255,100,50]], [600, 550, 0.15, [255,200,50]], [800, 530, 0.12, [50,200,255]]],
+        rippleChance: 0.005, reflectStrength: 0.14 },
+      particles: { type: 'steam', count: 10, speed: 0.3, opacity: 0.08 },
+    },
+    overpass: {
+      rain: { count: 180, speed: [6, 12], length: [14, 30], opacity: 0.22, wind: 0.6 },
+      fog: { layers: 2, speed: 0.22, opacity: 0.10, color: [50, 60, 90] },
+      neon: { speed: 0.010, intensity: 0.12 },
+      flicker: { enabled: true, chance: 0.006, amount: 0.10 },
+      scanlines: { enabled: false },
+      vignette: { inner: 200, outer: 560, opacity: 0.50 },
+      puddleReflection: { enabled: true, y: 480, opacity: 0.10,
+        specular: [[200, 520, 0.12, [100,200,255]], [700, 530, 0.10, [255,80,180]]],
+        rippleChance: 0.003, reflectStrength: 0.10 },
+      particles: { type: 'dust', count: 8, speed: 0.5, opacity: 0.05 },
+    },
+    backroom: {
+      rain: { count: 0 },
+      fog: { layers: 1, speed: 0.06, opacity: 0.12, color: [80, 50, 70] },
+      neon: { speed: 0.020, intensity: 0.20 },
+      flicker: { enabled: true, chance: 0.020, amount: 0.22 },
+      scanlines: { enabled: true, opacity: 0.04 },
+      vignette: { inner: 160, outer: 460, opacity: 0.65 },
+      particles: { type: 'smoke', count: 15, speed: 0.10, opacity: 0.12 },
+    },
   },
 
   // 通用粒子池
@@ -2052,6 +2085,9 @@ const CharSystem = {
     rooftop:   { r: 100, g: 140, b: 255, strength: 0.10 },   // 城市冷蓝光
     underground: { r: 200, g: 40, b: 40, strength: 0.14 },   // 红色应急灯
     core:      { r: 0, g: 255, b: 136, strength: 0.18 },     // 核心绿光
+    night_market: { r: 255, g: 120, b: 50, strength: 0.14 }, // 暖橙霓虹
+    overpass:  { r: 100, g: 160, b: 255, strength: 0.10 },   // 城市冷蓝
+    backroom:  { r: 255, g: 60, b: 100, strength: 0.16 },    // 赌场红紫
   },
 
   _drawChar(ctx, char, depth) {
@@ -3412,6 +3448,9 @@ const Game = {
     rooftop:     { h: 220, s: 100, l: 65 },  // 冷蓝
     underground: { h: 0, s: 85, l: 50 },     // 应急红
     core:        { h: 150, s: 100, l: 50 },  // 核心绿
+    night_market: { h: 25, s: 100, l: 55 },  // 暖橙霓虹
+    overpass:    { h: 215, s: 100, l: 65 },  // 城市冷蓝
+    backroom:    { h: 345, s: 85, l: 50 },   // 赌场红紫
   },
 
   _applySceneTheme(sceneId) {
@@ -3738,6 +3777,23 @@ const SCENES = {
           }
         }
       },
+      {
+        x: 850, y: 350, w: 100, h: 150,
+        label: '▸ 夜市入口',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.showDialogue('凯', '夜市那边应该有消息。去看看。', [
+            { text: '进入夜市' },
+            { text: '再等等' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('click');
+              Game.goScene('night_market', 'street');
+            }
+          });
+        }
+      },
     ]
   },
 
@@ -3952,6 +4008,16 @@ const SCENES = {
         }
       },
       {
+        x: 200, y: 400, w: 100, h: 150,
+        label: '▸ 后屋（夜市）',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.sfx('click');
+          Game.goScene('night_market', 'alley');
+        }
+      },
+      {
         x: 400, y: 500, w: 120, h: 80,
         label: '▸ 流浪猫',
         maskId: null,
@@ -4080,6 +4146,23 @@ const SCENES = {
         action() {
           Game.sfx('door');
           Game.goScene('street', 'tower');
+        }
+      },
+      {
+        x: 50, y: 400, w: 120, h: 180,
+        label: '▸ 高架桥',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.showDialogue('凯', '那边有条废弃的高架桥。从那里能看到整个城市。', [
+            { text: '前往高架桥' },
+            { text: '再等等' },
+          ]).then(choice => {
+            if (choice === 0) {
+              Game.sfx('click');
+              Game.goScene('overpass', 'tower');
+            }
+          });
         }
       },
       {
@@ -4710,6 +4793,315 @@ const SCENES = {
     },
 
     hotspots: []
+  },
+
+  // ── 新横向场景 ──
+
+  night_market: {
+    name: '夜市街 — 底层生存区',
+    background: 'bg_night_market',
+
+    onEnter() {
+      if (!Game.flags.night_market_visited) {
+        Game.flags.night_market_visited = true;
+        Game.showDialogue(null, '夜市街。霓虹灯笼罩着狭窄的巷道，空气中弥漫着烤肉和机油的味道。\n\n摊贩们在雨中叫卖着各种来路不明的零件和数据芯片。').then(() => {
+          return Game.showDialogue('凯', '这地方比旧工业带还乱。但消息灵通的人都在这。\n\n也许能打听到 ECHO 地下实验室的情况。');
+        });
+      }
+    },
+
+    characters: [
+      {
+        id: 'kai',
+        x: 0.5, y: 0.72,
+        dir: 'down',
+        speed: 0.12,
+        scale: 0.22,
+      },
+    ],
+
+    hotspots: [
+      {
+        x: 300, y: 250, w: 250, h: 200,
+        label: '▸ 义体摊贩',
+        maskId: 'food_stall',
+        action() {
+          if (!Game.flags.cyber_vendor) {
+            Game.flags.cyber_vendor = true;
+            Game.showCasualChat([
+              { speaker: null, text: '一个浑身改装的摊贩正在摆弄一堆发光的义体零件。' },
+              { speaker: '摊贩', text: '要什么？最新款的光学植入体，军用级别。保证看穿一切。' },
+              { speaker: '凯', text: '我需要信息，不是零件。ECHO 公司 B7 层——你知道什么？', expression: 'thinking' },
+              { speaker: '摊贩', text: '……那种信息不是用钱买的。你得找老鬼。他在后屋。' },
+              { speaker: '凯', text: '老鬼？', expression: 'surprised' },
+              { speaker: '摊贩', text: '信息掮客。这整个夜市的情报网都归他管。\n从左边的门进去。小心点，他不喜欢生人。' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: '摊贩', text: '找老鬼？左边的门。别乱碰他的东西。' },
+              { speaker: '凯', text: '知道了。', expression: 'smirk' },
+            ]);
+          }
+        }
+      },
+      {
+        x: 100, y: 300, w: 150, h: 200,
+        label: '▸ 信息贩子',
+        maskId: 'broker',
+        action() {
+          if (!Game.flags.info_broker) {
+            Game.flags.info_broker = true;
+            Game.showDialogue('影子', '又见面了。夜市是我的地盘。\n\n要买情报？还是卖东西？').then(() => {
+              return Game.showDialogue('凯', 'ECHO 的地下实验室。LASTLIGHT 项目。你知道多少？');
+            }).then(() => {
+              return Game.showDialogue('影子', '……你真的想知道？有些门打开了就关不上。', [
+                { text: '我需要知道' },
+                { text: '算了' },
+              ]);
+            }).then(choice => {
+              if (choice === 0) {
+                return Game.showDialogue('影子', 'LASTLIGHT 不是分布式计算——是人脑联网。\n十二个活人，被改造成生物处理器。\n\n核心在 B7 层。但入口……在塔楼警卫亭下面。');
+              }
+            });
+          } else {
+            Game.showDialogue('影子', '情报已经给你了。去不去是你的事。');
+          }
+        }
+      },
+      {
+        x: 30, y: 380, w: 100, h: 180,
+        label: '▸ 返回街道',
+        maskId: 'exit',
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('street', 'night_market');
+        }
+      },
+      {
+        x: 750, y: 350, w: 120, h: 200,
+        label: '▸ 后屋入口',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('backroom', 'night_market');
+        }
+      },
+      {
+        x: 500, y: 450, w: 120, h: 80,
+        label: '▸ 流浪猫群',
+        maskId: null,
+        action() {
+          if (!Game.flags.market_cats) {
+            Game.flags.market_cats = true;
+            Game.showCasualChat([
+              { speaker: null, text: '三只花猫蹲在烤肉摊旁，眼睛都是机械的——蓝色、红色、绿色。' },
+              { speaker: '凯', text: '……ECHO 的监控猫。这里到处都是。', expression: 'angry' },
+              { speaker: null, text: '猫群歪了歪头，三只机械眼同时闪了一下。然后它们转身消失在雨中。' },
+              { speaker: '凯', text: '被人盯着的感觉越来越强了。', expression: 'thinking' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '烤肉摊旁又出现了几只机械猫。它们的机械眼在雨中闪着微光。' },
+              { speaker: '凯', text: '你们到底是猫还是摄像头？', expression: 'thinking' },
+              { speaker: null, text: '猫群打了个哈欠，看起来完全不在意你的存在。' },
+            ]);
+          }
+        }
+      },
+    ]
+  },
+
+  overpass: {
+    name: '高架桥 — 城市天际线',
+    background: 'bg_overpass',
+
+    onEnter() {
+      if (!Game.flags.overpass_visited) {
+        Game.flags.overpass_visited = true;
+        Game.showDialogue(null, '高架桥上。雨打在废弃的高速公路上，远处的城市灯火如星河倒悬。\n\n一辆废弃的轿车歪在路边，车门大开。').then(() => {
+          return Game.showDialogue('凯', '从这里能看到整个新杭州。ECHO 塔楼的红色信号灯在雨中闪烁。\n\n那栋楼的下面是另一个世界。');
+        });
+      }
+    },
+
+    characters: [
+      {
+        id: 'kai',
+        x: 0.3, y: 0.7,
+        dir: 'down',
+        speed: 0.12,
+        scale: 0.20,
+      },
+    ],
+
+    hotspots: [
+      {
+        x: 400, y: 350, w: 200, h: 150,
+        label: '▸ 废弃轿车',
+        maskId: 'car',
+        action() {
+          if (!Game.flags.overpass_car) {
+            Game.flags.overpass_car = true;
+            Game.showDialogue(null, '轿车里散落着文件和空罐头。仪表盘上的全息导航还在闪烁。\n\n目的地显示："ECHO TOWER — B7 ACCESS POINT"').then(() => {
+              return Game.showDialogue('凯', '这辆车……也是去 B7 层的？\n\n导航记录显示它从旧工业带出发。但最后停在了这里。\n\n有人没能到达目的地。', [
+                { text: '搜索车内' },
+                { text: '离开' },
+              ]);
+            }).then(choice => {
+              if (choice === 0) {
+                Game.sfx('pickup');
+                Game.showDialogue(null, '你在手套箱里找到一张 ECHO 员工卡。照片已经模糊了。\n\n上面写着："深层通行证 — B7 级别"。').then(() => {
+                  Game.addItem('b7_pass');
+                  return Game.showDialogue('凯', 'B7 级别的通行证……如果还在有效期内，能省不少麻烦。');
+                });
+              }
+            });
+          } else {
+            Game.showDialogue('凯', '车里已经搜过了。那张通行证还在身上。');
+          }
+        }
+      },
+      {
+        x: 50, y: 250, w: 860, h: 130,
+        label: '▸ 俯瞰城市',
+        maskId: 'view',
+        action() {
+          Game.showCasualChat([
+            { speaker: null, text: '从高架桥上望去，新杭州的霓虹灯海延伸到天际线。' },
+            { speaker: '凯', text: '三年前，这座城市还是正常的。至少看起来是。', expression: 'sad' },
+            { speaker: null, text: '远处的 ECHO 塔楼顶端闪着红光，像一根刺入夜空的针。' },
+            { speaker: '凯', text: '他们说那是信号塔。但 Oracle 说那是脑神经信号的发射器。\n\n十二个人的意识，从那里传遍全城。', expression: 'thinking' },
+            { speaker: '凯', text: '……而我搭档的信号，也在其中。', expression: 'sad' },
+          ]);
+        }
+      },
+      {
+        x: 830, y: 380, w: 100, h: 180,
+        label: '▸ 前往塔楼',
+        maskId: 'exit',
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('tower', 'overpass');
+        }
+      },
+      {
+        x: 50, y: 380, w: 100, h: 180,
+        label: '▸ 返回街道',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('street', 'overpass');
+        }
+      },
+    ]
+  },
+
+  backroom: {
+    name: '后屋 — 信息掮客老鬼的据点',
+    background: 'bg_backroom',
+
+    onEnter() {
+      if (!Game.flags.backroom_visited) {
+        Game.flags.backroom_visited = true;
+        Game.showDialogue(null, '后屋。空气中弥漫着合成烟草和陈年威士忌的味道。\n\n一个白发老人坐在牌桌后面，手指在全息键盘上飞舞。').then(() => {
+          return Game.showDialogue('老鬼', '夜市的人说你要找我。坐。');
+        }).then(() => {
+          return Game.showDialogue('凯', '我需要关于 ECHO 地下实验室的情报。LASTLIGHT 项目。');
+        }).then(() => {
+          return Game.showDialogue('老鬼', 'LASTLIGHT……很久没人提这个名字了。\n\n你知道我为什么叫老鬼吗？因为我见过太多人走进 ECHO，就再也没出来。', [
+            { text: '我不管。我需要进去。' },
+            { text: '……那些人还活着吗？' },
+          ]);
+        }).then(choice => {
+          if (choice === 0) {
+            return Game.showDialogue('老鬼', '好。既然你不怕死——\n\nLASTLIGHT 的核心在 B7 层。入口在塔楼警卫亭地板下。\n\n但你需要 B7 级别的通行证。或者……\n\n黑掉扫描仪。但那需要 Oracle 的解密密钥。');
+          } else {
+            return Game.showDialogue('老鬼', '活着？……以某种形式。\n\n他们的身体在 B7 层的培养舱里。意识被上传到 ECHO 的网络中。\n\n十二个人。变成了活的服务器。', [
+              { text: '……我要把他们救出来。' },
+            ]);
+          }
+        }).then(() => {
+          Game.showDialogue('老鬼', '你走的时候，从右边的门出去。那条路通向高架桥——从那里能看到塔楼。\n\n祝你好运。你大概需要它。');
+        });
+      }
+    },
+
+    characters: [
+      {
+        id: 'kai',
+        x: 0.35, y: 0.72,
+        dir: 'down',
+        speed: 0.12,
+        scale: 0.22,
+      },
+    ],
+
+    hotspots: [
+      {
+        x: 200, y: 350, w: 250, h: 170,
+        label: '▸ 牌桌',
+        maskId: 'table',
+        action() {
+          if (!Game.flags.backroom_table) {
+            Game.flags.backroom_table = true;
+            Game.showCasualChat([
+              { speaker: null, text: '牌桌上散落着全息扑克牌和一堆数据芯片。' },
+              { speaker: '凯', text: '这些芯片……有些是 ECHO 的加密数据。', expression: 'surprised' },
+              { speaker: '老鬼', text: '收集来的。有些是赌注，有些是报酬。\n\n你要哪一枚？', },
+              { speaker: '凯', text: '有 LASTLIGHT 相关的吗？', expression: 'thinking' },
+              { speaker: '老鬼', text: '……有一枚。但代价不小。你得告诉我，你为什么非要查这个。' },
+            ]);
+          } else {
+            Game.showDialogue('老鬼', '牌桌上的东西，你随便看。但别碰那枚红色的芯片——那不是给你的。');
+          }
+        }
+      },
+      {
+        x: 600, y: 280, w: 250, h: 170,
+        label: '▸ 吧台',
+        maskId: 'bar',
+        action() {
+          if (!Game.flags.backroom_drink) {
+            Game.flags.backroom_drink = true;
+            Game.showCasualChat([
+              { speaker: null, text: '吧台上摆满了各种合成酒。一瓶标着"神经元风暴"的瓶子在发光。' },
+              { speaker: '凯', text: '这酒……看起来不太安全。', expression: 'thinking' },
+              { speaker: '老鬼', text: '那是给改造人喝的。能暂时关闭神经植入体的防火墙。\n\n副作用是你会看到别人的记忆碎片。' },
+              { speaker: '凯', text: '……我还是喝水吧。', expression: 'smirk' },
+            ]);
+          } else {
+            Game.showCasualChat([
+              { speaker: null, text: '那瓶"神经元风暴"还在发光。' },
+              { speaker: '凯', text: '也许下次吧。等我不需要清醒的时候。', expression: 'smirk' },
+            ]);
+          }
+        }
+      },
+      {
+        x: 430, y: 250, w: 100, h: 150,
+        label: '▸ 返回夜市',
+        maskId: 'exit',
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('night_market', 'backroom');
+        }
+      },
+      {
+        x: 750, y: 300, w: 100, h: 180,
+        label: '▸ 后门（通往高架桥）',
+        maskId: null,
+        isExit: true,
+        action() {
+          Game.sfx('door');
+          Game.goScene('overpass', 'backroom');
+        }
+      },
+    ]
   },
 };
 
