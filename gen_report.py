@@ -202,8 +202,9 @@ def build_report():
     pdf.add_page()
     pdf.section_title("3. Scene: Apartment - Round-by-Round Analysis")
 
-    # Load apartment log
-    apt_log_path = os.path.join(LOG_DIR, "apartment_log_20260428_165523.json")
+    # Load apartment log (latest)
+    apt_logs = sorted(Path(LOG_DIR).glob("apartment_log_*.json"), reverse=True)
+    apt_log_path = str(apt_logs[0]) if apt_logs else os.path.join(LOG_DIR, "apartment_log.json")
     with open(apt_log_path) as f:
         apt = json.load(f)
 
@@ -322,7 +323,8 @@ def build_report():
     pdf.add_page()
     pdf.section_title("4. Scene: Alley - Round-by-Round Analysis")
 
-    alley_log_path = os.path.join(LOG_DIR, "alley_log_20260428_165915.json")
+    alley_logs = sorted(Path(LOG_DIR).glob("alley_log_*.json"), reverse=True)
+    alley_log_path = str(alley_logs[0]) if alley_logs else os.path.join(LOG_DIR, "alley_log.json")
     with open(alley_log_path) as f:
         alley = json.load(f)
 
