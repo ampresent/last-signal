@@ -1,0 +1,264 @@
+{
+  "scene_id": "alley",
+  "start_time": "2026-04-28T16:57:55.829497",
+  "rounds": [
+    {
+      "round": 1,
+      "description": "第 1 轮地面识别",
+      "start_time": "2026-04-28T16:57:55.835463",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 13.2%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round1_ground.png",
+          "timestamp": "2026-04-28T16:58:07.706225"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL  \nMISSING [450, 550, 650, 700] 远处门口地面区域  \nOVERCOVER [800, 600, 1000, 850] 右侧垃圾桶及墙壁区域",
+          "image_path": null,
+          "timestamp": "2026-04-28T16:58:19.892987"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "前景反光路面",
+              "bbox": [
+                168,
+                544,
+                650,
+                992
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "左侧窄人行道",
+              "bbox": [
+                20,
+                525,
+                153,
+                905
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "右侧人行道",
+              "bbox": [
+                680,
+                588,
+                985,
+                900
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "中景路面",
+              "bbox": [
+                445,
+                585,
+                668,
+                750
+              ]
+            },
+            {
+              "id": "patch_5",
+              "label": "远处门口地面",
+              "bbox": [
+                398,
+                580,
+                600,
+                695
+              ]
+            }
+          ],
+          "count": 5,
+          "timestamp": "2026-04-28T16:58:02.065781"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            168,
+            544,
+            650,
+            627
+          ],
+          "area_pct": 7.843835895347653,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch0_mask.png",
+          "timestamp": "2026-04-28T16:58:03.018191"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            20,
+            525,
+            153,
+            627
+          ],
+          "area_pct": 3.0947775628626695,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch1_mask.png",
+          "timestamp": "2026-04-28T16:58:04.217972"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            680,
+            588,
+            940,
+            627
+          ],
+          "area_pct": 2.219450948454308,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch2_mask.png",
+          "timestamp": "2026-04-28T16:58:05.327238"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            445,
+            585,
+            668,
+            627
+          ],
+          "area_pct": 2.5811870100783874,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch3_mask.png",
+          "timestamp": "2026-04-28T16:58:06.473475"
+        },
+        {
+          "box_id": "patch_5",
+          "bbox": [
+            398,
+            580,
+            600,
+            627
+          ],
+          "area_pct": 2.4615697851980047,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r1_patch4_mask.png",
+          "timestamp": "2026-04-28T16:58:07.655443"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL  \nMISSING [450, 550, 650, 700] 远处门口地面区域  \nOVERCOVER [800, 600, 1000, 850] 右侧垃圾桶及墙壁区域",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round1_preview.png",
+          "timestamp": "2026-04-28T16:58:19.892959"
+        }
+      ],
+      "end_time": "2026-04-28T16:58:19.893009"
+    },
+    {
+      "round": 2,
+      "description": "第 2 轮地面识别",
+      "start_time": "2026-04-28T16:58:19.893015",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 15.5%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round2_ground.png",
+          "timestamp": "2026-04-28T16:58:54.066006"
+        },
+        {
+          "type": "review",
+          "content": "PASS: 1.  **绿色区域是否准确覆盖了地面？**\n    是。绿色半透明区域主要覆盖了场景底部的路面，包括潮湿的反光部分和通向远处的路径，这符合地面/可行走区域的特征。\n\n2.  **是否有绿色区域覆盖到了非地面物体（墙壁、家具等）？**\n    否。绿色区域似乎止于两侧的障碍物边缘（如左侧的沙发和板条箱，右侧的大型垃圾箱和绿色回收桶），没有明显的向上“溢出”或覆盖到垂直墙面、家具侧面的情况。\n\n3.  **是否有明显的地面区域未被覆盖？**\n    否。从前景一直延伸到背景深处的蓝色光源处，可行走的地面路径似乎是连续的，没有明显的断开或遗漏区域。\n\n4.  **整体覆盖率是否足够？**\n    是。识别结果有效地勾勒出了巷子中间的通行空间，并避开了两侧的静态障碍物，看起来适合作为游戏内的导航网格或可行走区域判定。\n\nPASS",
+          "image_path": null,
+          "timestamp": "2026-04-28T16:59:15.108579"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "小巷地面",
+              "bbox": [
+                200,
+                400,
+                300,
+                450
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "湿漉漉的路面",
+              "bbox": [
+                500,
+                400,
+                600,
+                450
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "可行走表面",
+              "bbox": [
+                700,
+                400,
+                800,
+                450
+              ]
+            }
+          ],
+          "count": 3,
+          "timestamp": "2026-04-28T16:58:50.796284"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            200,
+            400,
+            300,
+            450
+          ],
+          "area_pct": 1.0507652108995893,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch0_mask.png",
+          "timestamp": "2026-04-28T16:58:51.703407"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            500,
+            400,
+            600,
+            450
+          ],
+          "area_pct": 1.135939461807323,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch1_mask.png",
+          "timestamp": "2026-04-28T16:58:52.867806"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            700,
+            400,
+            800,
+            450
+          ],
+          "area_pct": 0.6854660830024771,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_r2_patch2_mask.png",
+          "timestamp": "2026-04-28T16:58:54.030684"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "1.  **绿色区域是否准确覆盖了地面？**\n    是。绿色半透明区域主要覆盖了场景底部的路面，包括潮湿的反光部分和通向远处的路径，这符合地面/可行走区域的特征。\n\n2.  **是否有绿色区域覆盖到了非地面物体（墙壁、家具等）？**\n    否。绿色区域似乎止于两侧的障碍物边缘（如左侧的沙发和板条箱，右侧的大型垃圾箱和绿色回收桶），没有明显的向上“溢出”或覆盖到垂直墙面、家具侧面的情况。\n\n3.  **是否有明显的地面区域未被覆盖？**\n    否。从前景一直延伸到背景深处的蓝色光源处，可行走的地面路径似乎是连续的，没有明显的断开或遗漏区域。\n\n4.  **整体覆盖率是否足够？**\n    是。识别结果有效地勾勒出了巷子中间的通行空间，并避开了两侧的静态障碍物，看起来适合作为游戏内的导航网格或可行走区域判定。\n\nPASS",
+          "passed": true,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/alley_round2_preview.png",
+          "timestamp": "2026-04-28T16:59:15.108558"
+        }
+      ],
+      "end_time": "2026-04-28T16:59:15.108581"
+    }
+  ],
+  "final_result": {
+    "mask_path": "/root/.openclaw/workspace/last-signal/assets/masks/alley_walkable_mask.png",
+    "coverage_pct": 15.367350260416668,
+    "total_rounds": 2,
+    "total_time": "0:01:19.302009"
+  }
+}

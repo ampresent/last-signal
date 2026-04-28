@@ -259,12 +259,19 @@ def omni_analyze_image(image_path, prompt, max_tokens=4096):
     result = subprocess.run(
         ["bash", MIMO_API_SCRIPT, "image", image_path, prompt,
          "--max-tokens", str(max_tokens)],
-        capture_output=True, text=True, timeout=120
+        capture_output=True, text=True, timeout=300
     )
     if result.returncode != 0:
         raise RuntimeError(f"Omni 调用失败: {result.stderr}")
     if not result.stdout.strip():
-        raise RuntimeError("Omni 返回空结果")
+        print("  ⚠️  Omni 返回空结果，重试一次...")
+        result = subprocess.run(
+            ["bash", MIMO_API_SCRIPT, "image", image_path, prompt,
+             "--max-tokens", str(max_tokens)],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            raise RuntimeError("Omni 返回空结果（重试后仍失败）")
     return result.stdout.strip()
 
 
@@ -310,9 +317,17 @@ def omni_identify_ground_patches(image_path, scene_id, round_num=1, previous_mas
         blended = cv2.addWeighted(img, 0.6, overlay, 0.4, 0)
         preview_path = os.path.join(LOG_DIR, f"{scene_id}_round{round_num}_context.png")
         cv2.imwrite(preview_path, blended)
-        response = omni_analyze_image(preview_path, prompt)
+        try:
+            response = omni_analyze_image(preview_path, prompt)
+        except RuntimeError as e:
+            print(f"  ⚠️  Omni 调用失败: {e}")
+            return []
     else:
-        response = omni_analyze_image(image_path, prompt)
+        try:
+            response = omni_analyze_image(image_path, prompt)
+        except RuntimeError as e:
+            print(f"  ⚠️  Omni 调用失败: {e}")
+            return []
 
     json_match = re.search(r'\[.*\]', response, re.DOTALL)
     if not json_match:
@@ -364,7 +379,11 @@ def omni_review_ground_overlay(image_path, mask_path, scene_id, round_num):
         f"如果有误覆盖区域，追加: OVERCOVER [x1,y1,x2,y2] <描述>\n"
     )
 
-    response = omni_analyze_image(preview_path, prompt)
+    try:
+        response = omni_analyze_image(preview_path, prompt)
+    except RuntimeError as e:
+        print(f"  ⚠️  Omni 审查失败: {e}")
+        return False, str(e), []
 
     passed = "PASS" in response.upper() and "FAIL" not in response.upper()
 

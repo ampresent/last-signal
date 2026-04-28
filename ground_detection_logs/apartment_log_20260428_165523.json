@@ -1,0 +1,390 @@
+{
+  "scene_id": "apartment",
+  "start_time": "2026-04-28T16:54:06.579327",
+  "rounds": [
+    {
+      "round": 1,
+      "description": "第 1 轮地面识别",
+      "start_time": "2026-04-28T16:54:06.584656",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 13.7%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_ground.png",
+          "timestamp": "2026-04-28T16:54:17.417632"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL 误覆盖了前景物体，遗漏了大部分实际地面  \nOVERCOVER [0, 480, 350, 600] 左下角设备区域  \nOVERCOVER [350, 500, 550, 600] 底部中间设备区域  \nMISSING [200, 350, 600, 480] 房间中央地面区域  \nMISSING [550, 420, 900, 600] 右侧桌子下方地面区域",
+          "image_path": null,
+          "timestamp": "2026-04-28T16:54:29.086991"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地面",
+              "bbox": [
+                12,
+                500,
+                148,
+                625
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地面",
+              "bbox": [
+                175,
+                523,
+                352,
+                624
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地面",
+              "bbox": [
+                398,
+                551,
+                602,
+                624
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地面",
+              "bbox": [
+                648,
+                578,
+                855,
+                624
+              ]
+            }
+          ],
+          "count": 4,
+          "timestamp": "2026-04-28T16:54:13.001959"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            12,
+            500,
+            148,
+            625
+          ],
+          "area_pct": 3.679290101462554,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch0_mask.png",
+          "timestamp": "2026-04-28T16:54:13.977937"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            175,
+            523,
+            352,
+            624
+          ],
+          "area_pct": 4.131799518137704,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch1_mask.png",
+          "timestamp": "2026-04-28T16:54:15.152326"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            398,
+            551,
+            602,
+            624
+          ],
+          "area_pct": 3.5121653262750687,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch2_mask.png",
+          "timestamp": "2026-04-28T16:54:16.296069"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            648,
+            578,
+            855,
+            624
+          ],
+          "area_pct": 2.4334045946587937,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r1_patch3_mask.png",
+          "timestamp": "2026-04-28T16:54:17.376253"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL 误覆盖了前景物体，遗漏了大部分实际地面  \nOVERCOVER [0, 480, 350, 600] 左下角设备区域  \nOVERCOVER [350, 500, 550, 600] 底部中间设备区域  \nMISSING [200, 350, 600, 480] 房间中央地面区域  \nMISSING [550, 420, 900, 600] 右侧桌子下方地面区域",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round1_preview.png",
+          "timestamp": "2026-04-28T16:54:29.086963"
+        }
+      ],
+      "end_time": "2026-04-28T16:54:29.087024"
+    },
+    {
+      "round": 2,
+      "description": "第 2 轮地面识别",
+      "start_time": "2026-04-28T16:54:29.087029",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 10.8%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round2_ground.png",
+          "timestamp": "2026-04-28T16:54:56.832517"
+        },
+        {
+          "type": "review",
+          "content": "FAIL: FAIL 存在误覆盖和遗漏区域\n\nOVERCOVER [450, 800, 550, 900] 桌子腿区域\nOVERCOVER [100, 800, 200, 950] 左侧柜子底部区域\nMISSING [300, 850, 400, 950] 房间中央靠前的地面区域\nMISSING [500, 880, 600, 980] 中央偏右的地面区域",
+          "image_path": null,
+          "timestamp": "2026-04-28T16:55:05.813066"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "地板",
+              "bbox": [
+                50,
+                550,
+                150,
+                600
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "地板",
+              "bbox": [
+                550,
+                450,
+                650,
+                500
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "地板",
+              "bbox": [
+                800,
+                500,
+                900,
+                550
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "地板",
+              "bbox": [
+                400,
+                500,
+                500,
+                550
+              ]
+            }
+          ],
+          "count": 4,
+          "timestamp": "2026-04-28T16:54:52.553810"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            50,
+            550,
+            150,
+            600
+          ],
+          "area_pct": 1.3902745257728462,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch0_mask.png",
+          "timestamp": "2026-04-28T16:54:53.428274"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            550,
+            450,
+            650,
+            500
+          ],
+          "area_pct": 1.20414673046252,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch1_mask.png",
+          "timestamp": "2026-04-28T16:54:54.559175"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            800,
+            500,
+            900,
+            550
+          ],
+          "area_pct": 1.5338151956293054,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch2_mask.png",
+          "timestamp": "2026-04-28T16:54:55.689247"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            400,
+            500,
+            500,
+            550
+          ],
+          "area_pct": 1.0925039872408293,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r2_patch3_mask.png",
+          "timestamp": "2026-04-28T16:54:56.809350"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "FAIL 存在误覆盖和遗漏区域\n\nOVERCOVER [450, 800, 550, 900] 桌子腿区域\nOVERCOVER [100, 800, 200, 950] 左侧柜子底部区域\nMISSING [300, 850, 400, 950] 房间中央靠前的地面区域\nMISSING [500, 880, 600, 980] 中央偏右的地面区域",
+          "passed": false,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round2_preview.png",
+          "timestamp": "2026-04-28T16:55:05.813036"
+        }
+      ],
+      "end_time": "2026-04-28T16:55:05.813089"
+    },
+    {
+      "round": 3,
+      "description": "第 3 轮地面识别",
+      "start_time": "2026-04-28T16:55:05.813096",
+      "steps": [
+        {
+          "type": "overlay",
+          "content": "累计覆盖 11.8%",
+          "image_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round3_ground.png",
+          "timestamp": "2026-04-28T16:55:19.357013"
+        },
+        {
+          "type": "review",
+          "content": "PASS: PASS",
+          "image_path": null,
+          "timestamp": "2026-04-28T16:55:23.432182"
+        }
+      ],
+      "omni_proposals": [
+        {
+          "boxes": [
+            {
+              "id": "patch_1",
+              "label": "文件柜旁地面",
+              "bbox": [
+                20,
+                590,
+                120,
+                627
+              ]
+            },
+            {
+              "id": "patch_2",
+              "label": "中间过道地面",
+              "bbox": [
+                250,
+                585,
+                370,
+                627
+              ]
+            },
+            {
+              "id": "patch_3",
+              "label": "桌腿旁地面",
+              "bbox": [
+                430,
+                590,
+                520,
+                627
+              ]
+            },
+            {
+              "id": "patch_4",
+              "label": "右侧桌下地面",
+              "bbox": [
+                780,
+                585,
+                880,
+                627
+              ]
+            }
+          ],
+          "count": 4,
+          "timestamp": "2026-04-28T16:55:15.075327"
+        }
+      ],
+      "sam_results": [
+        {
+          "box_id": "patch_1",
+          "bbox": [
+            20,
+            590,
+            120,
+            627
+          ],
+          "area_pct": 0.9012860972547422,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r3_patch0_mask.png",
+          "timestamp": "2026-04-28T16:55:15.941449"
+        },
+        {
+          "box_id": "patch_2",
+          "bbox": [
+            250,
+            585,
+            370,
+            627
+          ],
+          "area_pct": 1.1435746038209644,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r3_patch1_mask.png",
+          "timestamp": "2026-04-28T16:55:17.072252"
+        },
+        {
+          "box_id": "patch_3",
+          "bbox": [
+            430,
+            590,
+            520,
+            627
+          ],
+          "area_pct": 0.768943635684957,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r3_patch2_mask.png",
+          "timestamp": "2026-04-28T16:55:18.220112"
+        },
+        {
+          "box_id": "patch_4",
+          "bbox": [
+            780,
+            585,
+            880,
+            627
+          ],
+          "area_pct": 0.924361193118192,
+          "mask_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_r3_patch3_mask.png",
+          "timestamp": "2026-04-28T16:55:19.333587"
+        }
+      ],
+      "overlay_reviews": [
+        {
+          "review": "PASS",
+          "passed": true,
+          "overlay_path": "/root/.openclaw/workspace/last-signal/ground_detection_logs/apartment_round3_preview.png",
+          "timestamp": "2026-04-28T16:55:23.432163"
+        }
+      ],
+      "end_time": "2026-04-28T16:55:23.432185"
+    }
+  ],
+  "final_result": {
+    "mask_path": "/root/.openclaw/workspace/last-signal/assets/masks/apartment_walkable_mask.png",
+    "coverage_pct": 11.714192708333334,
+    "total_rounds": 3,
+    "total_time": "0:01:16.874432"
+  }
+}
