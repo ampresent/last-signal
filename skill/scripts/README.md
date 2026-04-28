@@ -11,6 +11,7 @@ All scripts are designed to be run from the **project root** directory (not from
 | `gen_assets.py` | Generate base scene images + character portraits (Pollinations.AI) |
 | `gen_depth_lighting.py` | Depth-Anything depth maps + programmatic lighting |
 | `gen_masks.py` | MobileSAM + Omni mask generation (objects, walkable, water) |
+| `gen_ground_mask.py` | **Iterative ground detection** — multi-round Omni+SAM for precise walkable masks |
 | `gen_character_views.py` | Character perspective generation |
 | `cutout_from_sheet.py` | Frame-by-frame cutout from sprite sheets |
 | `rmbg14_cutout.py` | RMBG-1.4 background removal (any background, no HF token needed) |

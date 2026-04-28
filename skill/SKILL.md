@@ -99,6 +99,7 @@ Essential scripts are bundled in `skill/scripts/` so the skill directory is self
 | `scripts/gen_assets.py` | Scene image + portrait generation (Pollinations.AI) |
 | `scripts/gen_depth_lighting.py` | Depth maps + programmatic lighting |
 | `scripts/gen_masks.py` | MobileSAM + Omni mask pipeline |
+| `scripts/gen_ground_mask.py` | **Iterative ground detection** — Omni identifies small patches → SAM segments → Omni reviews → repeat. For walkable mask generation. |
 | `scripts/gen_character_views.py` | Character perspective generation |
 | `scripts/cutout_from_sheet.py` | Sprite sheet frame cutout |
 | `scripts/rmbg14_cutout.py` | RMBG-1.4 background removal (any background). Requires: torch, transformers, timm, kornia |
