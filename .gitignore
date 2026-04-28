@@ -22,3 +22,4 @@ _verify_preview.png
 # 例外：cutout 逐帧 PNG（WebP 无法正确处理 alpha=0 的 RGB 清零）
 !assets/sprites/cutout_*.png
 .git-credential
+models/

@@ -6,7 +6,7 @@
 
 | 组件 | 用途 |
 |------|------|
-| MobileSAM (ONNX) | 精确分割 (encoder 27MB + decoder 16MB) |
+| MobileSAM (ONNX) | 精确分割 (encoder 27MB + decoder 16KB) |
 | mimo-omni | 物体识别 + mask 验证 |
 
 ## Mask 类型
@@ -40,7 +40,7 @@ Step 3: 叠层验证 → PASS/FAIL
 
 ## Walkable Mask 要求
 
-Walkable mask 必须满足两个硬性条件：
+Walkable mask 必须满足三个硬性条件：
 
 ### 1. 连通性
 
@@ -58,17 +58,21 @@ Walkable mask **只能覆盖实际可行走的地面**，不能覆盖：
 
 ### 3. Omni 叠层验证（必须）
 
-生成后**必须**用 omni 模型验证：将 walkable mask 半透明叠加到场景图上，让 omni 检查：
+生成后**必须**用 omni 模型验证：将 walkable mask 半透明叠加到场景图上，让 omni 检查。
+
+**叠层颜色要求**：使用**浅绿色** `(0, 255, 0, alpha=40)`，不能用深绿。
+深绿色 (alpha≥80) 在暗色场景（如 alley、apartment）中会与暗色地面融合，
+导致 omni 模型无法准确判断覆盖范围，误判为 PASS。
 
 ```bash
-# 生成叠层验证图
+# 生成叠层验证图 — 浅绿色 overlay
 python3 -c "
 from PIL import Image
 scene = Image.open('assets/bg_apartment.webp').resize((960,640))
 mask = Image.open('assets/masks/apartment_walkable_mask.webp').convert('RGBA')
 overlay = Image.new('RGBA', (960,640))
 overlay.paste(scene, (0,0))
-green = Image.new('RGBA', (960,640), (0,255,0,80))
+green = Image.new('RGBA', (960,640), (0,255,0,40))  # alpha=40 浅绿
 overlay = Image.composite(green, overlay, mask.convert('L'))
 overlay.save('/tmp/verify_walkable.png')
 "
@@ -90,7 +94,7 @@ Step 3: 减去障碍物 object masks（已有的物体 mask）
 Step 4: 形态学清理 (MORPH_CLOSE 11×11 + MORPH_OPEN 5×5)
 Step 5: 连通性强制 — 只保留最大连通域
 Step 6: 缩放到游戏尺寸 (960×640) 并保存
-Step 7: 生成半透明叠层验证图 (绿色 overlay)
+Step 7: 生成半透明叠层验证图 (浅绿色 overlay, alpha=40)
 Step 8: Omni 视觉模型验证 — PASS/FAIL
 ```
 
@@ -108,13 +112,15 @@ Step 8: Omni 视觉模型验证 — PASS/FAIL
 
 ### ⚠️ 已知陷阱
 
-#### 1. 深度图不能用于区分 walkable/non-walkable
+#### 1. 🚫 严禁使用深度图做地面识别
 
-深度图测量的是**距相机距离**，不是地面高度。Walkable 区域的深度范围极宽（p5-p95: 0.32–0.86），无法用阈值分割。
+**深度图完全不能用于 walkable/non-walkable 区分。** 这不是"效果不好"，而是"原理上不可行"：
+- 深度图测量的是**距相机距离**，不是地面高度
+- Walkable 区域的深度范围极宽（p5-p95: 0.32–0.86），无法用阈值分割
+- `depth_mask = (depth >= 0.3) & (depth <= 0.85)` 会把墙壁也包含进来
+- 即使做了形态学后处理，深度图的结果仍然不可靠
 
-**错误做法**: `depth_mask = (depth >= 0.3) & (depth <= 0.85)` — 会把墙壁也包含进来。
-
-**正确做法**: 用 MobileSAM bbox + 空间裁剪 (crop_top_pct) 作为主要约束。
+**唯一正确做法**: MobileSAM bbox + 空间裁剪 (crop_top_pct) 作为主要约束。
 
 #### 2. 障碍物"坐在"walkable 区域上
 
@@ -136,6 +142,12 @@ MobileSAM 把 bbox 内的整个区域视为一个连通表面。如果 bbox 包�
 #### 4. Omni 验证非常严格
 
 即使只有少量像素与障碍物重叠，Omni 也会判定 FAIL。需要精确的物体 mask 减除。
+
+#### 5. 深色叠层误导 Omni
+
+**alpha≥80 的深绿色叠层在暗色场景中会与地面融合**，导致 omni 模型看不清覆盖边界，产生误判。
+
+**正确做法**: 使用 alpha=40 的浅绿色叠层，保证在暗色地面上也能清晰辨识边界。
 
 ## 运行
 
