@@ -691,8 +691,8 @@
     },
     "core": {
       "name": "B7 \u6838\u5fc3\u63a7\u5236\u5ba4",
-      "base": "bg_core.webp",
-      "depth": "core_depth.webp",
+      "base": "bg_rooftop.webp",
+      "depth": "rooftop_depth.webp",
       "lights": [
         {
           "id": "holo_ring",
