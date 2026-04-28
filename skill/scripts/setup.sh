@@ -15,7 +15,7 @@ echo "📁 项目目录: $(pwd)"
 # ──────────────────────────────────────────────
 # 0. 阿里云软件源（pip）
 # ──────────────────────────────────────────────
-echo "=== [0/5] 阿里云软件源 ==="
+echo "=== [0/6] 阿里云软件源 ==="
 
 if ! grep -q 'mirrors.aliyun.com/pypi' /etc/pip.conf 2>/dev/null; then
   cat > /etc/pip.conf << 'EOF'
@@ -31,7 +31,7 @@ fi
 # ──────────────────────────────────────────────
 # 1. Python 依赖
 # ──────────────────────────────────────────────
-echo "=== [1/5] Python 依赖 ==="
+echo "=== [1/6] Python 依赖 ==="
 
 pip3 install --break-system-packages -q \
   requests numpy opencv-python-headless pillow onnxruntime 2>/dev/null
@@ -41,7 +41,7 @@ echo "  ✓ $(python3 -c 'import requests,cv2,numpy,onnxruntime; print(f"request
 # ──────────────────────────────────────────────
 # 2. MobileSAM ONNX 模型 (从 R2 下载, 国内快)
 # ──────────────────────────────────────────────
-echo "=== [2/5] MobileSAM ONNX 模型 ==="
+echo "=== [2/6] MobileSAM ONNX 模型 ==="
 
 SAM_ENCODER="$PROJECT/models/mobilesam.encoder.onnx"
 SAM_DECODER="$PROJECT/models/mobile_sam.onnx"
@@ -98,9 +98,39 @@ use_https = True
 fi
 
 # ──────────────────────────────────────────────
-# 3. HuggingFace 镜像配置
+# 3. Git LFS (大文件支持)
 # ──────────────────────────────────────────────
-echo "=== [3/5] HuggingFace 镜像 ==="
+echo "=== [3/6] Git LFS ==="
+
+if command -v git-lfs &>/dev/null || command -v git-lfs &>/dev/null; then
+  echo "  ✓ git-lfs 已安装 ($(git lfs version 2>/dev/null | head -1))"
+else
+  echo "  ⬇️  安装 git-lfs..."
+  # 国内 GitHub 下载慢，用 ghproxy 代理
+  GHTMP=$(mktemp -d)
+  if curl -sL -o "$GHTMP/git-lfs.tar.gz" \
+    "https://ghfast.top/https://github.com/git-lfs/git-lfs/releases/download/v3.5.1/git-lfs-linux-amd64-v3.5.1.tar.gz" \
+    --connect-timeout 15 --max-time 120 2>/dev/null; then
+    tar xzf "$GHTMP/git-lfs.tar.gz" -C "$GHTMP"
+    cp "$GHTMP/git-lfs-3.5.1/git-lfs" /usr/local/bin/git-lfs
+    chmod +x /usr/local/bin/git-lfs
+    rm -rf "$GHTMP"
+    echo "  ✓ git-lfs 安装完成 ($(git lfs version 2>/dev/null | head -1))"
+  else
+    rm -rf "$GHTMP"
+    echo "  ❌ git-lfs 下载失败 (ghproxy 不可达)"
+    echo "     手动安装: https://git-lfs.com/"
+    echo "     或 apt-get install git-lfs"
+  fi
+fi
+
+# 初始化 git-lfs
+git lfs install 2>/dev/null || true
+
+# ──────────────────────────────────────────────
+# 4. HuggingFace 镜像配置
+# ──────────────────────────────────────────────
+echo "=== [4/6] HuggingFace 镜像 ==="
 
 if grep -q 'HF_ENDPOINT' ~/.bashrc 2>/dev/null; then
   echo "  ✓ HF_ENDPOINT 已配置"
@@ -111,9 +141,9 @@ fi
 export HF_ENDPOINT=https://hf-mirror.com
 
 # ──────────────────────────────────────────────
-# 4. git 配置
+# 5. git 配置
 # ──────────────────────────────────────────────
-echo "=== [4/5] git 配置 ==="
+echo "=== [5/6] git 配置 ==="
 
 {
   echo ".github-token"
@@ -127,9 +157,9 @@ git add .gitignore 2>/dev/null && git commit -m "chore: ignore credential files"
 echo "  ✓ .gitignore 已更新"
 
 # ──────────────────────────────────────────────
-# 5. 环境检查
+# 6. 环境检查
 # ──────────────────────────────────────────────
-echo "=== [5/5] 环境检查 ==="
+echo "=== [6/6] 环境检查 ==="
 ERR=0
 check() { python3 -c "$1" 2>/dev/null && echo "  ✓ $2" || { echo "  ✗ $2 FAILED"; ERR=$((ERR+1)); }; }
 
@@ -138,6 +168,14 @@ check "import cv2; print(cv2.__version__)" "opencv"
 check "import numpy; print(numpy.__version__)" "numpy"
 check "import onnxruntime; print(onnxruntime.__version__)" "onnxruntime"
 check "from PIL import Image; print(Image.__version__)" "pillow"
+
+# 检查 git-lfs
+if command -v git-lfs &>/dev/null; then
+  echo "  ✓ git-lfs ($(git lfs version 2>/dev/null | head -1))"
+else
+  echo "  ✗ git-lfs 未安装 (LFS 文件将无法拉取)"
+  ERR=$((ERR+1))
+fi
 
 # 检查 MobileSAM 模型
 if [ -f "$SAM_ENCODER" ] && [ -f "$SAM_DECODER" ]; then
@@ -162,6 +200,8 @@ else:
 echo ""
 if [ $ERR -eq 0 ]; then
   echo "🎉 全部通过，环境就绪！"
+  echo ""
+  echo "💡 拉取 LFS 大文件 (图片素材): git lfs pull"
   echo ""
   echo "💡 Mask 生成: python3 gen_masks.py"
   echo "   - MobileSAM (ONNX) 精确分割 + Omni 视觉验证"

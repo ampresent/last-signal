@@ -111,5 +111,22 @@ cached to `~/.cache/huggingface/`, subsequent runs skip (~3s load).
 - Hint text appears at top
 - VFX rain can clip to masks via `clipToMask`
 
+## 13. `git lfs pull` Hangs in China
+
+**Symptom**: `git lfs pull` stalls or takes 10+ minutes
+**Cause**: GitHub LFS endpoint (`github.com/*/info/lfs`) is extremely slow from Alibaba Cloud / domestic servers
+**Solution**:
+- Install git-lfs binary via `ghfast.top` proxy (see setup.sh step 3)
+- Set HTTP proxy: `git config --global http.proxy <proxy-url>`
+- Pull selectively: `git lfs pull --include="assets/bg_apartment.webp"`
+- For CI/CD: mirror LFS objects to R2 or domestic object storage
+
+## 14. Git LFS Pointer Files (Not Real Images)
+
+**Symptom**: `cv2.imread()` returns `None`, `file` shows "ASCII text"
+**Cause**: LFS files not pulled — they're 130-byte pointer files starting with `version https://git-lfs.github.com/spec/v1`
+**Solution**: `git lfs pull` (or `git lfs pull --include="<pattern>"`)
+**Verify**: `file assets/bg_apartment.webp` should show "RIFF (little-endian) data, Web/P image"
+
 ---
 **Related workflow chapter:** [12-pitfalls](../workflow/12-pitfalls.md)
