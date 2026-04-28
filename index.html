@@ -1830,26 +1830,27 @@ const CharSystem = {
     }); };
 
     const dirs = ['down', 'left', 'right', 'up'];
-    const promises = [];
+    const FRAME_W = 64;
+    const FRAME_H = 128;
 
     for (const [id, char] of Object.entries(this.chars)) {
-      if (this.sprites[id]) continue; // 已加载
+      if (this.sprites[id]) continue;
 
       this.sprites[id] = {};
       for (const dir of dirs) {
+        const sheet = await loadImg(`assets/sprites/sheet_${id}_${dir}.webp`);
+        if (!sheet) continue;
+
         for (let fi = 0; fi < this.WALK_FRAMES; fi++) {
-          const key = `${dir}_f${fi}`;
-          const path = `assets/sprites/${id}_${key}.webp`;
-          promises.push(
-            loadImg(path).then(img => {
-              if (img) this.sprites[id][key] = img;
-            })
-          );
+          const c = document.createElement('canvas');
+          c.width = FRAME_W;
+          c.height = FRAME_H;
+          const cx = c.getContext('2d');
+          cx.drawImage(sheet, fi * FRAME_W, 0, FRAME_W, FRAME_H, 0, 0, FRAME_W, FRAME_H);
+          this.sprites[id][`${dir}_f${fi}`] = c;
         }
       }
     }
-
-    await Promise.all(promises);
   },
 
   // ── 加载行走 mask ──
