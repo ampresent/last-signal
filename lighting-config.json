@@ -583,8 +583,8 @@
     },
     "underground": {
       "name": "B7 \u5730\u4e0b\u5b9e\u9a8c\u5ba4",
-      "base": "bg_underground.webp",
-      "depth": "underground_depth.webp",
+      "base": "bg_server_room.webp",
+      "depth": "server_room_depth.webp",
       "lights": [
         {
           "id": "emergency_red_l",
