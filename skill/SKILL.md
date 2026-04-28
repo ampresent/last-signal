@@ -14,6 +14,7 @@ Complete development workflow for the LAST SIGNAL cyberpunk point-and-click adve
 | Generate base assets | `python3 scripts/gen_assets.py` |
 | Generate depth + lighting | `python3 scripts/gen_depth_lighting.py` |
 | Generate masks | `python3 scripts/gen_masks.py` |
+| **Iterative ground detection** | `python3 scripts/gen_ground_mask.py [--scene apartment\|alley] [--max-rounds 3]` |
 | Generate character sprites | `python3 scripts/gen_character_views.py` |
 | Sprite sheet cutout (RMBG-1.4) | `python3 scripts/rmbg14_cutout.py <direction> <frames_dir>` |
 | Fix sprite size across directions | `python3 scripts/fix_sprite_scale.py` |
